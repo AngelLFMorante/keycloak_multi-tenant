@@ -176,9 +176,17 @@ public class KeycloakAdminService {
             if (response.getStatusCode().is2xxSuccessful()) {
                 return (String) response.getBody().get("access_token");
             } else {
-                throw new RuntimeException("Error obteniendo token: " + response.getStatusCode() + " - " + response.getBody());
+                // Esta parte se ejecuta si Keycloak responde con un código de error (ej. 400, 401, 403)
+                // y podremos ver el body del error de Keycloak.
+                System.err.println("Error obteniendo token de Keycloak. HTTP Status: " + response.getStatusCode());
+                System.err.println("Response Body: " + response.getBody());
+                throw new RuntimeException("Error obteniendo token de Keycloak: " + response.getStatusCode() + " - " + response.getBody());
             }
         } catch (Exception e) {
+            // Esta parte se ejecuta si la llamada a restTemplate.postForEntity() lanza una excepción
+            // antes de recibir una respuesta válida de Keycloak (ej. problema de conexión, URL incorrecta, etc.)
+            System.err.println("Excepción al intentar obtener token de Keycloak:");
+            e.printStackTrace(); // <--- ¡Esto es lo que necesitamos ver!
             throw new RuntimeException("Error llamando a Keycloak para obtener token", e);
         }
     }

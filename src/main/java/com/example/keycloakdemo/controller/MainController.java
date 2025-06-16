@@ -3,8 +3,10 @@ package com.example.keycloakdemo.controller;
 import com.example.keycloakdemo.services.KeycloakAdminService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.user.OAuth2User; // Mantén si usas oauth2Login en algún otro lugar
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,64 +21,85 @@ class MainController {
 
     @GetMapping("/")
     public String index() {
-        return "redirect:/login"; // Asegúrate de usar una barra inicial para rutas absolutas
+        return "redirect:/login";
     }
 
-    // --- AÑADE ESTE MÉTODO ---
     @GetMapping("/login")
-    public String login(Model model) {
-        // Puedes pasar un tenantId por defecto o manejarlo dinámicamente si tienes múltiples logins.
-        // Por ahora, usamos "plexus" como ejemplo, ya que tu formulario de login usa th:text="|Login - ${tenantId.toUpperCase()}|"
+    public String login(Model model, @RequestParam(value = "error", required = false) String error,
+                        @RequestParam(value = "logout", required = false) String logout) {
         model.addAttribute("tenantId", "plexus");
-        return "login"; // Asume que tienes un archivo login.html en src/main/resources/templates
+        if (error != null) {
+            // Usa un mensaje más genérico si la lógica de error no es granular en el controller
+            model.addAttribute("error", "Usuario o contraseña incorrectos.");
+        }
+        if (logout != null) {
+            model.addAttribute("logout", "Has cerrado sesión correctamente.");
+        }
+        return "login";
     }
-    // -------------------------
 
     @GetMapping("/home")
     public String home(Model model, Authentication authentication) {
-        OAuth2User user = (OAuth2User) authentication.getPrincipal();
-        model.addAttribute("username", user.getAttribute("preferred_username"));
-        model.addAttribute("email", user.getAttribute("email"));
+        if (authentication != null) {
+            model.addAttribute("username", authentication.getName()); // Obtiene el nombre del principal autenticado
+            // Si necesitas otros atributos (como email), asegúrate de que estén disponibles
+            // en tu objeto Authentication (ej. si usas un UserDetails personalizado o OAuth2User)
+            // Para el caso de UsernamePasswordAuthenticationToken, solo getName() es directamente accesible.
+            // Si quieres email, podrías tener que obtenerlo de Keycloak y guardarlo en la sesión o un objeto UserDetails personalizado.
+        }
         model.addAttribute("tenantId", "plexus");
         return "home";
     }
 
     @GetMapping("/pending")
     public String pendingApproval(Model model, Authentication authentication) {
-        OAuth2User user = (OAuth2User) authentication.getPrincipal();
-        model.addAttribute("username", user.getAttribute("preferred_username"));
+        if (authentication != null) {
+            model.addAttribute("username", authentication.getName());
+        }
         model.addAttribute("tenantId", "plexus");
         return "pending-approval";
     }
 
-    // Tu @PostMapping para el login personalizado de Keycloak
-    // Considera si este POST debe ser a "/login" o a "/plexus/login"
-    // Si tu formulario apunta a "/login" en el action, debería ser @PostMapping("/login")
-    // Si tienes un formulario por cada tenant, entonces el actual está bien, pero tu <form th:action="@{/login}" method="post">
-    // en login.html apunta a "/login", no a "/plexus/login". Esto es una inconsistencia.
-    @PostMapping("/login") // CAMBIO AQUÍ: para que coincida con el action de tu formulario de login
+    // *** CAMBIO AQUÍ: La ruta del POST ahora debe ser '/do_login' ***
+    @PostMapping("/do_login") // <--- ¡NUEVA RUTA!
     public String doLogin(@RequestParam String username,
                           @RequestParam String password,
-                          Model model,
                           HttpSession session) {
         try {
-            String realm = "plexus"; // O un parámetro si manejas múltiples realms
+            //Hay que cambiar estas variables para hacerlas globales
+            String realm = "plexus-realm";
             String clientId = "mi-spring-app-plexus";
-            String clientSecret = "0Fqax8FO1Pkjdd6RQFoJ8m0dYLCXu1zl";
+            String clientSecret = "APE7Jo7L22EY8yTKh50v6B82nQ8l3f24";
 
+            // Autenticación con Keycloak
             String token = keycloakAdminService.obtainToken(realm, clientId, clientSecret, username, password);
 
+            // Verificación de aprobación
             boolean approved = keycloakAdminService.isUserVerified("plexus", username);
             if (!approved) {
                 return "redirect:/pending";
             }
+
+            // Si todo es exitoso, establece la autenticación en Spring Security
+            // No necesitas pasar el token y username a la sesión para que Spring Security funcione,
+            // pero pueden ser útiles si tu aplicación los usa más tarde.
             session.setAttribute("token", token);
             session.setAttribute("username", username);
+
+            // Creamos un UsernamePasswordAuthenticationToken. Como ya obtuvimos el token de Keycloak,
+            // las credenciales (password) ya no son necesarias aquí, por eso null.
+            // Las authorities (roles/permisos) se pueden añadir aquí si las obtienes de Keycloak.
+            // Por simplicidad, lo dejamos null.
+            Authentication authentication = new UsernamePasswordAuthenticationToken(username, null, null);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            // Redirige al home
             return "redirect:/home";
+
         } catch (Exception e) {
-            model.addAttribute("error", "Credenciales inválidas");
-            model.addAttribute("tenantId", "plexus"); // Asegúrate de pasar el tenantId de nuevo
-            return "login";
+            System.err.println("Error de login: " + e.getMessage());
+            // Redirige al login con el parámetro 'error'
+            return "redirect:/login?error";
         }
     }
 }

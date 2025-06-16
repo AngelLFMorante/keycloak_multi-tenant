@@ -28,19 +28,18 @@
 <div class="login-container">
     <h2 class="text-center mb-4" th:text="|Acceso ${tenantId.toUpperCase()}|">Acceso</h2>
 
-    <div th:if="${param.error}" class="alert alert-danger" role="alert">
-        Usuario o contraseña incorrectos.
+    <div th:if="${error}" class="alert alert-danger" role="alert">
+        <span th:text="${error}">Usuario o contraseña incorrectos.</span>
     </div>
 
-    <div th:if="${param.logout}" class="alert alert-success" role="alert">
-        Has cerrado sesión correctamente.
+    <div th:if="${logout}" class="alert alert-success" role="alert">
+        <span th:text="${logout}">Has cerrado sesión correctamente.</span>
     </div>
 
-    <form th:action="@{/login}" method="post">
-        <div class="mb-3">
-            <label for="username" class="form-label">Usuario</label>
-            <input type="text" class="form-control" id="username" name="username" required autofocus>
-        </div>
+    <form th:action="@{/do_login}" method="post"> <div class="mb-3">
+        <label for="username" class="form-label">Usuario</label>
+        <input type="text" class="form-control" id="username" name="username" required autofocus>
+    </div>
 
         <div class="mb-3">
             <label for="password" class="form-label">Contraseña</label>
