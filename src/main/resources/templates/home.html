@@ -1,22 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>{{ realmName }} Home</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
 </head>
 <body>
-<h1>Welcome to the {{ realmName }} Application!</h1>
-<p>Hello, {{ username }}!</p>
-<p>Email: {{ email }}</p>
-<p>Full Name: {{ fullName }}</p>
-<p>Your Roles: {{ roles }}</p>
-<p>Access Token (ID Token for demo): <code>{{ accessToken }}</code></p>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="#">{{ realmName }} Application</a>
+    </div>
+</nav>
 
-<p><a href="/">Back to main page</a></p>
+<div class="container">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="card-title mb-3">Welcome, {{ username }}!</h1>
+            <p class="card-text"><strong>Email:</strong> {{ email }}</p>
+            <p class="card-text"><strong>Full Name:</strong> {{ fullName }}</p>
+            <p class="card-text"><strong>Your Roles:</strong> {{ roles }}</p>
+            <div class="mb-3">
+                <label for="token" class="form-label"><strong>Access Token (ID Token for demo):</strong></label>
+                <textarea id="token" class="form-control" rows="4" readonly>{{ accessToken }}</textarea>
+            </div>
+            <div class="d-flex justify-content-between">
+                <a href="/" class="btn btn-secondary">Back to main page</a>
+                <form action="/logout" method="post" class="m-0">
+                    <button type="submit" class="btn btn-danger">Logout</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-<form action="/logout" method="post">
-    <input type="submit" value="Logout">
-</form>
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -43,7 +43,7 @@ public class HomeController {
                     .map(a -> a.getAuthority())
                     .collect(Collectors.joining(", ")));
             model.addAttribute("accessToken", oidcUser.getIdToken().getTokenValue()); // Note: This is ID Token, not Access Token itself. For Access Token, you might need to save it from the userRequest.
-            return "tenant-home"; // Renders src/main/resources/templates/tenant-home.html
+            return "home"; // Renders src/main/resources/templates/tenant-home.html
         }
         return "redirect:/"; // Redirect to public index if not authenticated
     }

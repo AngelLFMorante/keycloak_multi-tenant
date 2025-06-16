@@ -43,6 +43,12 @@ public class SecurityConfig {
 
     private final String KEYCLOAK_AUTHORITY_PREFIX = "ROLE_";
 
+    private final CustomAuthenticationSuccessHandler successHandler;
+
+    public SecurityConfig(CustomAuthenticationSuccessHandler successHandler) {
+        this.successHandler = successHandler;
+    }
+
     @Bean
     public ClientRegistrationRepository clientRegistrationRepository() {
         // Build a base ClientRegistration from properties. This serves as a template.
@@ -78,6 +84,7 @@ public class SecurityConfig {
                         .userInfoEndpoint(userInfo -> userInfo
                                 .oidcUserService(this.oidcUserService())
                         )
+                        .successHandler(successHandler)
                 )
                 .logout(logout -> logout
                         .logoutUrl("/logout")

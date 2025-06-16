@@ -28,7 +28,7 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
         // Configure your tenants here
         tenantMapping.put("plexus", new String[]{"plexus-realm", "mi-app-plexus"});
         tenantMapping.put("inditex", new String[]{"inditex-realm", "mi-app-inditex"});
-        // Add more tenants as needed: tenantMapping.put("newtenant", new String[]{"newtenant-realm", "mi-app-newtenant"});
+        // Add more tenants
     }
 
     @Override
@@ -39,6 +39,7 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
 
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         String requestUri = request.getRequestURI();
+        System.out.println("requestUri: " + request.getRequestURI());
 
         // Extract tenant from URL path (e.g., /plexus/home -> plexus)
         String tenantPathSegment = null;
@@ -93,7 +94,6 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
 
     private String buildDynamicRedirectUri(HttpServletRequest request, String tenantPathSegment, String registrationId) {
         // Construct the redirect URI based on the current request context and tenant.
-        // Example: http://localhost:8085/plexus/login/oauth2/code/keycloak
         return UriComponentsBuilder.fromHttpUrl(request.getRequestURL().toString())
                 .replacePath(request.getContextPath() + "/" + tenantPathSegment + "/login/oauth2/code/" + registrationId)
                 .replaceQuery(null) // Remove any existing query parameters
