@@ -1,68 +1,135 @@
 package com.example.keycloakdemo.config;
 
-import lombok.RequiredArgsConstructor;
+import com.example.keycloakdemo.repository.DynamicClientRegistrationRepository;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.http.HttpMethod;
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 
 @Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
+
+    @Value("${keycloak.auth-server-url}")
+    private String keycloakAuthServerUrl;
+
+    @Value("${spring.security.oauth2.client.registration.keycloak.client-id}")
+    private String baseClientId;
+
+    @Value("${spring.security.oauth2.client.registration.keycloak.client-secret}")
+    private String baseClientSecret; // Aunque puede que no se use para clientes públicos
+
+    @Value("${spring.security.oauth2.client.registration.keycloak.scope}")
+    private String[] baseScopes;
+
+    private final String KEYCLOAK_AUTHORITY_PREFIX = "ROLE_";
+
+    @Bean
+    public ClientRegistrationRepository clientRegistrationRepository() {
+        // Build a base ClientRegistration from properties. This serves as a template.
+        ClientRegistration base = ClientRegistration.withRegistrationId("keycloak") // This ID should match the property prefix
+                .clientId(baseClientId)
+                .clientSecret(baseClientSecret) // Only if your client is confidential. For public clients, this can be null/empty.
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC) // Or NONE for public clients
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri("{baseUrl}/{realmName}/login/oauth2/code/{registrationId}") // Template redirect URI
+                .scope(baseScopes)
+                .authorizationUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/auth")
+                .tokenUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/token")
+                .userInfoUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/userinfo")
+                .jwkSetUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/certs")
+                .issuerUri(keycloakAuthServerUrl + "/realms/{realmName}") // Template issuer URI
+                .userNameAttributeName("preferred_username") // Or 'sub'
+                .build();
+
+        return new DynamicClientRegistrationRepository(keycloakAuthServerUrl, base);
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(
-                                "/",
-                                "/css/**",
-                                "/js/**",
-                                "/images/**",
-                                "/webjars/**",
-                                "/register",
-                                "/error",
-                                "/pending"
-                        ).permitAll()
-
-                        // *** AHORA PERMITIMOS EL POST A LA NUEVA RUTA DE PROCESAMIENTO ***
-                        .requestMatchers(HttpMethod.POST, "/do_login").permitAll() // <--- ¡NUEVA RUTA!
-
-                        .requestMatchers(HttpMethod.POST, "/plexus/process_register").permitAll()
-
+                        .requestMatchers("/", "/public/**", "/error").permitAll()
+                        .requestMatchers("/plexus/login", "/inditex/login").permitAll()  // Permitir estas rutas sin login
+                        .requestMatchers("/plexus/**", "/inditex/**").authenticated()
                         .anyRequest().authenticated()
                 )
-                // Aquí es donde ajustamos formLogin().
-                // No queremos que Spring Security procese el POST del formulario por defecto,
-                // ya que lo haremos nosotros mismos en /do_login.
-                // Sin embargo, necesitamos el .loginPage("/login") para que Spring Security sepa
-                // dónde redirigir a los usuarios no autenticados y para la funcionalidad de logout.
-                .formLogin(form -> form
-                                .loginPage("/login")        // La URL para mostrar el formulario (GET)
-                                .permitAll() // Permitimos el acceso a la página de login (GET)
-                        // IMPORTANTE: NO uses .loginProcessingUrl() si quieres que tu @PostMapping lo maneje
-                        // La ausencia de .loginProcessingUrl() con permitAll() en POST /do_login
-                        // y el formulario apuntando a /do_login es clave.
-                        // La defaultSuccessUrl y failureUrl pueden ser manejadas por tu controlador en /do_login
-                        // mediante redirecciones explícitas.
+                .oauth2Login(oauth2Login -> oauth2Login
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .oidcUserService(this.oidcUserService())
+                        )
                 )
                 .logout(logout -> logout
-                        .logoutSuccessUrl("/login?logout")
-                        .permitAll()
-                )
-                // Si no utilizas el flujo de OAuth2/OIDC para el login de usuarios finales,
-                // podrías considerar eliminar la sección .oauth2Login().
-                // Si la mantienes, asegúrate de que no cause conflictos.
-                .oauth2Login(oauth2 -> oauth2
-                                .loginPage("/login") // OJO: Si esto redirige a Keycloak, puede ser otra forma de login.
-                        // Asegúrate de que no se superpongan las intenciones.
-                )
-                .csrf(AbstractHttpConfigurer::disable);
-
+                        .logoutUrl("/logout")
+                        .logoutSuccessHandler(oidcLogoutSuccessHandler())
+                );
         return http.build();
+    }
+
+    @Bean
+    public OAuth2UserService<OidcUserRequest, OidcUser> oidcUserService() {
+        final OidcUserService delegate = new OidcUserService();
+
+        return (userRequest) -> {
+            OidcUser oidcUser = delegate.loadUser(userRequest);
+            Set<GrantedAuthority> mappedAuthorities = new HashSet<>();
+
+            // Extract roles from realm_access.roles (realm roles)
+            Map<String, Object> realmAccess = oidcUser.getClaimAsMap("realm_access");
+            if (realmAccess != null && realmAccess.containsKey("roles")) {
+                Collection<String> realmRoles = (Collection<String>) realmAccess.get("roles");
+                realmRoles.forEach(role -> mappedAuthorities.add(new SimpleGrantedAuthority(KEYCLOAK_AUTHORITY_PREFIX + role.toUpperCase())));
+            }
+
+            // Extract roles from resource_access.<client-id>.roles (client roles)
+            Map<String, Object> resourceAccess = oidcUser.getClaimAsMap("resource_access");
+            if (resourceAccess != null) {
+                // Get the current client ID dynamically from the user request
+                String currentClientId = userRequest.getClientRegistration().getClientId();
+                Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get(currentClientId);
+                if (clientAccess != null && clientAccess.containsKey("roles")) {
+                    Collection<String> clientRoles = (Collection<String>) clientAccess.get("roles");
+                    clientRoles.forEach(role -> mappedAuthorities.add(new SimpleGrantedAuthority(KEYCLOAK_AUTHORITY_PREFIX + role.toUpperCase())));
+                }
+            }
+
+            mappedAuthorities.addAll(oidcUser.getAuthorities());
+
+            return new DefaultOidcUser(mappedAuthorities, oidcUser.getIdToken(), oidcUser.getUserInfo());
+        };
+    }
+
+    @Bean
+    public LogoutSuccessHandler oidcLogoutSuccessHandler() {
+        return (request, response, authentication) -> {
+            // This handler is called after Spring Security's internal logout processing.
+            // Spring Security's OAuth2 client module usually handles the OIDC RP-initiated logout
+            // by redirecting to the IdP's end_session_endpoint if configured correctly.
+            // If you need specific redirects after Keycloak finishes its logout,
+            // you might need to construct the URL here using Keycloak's logout endpoint
+            // and the post_logout_redirect_uri parameter.
+            // For now, redirect to the app's root.
+            response.sendRedirect("/");
+        };
     }
 }
