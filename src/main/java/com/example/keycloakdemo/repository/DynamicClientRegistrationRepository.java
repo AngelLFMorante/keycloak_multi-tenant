@@ -95,7 +95,7 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
     private String buildDynamicRedirectUri(HttpServletRequest request, String tenantPathSegment, String registrationId) {
         // Construct the redirect URI based on the current request context and tenant.
         return UriComponentsBuilder.fromHttpUrl(request.getRequestURL().toString())
-                .replacePath(request.getContextPath() + "/" + tenantPathSegment + "/login/oauth2/code/" + registrationId)
+                .replacePath(request.getContextPath() + "/login/oauth2/code/" + registrationId)
                 .replaceQuery(null) // Remove any existing query parameters
                 .build()
                 .toUriString();

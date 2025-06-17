@@ -52,19 +52,19 @@ public class SecurityConfig {
     @Bean
     public ClientRegistrationRepository clientRegistrationRepository() {
         // Build a base ClientRegistration from properties. This serves as a template.
-        ClientRegistration base = ClientRegistration.withRegistrationId("keycloak") // This ID should match the property prefix
+        ClientRegistration base = ClientRegistration.withRegistrationId("keycloak")
                 .clientId(baseClientId)
-                .clientSecret(baseClientSecret) // Only if your client is confidential. For public clients, this can be null/empty.
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC) // Or NONE for public clients
+                .clientSecret(baseClientSecret)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/{realmName}/login/oauth2/code/{registrationId}") // Template redirect URI
+                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
                 .scope(baseScopes)
                 .authorizationUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/auth")
                 .tokenUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/token")
                 .userInfoUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/userinfo")
                 .jwkSetUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/certs")
-                .issuerUri(keycloakAuthServerUrl + "/realms/{realmName}") // Template issuer URI
-                .userNameAttributeName("preferred_username") // Or 'sub'
+                .issuerUri(keycloakAuthServerUrl + "/realms/{realmName}")
+                .userNameAttributeName("preferred_username")
                 .build();
 
         return new DynamicClientRegistrationRepository(keycloakAuthServerUrl, base);
