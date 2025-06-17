@@ -50,7 +50,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public ClientRegistrationRepository clientRegistrationRepository() {
+    public ClientRegistrationRepository clientRegistrationRepository(TenantProperties tenantProperties) {
         // Build a base ClientRegistration from properties. This serves as a template.
         ClientRegistration base = ClientRegistration.withRegistrationId("keycloak")
                 .clientId(baseClientId)
@@ -67,7 +67,7 @@ public class SecurityConfig {
                 .userNameAttributeName("preferred_username")
                 .build();
 
-        return new DynamicClientRegistrationRepository(keycloakAuthServerUrl, base);
+        return new DynamicClientRegistrationRepository(keycloakAuthServerUrl, base, tenantProperties);
     }
 
     @Bean
