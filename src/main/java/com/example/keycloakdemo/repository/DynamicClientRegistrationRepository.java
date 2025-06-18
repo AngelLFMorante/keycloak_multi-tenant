@@ -1,5 +1,6 @@
 package com.example.keycloakdemo.repository;
 
+import com.example.keycloakdemo.model.TenantInfo;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -19,7 +20,7 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
     private final ClientRegistration baseClientRegistration;
 
     // Map the tenant path segment to its corresponding Keycloak realm name and client ID
-    private final Map<String, String[]> tenantMapping = new HashMap<>(); // Key: path segment (e.g., "plexus"), Value: [Keycloak Realm Name, Keycloak Client ID]
+    private final Map<String, TenantInfo> tenantMapping = new HashMap<>(); // Key: path segment (e.g., "plexus"), Value: [Keycloak Realm Name, Keycloak Client ID]
 
     public DynamicClientRegistrationRepository(String keycloakAuthServerUrl, ClientRegistration baseClientRegistration) {
         this.keycloakAuthServerUrl = keycloakAuthServerUrl;
@@ -27,8 +28,8 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
 
         // Configure your tenants here
         // Key: tenant (path segment), Value: [realmName, clientId, clientSecret]
-        tenantMapping.put("plexus", new String[]{"plexus-realm", "mi-app-plexus", "APE7Jo7L22EY8yTKh50v6B82nQ8l3f24"});
-        tenantMapping.put("inditex", new String[]{"inditex-realm", "mi-app-inditex", "5LR8rwO0VLFpog0lCrxrODfxlwQEEj7g"});
+        tenantMapping.put("plexus", new TenantInfo("plexus-realm", "mi-app-plexus", "APE7Jo7L22EY8yTKh50v6B82nQ8l3f24"));
+        tenantMapping.put("inditex", new TenantInfo("inditex-realm", "mi-app-inditex", "5LR8rwO0VLFpog0lCrxrODfxlwQEEj7g"));
 
         // Add more tenants
     }
@@ -60,7 +61,7 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
             tenantPathSegment = registrationId;
         }
 
-        String[] tenantInfo = tenantMapping.get(tenantPathSegment);
+        TenantInfo tenantInfo = tenantMapping.get(tenantPathSegment);
         if (tenantInfo  == null) {
             // Fallback for root path or other non-tenant specific paths, or error
             // You might want to handle this differently, e.g., throw an exception
@@ -71,9 +72,9 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
             return baseClientRegistration;
         }
 
-        String realmName = tenantInfo[0];
-        String clientId = tenantInfo[1];
-        String clientSecret = tenantInfo[2];
+        String realmName = tenantInfo.realm();
+        String clientId = tenantInfo.clientId();
+        String clientSecret = tenantInfo.clientSecret();
 
         // Construct the dynamic ClientRegistration for the specific tenant
         ClientRegistration clientRegistration = ClientRegistration.withClientRegistration(baseClientRegistration)
