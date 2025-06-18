@@ -20,18 +20,20 @@ public class HomeController {
      * Página de inicio pública. Si el usuario está autenticado, se muestra su información.
      *
      * @param model     Modelo de vista.
-     * @param principal Información del usuario autenticado (si existe).
+     * @param authentication Información del usuario autenticado (si existe).
      * @return Vista index.
      */
     @GetMapping("/")
-    public String index(Model model, Principal principal) {
-        if (principal != null) {
-            model.addAttribute("message", "Logged in as: " + principal.getName());
-            model.addAttribute("isLoggedIn", true);
+    public String index(Model model, Authentication authentication) {
+        boolean isLoggedIn = authentication != null && authentication.isAuthenticated();
+        model.addAttribute("isLoggedIn", isLoggedIn);
+
+        if (isLoggedIn) {
+            model.addAttribute("message", "You are logged in as " + authentication.getName());
         } else {
             model.addAttribute("message", "You are not logged in.");
-            model.addAttribute("isLoggedIn", false);
         }
+
         return "index";
     }
 

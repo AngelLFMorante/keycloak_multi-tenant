@@ -1,6 +1,8 @@
 package com.example.keycloakdemo.config;
 
 import com.example.keycloakdemo.repository.DynamicClientRegistrationRepository;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
@@ -24,6 +26,7 @@ import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * Configuración principal de seguridad para OAuth2 multi-tenant con Keycloak.
@@ -152,7 +155,32 @@ public class SecurityConfig {
     @Bean
     public LogoutSuccessHandler oidcLogoutSuccessHandler() {
         return (request, response, authentication) -> {
-            response.sendRedirect("/");
+            if (authentication != null && authentication.getPrincipal() instanceof OidcUser oidcUser) {
+                String issuer = oidcUser.getIssuer().toString();
+                String idToken = oidcUser.getIdToken().getTokenValue();
+                String logoutUrl = issuer + "/protocol/openid-connect/logout";
+
+                String redirectUri = UriComponentsBuilder
+                        .fromHttpUrl(request.getRequestURL().toString())
+                        .replacePath("/")
+                        .build()
+                        .toUriString();
+
+                String encodedRedirectUri = URLEncoder.encode(redirectUri, StandardCharsets.UTF_8);
+
+                String finalLogoutUrl = UriComponentsBuilder.fromHttpUrl(logoutUrl)
+                        .queryParam("id_token_hint", idToken)
+                        .queryParam("post_logout_redirect_uri", encodedRedirectUri)
+                        .build()
+                        .toUriString();
+
+                System.out.println("===> Logout desde LogoutSuccessHandler");
+                response.sendRedirect(finalLogoutUrl);
+            } else {
+                System.out.println("===> Logout sin usuario, redirigiendo a raíz");
+                response.sendRedirect("/");
+            }
         };
     }
+
 }
