@@ -10,16 +10,27 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 
+/**
+ * Manejador que redirige al home del tenant después de un login exitoso.
+ */
 @Component
 public class CustomAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
-    // Copia el mismo tenantMapping que usas en DynamicClientRegistrationRepository
+    // Mapeo de tenants: nombre del tenant -> [realm, clientId]
     private final Map<String, String[]> tenantMapping = Map.of(
             "plexus", new String[]{"plexus-realm", "mi-app-plexus"},
             "inditex", new String[]{"inditex-realm", "mi-app-inditex"}
-            // ... otros tenants
     );
 
+    /**
+     * Redirige a la ruta /{tenant}/home luego de un login exitoso.
+     *
+     * @param request        Solicitud HTTP.
+     * @param response       Respuesta HTTP.
+     * @param authentication Autenticación del usuario.
+     * @throws IOException      Error de redirección.
+     * @throws ServletException Error de servlet.
+     */
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
@@ -28,16 +39,11 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
             String registrationId = oauthToken.getAuthorizedClientRegistrationId();
             System.out.println("Login exitoso para tenant: " + registrationId);
 
-            // registrationId será 'plexus', 'inditex', etc
-            // Solo aseguramos que sea válido
             if (tenantMapping.containsKey(registrationId)) {
-                // Redirigir al path dinámico
                 response.sendRedirect("/" + registrationId + "/home");
                 return;
             }
         }
-        // En caso de fallo, redirigir al root
         response.sendRedirect("/");
     }
 }
-

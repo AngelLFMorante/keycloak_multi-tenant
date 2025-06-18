@@ -25,6 +25,9 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 
+/**
+ * Configuración principal de seguridad para OAuth2 multi-tenant con Keycloak.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -36,7 +39,7 @@ public class SecurityConfig {
     private String baseClientId;
 
     @Value("${spring.security.oauth2.client.registration.keycloak.client-secret}")
-    private String baseClientSecret; // Aunque puede que no se use para clientes públicos
+    private String baseClientSecret;
 
     @Value("${spring.security.oauth2.client.registration.keycloak.scope}")
     private String[] baseScopes;
@@ -49,9 +52,13 @@ public class SecurityConfig {
         this.successHandler = successHandler;
     }
 
+    /**
+     * Configura el repositorio de clientes OAuth2 usando un registro dinámico por tenant.
+     *
+     * @return Repositorio dinámico de registros de cliente.
+     */
     @Bean
     public ClientRegistrationRepository clientRegistrationRepository() {
-        // Build a base ClientRegistration from properties. This serves as a template.
         ClientRegistration base = ClientRegistration.withRegistrationId("keycloak")
                 .clientId(baseClientId)
                 .clientSecret(baseClientSecret)
@@ -70,13 +77,20 @@ public class SecurityConfig {
         return new DynamicClientRegistrationRepository(keycloakAuthServerUrl, base);
     }
 
+    /**
+     * Configura la cadena de filtros de seguridad HTTP para manejar las rutas protegidas y públicas.
+     *
+     * @param http Configuración del objeto HttpSecurity.
+     * @return Cadena de filtros configurada.
+     * @throws Exception Si ocurre un error en la configuración.
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/", "/public/**", "/error").permitAll()
-                        .requestMatchers("/plexus/login", "/inditex/login").permitAll()  // Permitir estas rutas sin login
+                        .requestMatchers("/plexus/login", "/inditex/login").permitAll()
                         .requestMatchers("/plexus/**", "/inditex/**").authenticated()
                         .anyRequest().authenticated()
                 )
@@ -93,6 +107,11 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Servicio personalizado para extraer roles desde el ID Token de Keycloak.
+     *
+     * @return Servicio OIDC de usuario extendido.
+     */
     @Bean
     public OAuth2UserService<OidcUserRequest, OidcUser> oidcUserService() {
         final OidcUserService delegate = new OidcUserService();
@@ -101,17 +120,16 @@ public class SecurityConfig {
             OidcUser oidcUser = delegate.loadUser(userRequest);
             Set<GrantedAuthority> mappedAuthorities = new HashSet<>();
 
-            // Extract roles from realm_access.roles (realm roles)
+            // Extrae roles de realm_access.roles
             Map<String, Object> realmAccess = oidcUser.getClaimAsMap("realm_access");
             if (realmAccess != null && realmAccess.containsKey("roles")) {
                 Collection<String> realmRoles = (Collection<String>) realmAccess.get("roles");
                 realmRoles.forEach(role -> mappedAuthorities.add(new SimpleGrantedAuthority(KEYCLOAK_AUTHORITY_PREFIX + role.toUpperCase())));
             }
 
-            // Extract roles from resource_access.<client-id>.roles (client roles)
+            // Extrae roles de resource_access.<client-id>.roles
             Map<String, Object> resourceAccess = oidcUser.getClaimAsMap("resource_access");
             if (resourceAccess != null) {
-                // Get the current client ID dynamically from the user request
                 String currentClientId = userRequest.getClientRegistration().getClientId();
                 Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get(currentClientId);
                 if (clientAccess != null && clientAccess.containsKey("roles")) {
@@ -126,16 +144,14 @@ public class SecurityConfig {
         };
     }
 
+    /**
+     * Manejador personalizado para logout que redirige a la raíz de la aplicación.
+     *
+     * @return Manejador de logout exitoso.
+     */
     @Bean
     public LogoutSuccessHandler oidcLogoutSuccessHandler() {
         return (request, response, authentication) -> {
-            // This handler is called after Spring Security's internal logout processing.
-            // Spring Security's OAuth2 client module usually handles the OIDC RP-initiated logout
-            // by redirecting to the IdP's end_session_endpoint if configured correctly.
-            // If you need specific redirects after Keycloak finishes its logout,
-            // you might need to construct the URL here using Keycloak's logout endpoint
-            // and the post_logout_redirect_uri parameter.
-            // For now, redirect to the app's root.
             response.sendRedirect("/");
         };
     }

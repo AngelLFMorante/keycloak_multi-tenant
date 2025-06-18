@@ -13,41 +13,62 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Repositorio personalizado que permite registrar dinámicamente configuraciones de clientes OAuth2
+ * en función del tenant (inquilino) detectado a partir de la URL de la solicitud.
+ * <p>
+ * Útil para aplicaciones multi-tenant donde cada tenant tiene su propio Realm y configuración en Keycloak.
+ */
 public class DynamicClientRegistrationRepository implements ClientRegistrationRepository {
 
+    // Caché de configuraciones de clientes ya creadas para evitar regenerarlas en cada solicitud
     private final Map<String, ClientRegistration> registrations = new ConcurrentHashMap<>();
+
     private final String keycloakAuthServerUrl;
     private final ClientRegistration baseClientRegistration;
 
-    // Map the tenant path segment to its corresponding Keycloak realm name and client ID
-    private final Map<String, TenantInfo> tenantMapping = new HashMap<>(); // Key: path segment (e.g., "plexus"), Value: [Keycloak Realm Name, Keycloak Client ID]
+    /**
+     * Mapeo entre el segmento del path del tenant (por ejemplo "inditex") y su configuración en Keycloak.
+     * Clave: segmento del path de la URL. Valor: objeto con realm, clientId y clientSecret.
+     */
+    private final Map<String, TenantInfo> tenantMapping = new HashMap<>();
 
+    /**
+     * Constructor principal del repositorio dinámico.
+     *
+     * @param keycloakAuthServerUrl     URL base del servidor de autenticación de Keycloak
+     * @param baseClientRegistration    Configuración base desde la cual se derivan las dinámicas
+     */
     public DynamicClientRegistrationRepository(String keycloakAuthServerUrl, ClientRegistration baseClientRegistration) {
         this.keycloakAuthServerUrl = keycloakAuthServerUrl;
         this.baseClientRegistration = baseClientRegistration;
 
-        // Configure your tenants here
-        // Key: tenant (path segment), Value: [realmName, clientId, clientSecret]
+        // Configurar los tenants conocidos y sus datos correspondientes en Keycloak
         tenantMapping.put("plexus", new TenantInfo("plexus-realm", "mi-app-plexus", "APE7Jo7L22EY8yTKh50v6B82nQ8l3f24"));
         tenantMapping.put("inditex", new TenantInfo("inditex-realm", "mi-app-inditex", "5LR8rwO0VLFpog0lCrxrODfxlwQEEj7g"));
 
-        // Add more tenants
+        // Puedes agregar más tenants aquí según sea necesario
     }
 
+    /**
+     * Devuelve la configuración del cliente OAuth2 asociada con el `registrationId` solicitado.
+     * Spring Security invoca este método automáticamente durante el flujo de autenticación.
+     *
+     * @param registrationId El ID de registro solicitado (e.g., "inditex", "plexus")
+     * @return La configuración completa del cliente OAuth2 (ClientRegistration)
+     */
     @Override
     public ClientRegistration findByRegistrationId(String registrationId) {
-        // This method is called by Spring Security to get the ClientRegistration.
-        // The 'registrationId' here is usually "keycloak" as configured in application.properties template.
-        // We need to dynamically determine the actual realm based on the current request.
         System.out.println("=======================================");
         System.out.println("===> Buscando registro para: " + registrationId);
 
+        // Obtener el HttpServletRequest actual
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         String requestUri = request.getRequestURI();
         System.out.println("=======================================");
-        System.out.println("requestUri: " + request.getRequestURI());
+        System.out.println("requestUri: " + requestUri);
 
-        // Extract tenant from URL path (e.g., /plexus/home -> plexus)
+        // Detectar tenant a partir del path de la URL, por ejemplo "/inditex/home"
         String tenantPathSegment = null;
         for (String pathSegment : tenantMapping.keySet()) {
             if (requestUri.startsWith("/" + pathSegment + "/")) {
@@ -56,43 +77,38 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
             }
         }
 
-        // Si no se detecta el tenant por la URI, usar el registrationId que viene como parámetro
+        // Si no se encuentra en la URL, usar el registrationId como nombre del tenant
         if (tenantPathSegment == null) {
             tenantPathSegment = registrationId;
         }
 
         TenantInfo tenantInfo = tenantMapping.get(tenantPathSegment);
-        if (tenantInfo  == null) {
-            // Fallback for root path or other non-tenant specific paths, or error
-            // You might want to handle this differently, e.g., throw an exception
-            // or redirect to a default tenant selection page.
-            System.err.println("No tenant path segment found for URI: " + requestUri + ". Returning base/default client.");
-            // If you have a default realm/client, you could return it here.
-            // For now, we return the base client, which will likely fail due to wrong issuer/redirect URI.
+        if (tenantInfo == null) {
+            System.err.println("No se encontró tenant para la URI: " + requestUri + ". Usando configuración base (puede fallar).");
             return baseClientRegistration;
         }
 
+        // Extraer información del tenant
         String realmName = tenantInfo.realm();
         String clientId = tenantInfo.clientId();
         String clientSecret = tenantInfo.clientSecret();
 
-        // Construct the dynamic ClientRegistration for the specific tenant
+        // Crear ClientRegistration específico para el tenant
         ClientRegistration clientRegistration = ClientRegistration.withClientRegistration(baseClientRegistration)
-                .registrationId(registrationId) // Use "plexus", "inditex", etc. como registrationId
-                .clientId(clientId) // Set the actual client ID for the tenant
-                // Client Secret is only needed if Keycloak client is "confidential" and not "public"
-                // For a multi-tenant app with frontend redirect, clients are usually "public",
-                // so you might not need to set clientSecret dynamically unless it varies.
-                .clientSecret(clientSecret) // If client secret varies per tenant/client ID
-                .scope(baseClientRegistration.getScopes()) // Keep original scopes or customize
+                .registrationId(registrationId)
+                .clientId(clientId)
+                .clientSecret(clientSecret) // Requerido si el cliente en Keycloak no es público
+                .scope(baseClientRegistration.getScopes())
                 .redirectUri(buildDynamicRedirectUri(request, tenantPathSegment, registrationId))
                 .authorizationUri(keycloakAuthServerUrl + "/realms/" + realmName + "/protocol/openid-connect/auth")
                 .tokenUri(keycloakAuthServerUrl + "/realms/" + realmName + "/protocol/openid-connect/token")
                 .userInfoUri(keycloakAuthServerUrl + "/realms/" + realmName + "/protocol/openid-connect/userinfo")
                 .jwkSetUri(keycloakAuthServerUrl + "/realms/" + realmName + "/protocol/openid-connect/certs")
-                .issuerUri(keycloakAuthServerUrl + "/realms/" + realmName) // Set the dynamic issuer URI
-                .userNameAttributeName(IdTokenClaimNames.SUB) // Or 'preferred_username' if you prefer
+                .issuerUri(keycloakAuthServerUrl + "/realms/" + realmName)
+                .userNameAttributeName(IdTokenClaimNames.SUB)
                 .build();
+
+        // Logs de depuración para verificación
         System.out.println("=======================================");
         System.out.println("===> Realm: " + realmName);
         System.out.println("===> Client ID: " + clientId);
@@ -100,16 +116,24 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
         System.out.println("===> Redirect URI: " + clientRegistration.getRedirectUri());
         System.out.println("===> Issuer URI: " + clientRegistration.getProviderDetails().getIssuerUri());
 
-        // Cache the dynamically created client registration for subsequent requests
-        registrations.put(tenantPathSegment, clientRegistration); // Cache by tenant path segment
+        // Guardar en caché para evitar recrearlo en futuras peticiones
+        registrations.put(tenantPathSegment, clientRegistration);
         return clientRegistration;
     }
 
+    /**
+     * Construye dinámicamente la URI de redirección (redirect URI) que se enviará a Keycloak
+     * al iniciar el flujo de autenticación.
+     *
+     * @param request            La solicitud HTTP actual
+     * @param tenantPathSegment  Segmento de path del tenant (por ejemplo: "inditex")
+     * @param registrationId     ID de registro (mismo que tenant en este caso)
+     * @return La URI completa de redirección para el login OAuth2
+     */
     private String buildDynamicRedirectUri(HttpServletRequest request, String tenantPathSegment, String registrationId) {
-        // Construct the redirect URI based on the current request context and tenant.
         return UriComponentsBuilder.fromHttpUrl(request.getRequestURL().toString())
                 .replacePath(request.getContextPath() + "/login/oauth2/code/" + registrationId)
-                .replaceQuery(null) // Remove any existing query parameters
+                .replaceQuery(null) // Elimina cualquier parámetro de consulta existente
                 .build()
                 .toUriString();
     }
