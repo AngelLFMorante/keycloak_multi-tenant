@@ -18,6 +18,12 @@
         <li class="list-group-item"><a href="/inditex/login">Go to Inditex App (Requires Login)</a></li>
     </ul>
 
+    <!-- ✅ Enlace a registro en el realm "plexus" -->
+    <div class="mb-3">
+        <h4>Don't have an account?</h4>
+        <a href="/plexus/register" class="btn btn-primary">Register in Plexus</a>
+    </div>
+
     <form action="/logout" method="post" th:if="${isLoggedIn}">
         <button type="submit" class="btn btn-danger">Logout</button>
     </form>
