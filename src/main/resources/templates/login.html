@@ -36,7 +36,7 @@
         <span th:text="${logout}">Has cerrado sesión correctamente.</span>
     </div>
 
-    <form th:action="@{/do_login}" method="post"> <div class="mb-3">
+    <form th:action="@{/{realm}/do_login(realm=${tenantId})}" method="post"> <div class="mb-3">
         <label for="username" class="form-label">Usuario</label>
         <input type="text" class="form-control" id="username" name="username" required autofocus>
     </div>

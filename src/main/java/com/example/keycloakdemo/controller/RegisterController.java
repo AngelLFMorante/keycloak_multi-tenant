@@ -37,6 +37,7 @@ public class RegisterController {
             realm = realm.concat("-realm");
             keycloakService.createUser(realm, request);
             model.addAttribute("message", "User registered. Waiting for admin approval.");
+            model.addAttribute("tenantId", realm);
             return "login"; // tu vista de login
         } catch (Exception e) {
             model.addAttribute("error", "Registration failed: " + e.getMessage());

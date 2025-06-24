@@ -30,7 +30,7 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 import org.springframework.web.util.UriComponentsBuilder;
 
 /**
- * Configuración principal de seguridad para OAuth2 multi-tenant con Keycloak.
+ * Configuración principal de seguridad para multi-tenant con Keycloak.
  */
 @Configuration
 @EnableWebSecurity
@@ -57,9 +57,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Configura el repositorio de clientes OAuth2 usando un registro dinámico por tenant.
-     *
-     * @return Repositorio dinámico de registros de cliente.
+     * Repositorio dinámico de clientes OAuth2 para multi-tenant.
      */
     @Bean
     public ClientRegistrationRepository clientRegistrationRepository() {
@@ -82,41 +80,37 @@ public class SecurityConfig {
     }
 
     /**
-     * Configura la cadena de filtros de seguridad HTTP para manejar las rutas protegidas y públicas.
-     *
-     * @param http Configuración del objeto HttpSecurity.
-     * @return Cadena de filtros configurada.
-     * @throws Exception Si ocurre un error en la configuración.
+     * Configuración de seguridad HTTP con formLogin clásico y URLs explícitas para cada tenant.
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
+                        // Recursos públicos
                         .requestMatchers("/", "/public/**", "/error").permitAll()
-                        .requestMatchers("/plexus/login", "/inditex/login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/plexus/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/plexus/register").permitAll()
+                        // Login y registro plexus
+                        .requestMatchers(HttpMethod.GET, "/plexus/login", "/plexus/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/plexus/register", "/plexus/do_login").permitAll()
+                        // Login y registro inditex
+                        .requestMatchers(HttpMethod.GET, "/inditex/login", "/inditex/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/inditex/register", "/inditex/do_login").permitAll()
+                        // Resto rutas protegidas por tenant
                         .requestMatchers("/plexus/**", "/inditex/**").authenticated()
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(oauth2Login -> oauth2Login
-                        .userInfoEndpoint(userInfo -> userInfo
-                                .oidcUserService(this.oidcUserService())
-                        )
-                        .successHandler(successHandler)
-                )
+                // Para login inditex, tendrías que hacer algo similar o manejarlo con un login único
+                // Si quieres usar un único login para varios tenants, mejor usar lógica en el controlador
                 .logout(logout -> logout
                         .logoutUrl("/logout")
                         .logoutSuccessHandler(oidcLogoutSuccessHandler())
                 );
+
         return http.build();
     }
 
     /**
-     * Servicio personalizado para extraer roles desde el ID Token de Keycloak.
-     *
-     * @return Servicio OIDC de usuario extendido.
+     * Servicio para extraer roles del token OIDC.
      */
     @Bean
     public OAuth2UserService<OidcUserRequest, OidcUser> oidcUserService() {
@@ -126,14 +120,12 @@ public class SecurityConfig {
             OidcUser oidcUser = delegate.loadUser(userRequest);
             Set<GrantedAuthority> mappedAuthorities = new HashSet<>();
 
-            // Extrae roles de realm_access.roles
             Map<String, Object> realmAccess = oidcUser.getClaimAsMap("realm_access");
             if (realmAccess != null && realmAccess.containsKey("roles")) {
                 Collection<String> realmRoles = (Collection<String>) realmAccess.get("roles");
                 realmRoles.forEach(role -> mappedAuthorities.add(new SimpleGrantedAuthority(KEYCLOAK_AUTHORITY_PREFIX + role.toUpperCase())));
             }
 
-            // Extrae roles de resource_access.<client-id>.roles
             Map<String, Object> resourceAccess = oidcUser.getClaimAsMap("resource_access");
             if (resourceAccess != null) {
                 String currentClientId = userRequest.getClientRegistration().getClientId();
@@ -151,9 +143,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Manejador personalizado para logout que redirige a la raíz de la aplicación.
-     *
-     * @return Manejador de logout exitoso.
+     * Logout personalizado para Keycloak.
      */
     @Bean
     public LogoutSuccessHandler oidcLogoutSuccessHandler() {

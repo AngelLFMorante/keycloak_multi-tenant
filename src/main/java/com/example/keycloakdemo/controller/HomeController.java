@@ -1,5 +1,6 @@
 package com.example.keycloakdemo.controller;
 
+import jakarta.servlet.http.HttpSession;
 import java.security.Principal;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -44,8 +45,9 @@ public class HomeController {
      * @return Redirección al endpoint de autorización OAuth2 para ese tenant.
      */
     @GetMapping("/{tenant}/login")
-    public String redirectToTenantLogin(@PathVariable String tenant) {
-        return "redirect:/oauth2/authorization/" + tenant;
+    public String redirectToTenantLogin(@PathVariable String tenant, Model model) {
+        model.addAttribute("tenantId", tenant);
+        return "login";
     }
 
     /**
@@ -53,10 +55,10 @@ public class HomeController {
      *
      * @param realmName     Nombre del realm extraído de la URL.
      * @param model         Modelo de vista.
-     * @param authentication Objeto de autenticación que contiene información del usuario.
+     *   Objeto de autenticación que contiene información del usuario.
      * @return Vista de usuario autenticado o redirección al inicio si no autenticado.
      */
-    @GetMapping("/{realmName}/home")
+    /*@GetMapping("/{realmName}/home")
     public String tenantHome(@PathVariable String realmName, Model model, Authentication authentication) {
         if (authentication != null && authentication.isAuthenticated()) {
             OidcUser oidcUser = (OidcUser) authentication.getPrincipal();
@@ -71,5 +73,24 @@ public class HomeController {
             return "home";
         }
         return "redirect:/";
+    }*/
+
+    @GetMapping("/{realmName}/home")
+    public String tenantHome(@PathVariable String realmName, Model model, HttpSession session) {
+        Object username = session.getAttribute("username");
+
+        if (username != null) {
+            model.addAttribute("realmName", realmName);
+            model.addAttribute("username", username);
+            model.addAttribute("email", session.getAttribute("email"));
+            model.addAttribute("fullName", session.getAttribute("fullName"));
+            model.addAttribute("roles", session.getAttribute("roles"));
+            model.addAttribute("accessToken", session.getAttribute("accessToken"));
+            return "home";
+        }
+
+        return "redirect:/" + realmName + "/login";
     }
+
+
 }
