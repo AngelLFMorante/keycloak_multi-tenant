@@ -4,12 +4,19 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext; // Importar SecurityContext
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.context.SecurityContextRepository; // Importar SecurityContextRepository
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.LinkedMultiValueMap;
@@ -18,8 +25,12 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+
+// Importa la configuración de seguridad para acceder a la constante DUMMY_PASSWORD
+import com.example.keycloakdemo.config.SecurityConfig;
 
 @Controller
 public class LoginController {
@@ -28,16 +39,30 @@ public class LoginController {
     private String keycloakBaseUrl;
 
     @Value("${spring.security.oauth2.client.registration.keycloak.client-secret}")
-    private String clientSecret; // Este valor DEBE coincidir con Keycloak
+    private String clientSecret;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private final AuthenticationManager authenticationManager;
+    private final AuthenticationSuccessHandler authenticationSuccessHandler;
+    private final SecurityContextRepository securityContextRepository; // Inyección de SecurityContextRepository
+
+    public LoginController(AuthenticationManager authenticationManager,
+                           AuthenticationSuccessHandler authenticationSuccessHandler,
+                           SecurityContextRepository securityContextRepository) { // Constructor para inyección
+        this.authenticationManager = authenticationManager;
+        this.authenticationSuccessHandler = authenticationSuccessHandler;
+        this.securityContextRepository = securityContextRepository;
+    }
+
     @PostMapping("/{realm}/do_login")
-    public String doLogin(@PathVariable String realm,
-                          @RequestParam String username,
-                          @RequestParam String password,
-                          Model model,
-                          HttpSession session) {
+    public void doLogin(@PathVariable String realm,
+                        @RequestParam String username,
+                        @RequestParam String password,
+                        Model model,
+                        HttpSession session,
+                        HttpServletRequest request,
+                        HttpServletResponse response) throws IOException {
 
         String tokenUrl = keycloakBaseUrl + "/realms/" + realm + "-realm/protocol/openid-connect/token";
         String clientId = "mi-app-" + realm;
@@ -49,7 +74,7 @@ public class LoginController {
         params.add("client_id", clientId);
         params.add("username", username);
         params.add("password", password);
-        params.add("scope", "openid"); // Mantener openid si quieres el id_token (aunque no se use para roles)
+        params.add("scope", "openid");
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -58,51 +83,43 @@ public class LoginController {
         String encodedAuth = Base64.getEncoder().encodeToString(clientAuth.getBytes(StandardCharsets.UTF_8));
         headers.set("Authorization", "Basic " + encodedAuth);
 
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
+        HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(params, headers);
 
         try {
-            ResponseEntity<String> response = restTemplate.exchange(
+            ResponseEntity<String> tokenResponse = restTemplate.exchange(
                     tokenUrl,
                     HttpMethod.POST,
-                    request,
+                    requestEntity,
                     String.class
             );
 
-            if (response.getStatusCode().is2xxSuccessful()) {
-                JsonNode node = objectMapper.readTree(response.getBody());
+            if (tokenResponse.getStatusCode().is2xxSuccessful()) {
+                JsonNode node = objectMapper.readTree(tokenResponse.getBody());
 
                 String accessToken = node.get("access_token").asText();
-                String idToken = node.has("id_token") ? node.get("id_token").asText() : null; // idToken puede ser null
+                String idToken = node.has("id_token") ? node.get("id_token").asText() : null;
 
-                session.setAttribute("accessToken", accessToken);
-                // Si el idToken es nulo, esta línea no añadirá nada, lo cual está bien.
-                session.setAttribute("idToken", idToken);
                 session.setAttribute("username", username);
 
-
-                // --- INICIO DE LA LÓGICA DE EXTRACCIÓN DE ROLES Y DATOS DE USUARIO ---
-                List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+                List<SimpleGrantedAuthority> extractedAuthorities = new ArrayList<>();
                 String email = null;
                 String fullName = null;
-                String preferredUsername = username; // Por defecto el username de login
+                String preferredUsername = username;
 
-                // **PASO CLAVE: Decodificar el ACCESS TOKEN para obtener los roles y otros datos**
-                if (accessToken != null) { // Asegúrate de que tienes un access token
+                if (accessToken != null) {
                     DecodedJWT decodedAccessToken = JWT.decode(accessToken);
 
-                    // Extraer roles de 'realm_access' del ACCESS TOKEN
                     Map<String, Object> realmAccess = decodedAccessToken.getClaim("realm_access").asMap();
                     if (realmAccess != null && realmAccess.containsKey("roles")) {
                         @SuppressWarnings("unchecked")
                         List<String> realmRoles = (List<String>) realmAccess.get("roles");
                         if (realmRoles != null) {
                             for (String role : realmRoles) {
-                                authorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
+                                extractedAuthorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
                             }
                         }
                     }
 
-                    // Extraer roles de 'resource_access' del ACCESS TOKEN
                     Map<String, Object> resourceAccess = decodedAccessToken.getClaim("resource_access").asMap();
                     if (resourceAccess != null && resourceAccess.containsKey(clientId)) {
                         @SuppressWarnings("unchecked")
@@ -112,15 +129,12 @@ public class LoginController {
                             List<String> clientRoles = (List<String>) clientAccess.get("roles");
                             if (clientRoles != null) {
                                 for (String role : clientRoles) {
-                                    authorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
+                                    extractedAuthorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
                                 }
                             }
                         }
                     }
 
-                    // Extraer email, fullName, preferred_username del ACCESS TOKEN (si existen)
-                    // Estos claims pueden estar en el Access Token si los scopes adecuados fueron pedidos
-                    // y Keycloak los incluye para ese tipo de token/flujo.
                     if (decodedAccessToken.getClaim("email") != null) {
                         email = decodedAccessToken.getClaim("email").asString();
                     }
@@ -130,42 +144,60 @@ public class LoginController {
                     if (decodedAccessToken.getClaim("preferred_username") != null) {
                         preferredUsername = decodedAccessToken.getClaim("preferred_username").asString();
                     }
-
                 } else {
-                    // Si no hay access token (muy raro si la respuesta es 2xx), no podemos extraer roles
-                    System.err.println("Advertencia: Access Token es nulo en una respuesta exitosa.");
+                    System.err.println("Advertencia: Access Token es nulo en una respuesta exitosa de Keycloak.");
+                    model.addAttribute("error", "Error interno: No se recibió Access Token de Keycloak.");
+                    model.addAttribute("tenantId", realm);
+                    response.sendRedirect("/login?error=true&tenantId=" + realm);
+                    return;
                 }
 
-                // Usar el preferredUsername para la autenticación si está disponible
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        preferredUsername, null, authorities
+                // --- INICIO DE FLUJO DE ÉXITO ---
+                UsernamePasswordAuthenticationToken authenticationRequest = new UsernamePasswordAuthenticationToken(
+                        preferredUsername, SecurityConfig.DUMMY_PASSWORD
                 );
-                SecurityContextHolder.getContext().setAuthentication(authentication);
 
+                Authentication authenticatedResult = authenticationManager.authenticate(authenticationRequest);
+
+                Authentication finalAuthentication = new UsernamePasswordAuthenticationToken(
+                        authenticatedResult.getPrincipal(),
+                        authenticatedResult.getCredentials(),
+                        extractedAuthorities
+                );
+
+                SecurityContextHolder.getContext().setAuthentication(finalAuthentication);
+
+                // Guardar explícitamente el SecurityContext en la sesión
+                SecurityContext sc = SecurityContextHolder.getContext();
+                securityContextRepository.saveContext(sc, request, response);
+
+                authenticationSuccessHandler.onAuthenticationSuccess(request, response, finalAuthentication);
+
+                session.setAttribute("accessToken", accessToken);
+                session.setAttribute("idToken", idToken);
                 session.setAttribute("email", email);
                 session.setAttribute("fullName", fullName);
-                session.setAttribute("roles", authorities); // Ahora esta lista debería contener roles
-                // --- FIN DE LA LÓGICA DE EXTRACCIÓN DE ROLES Y DATOS DE USUARIO ---
+                session.setAttribute("roles", extractedAuthorities);
 
+                // No hay return aquí, ya que el AuthenticationSuccessHandler maneja la redirección.
 
-                return "redirect:/" + realm + "/home";
             } else {
-                model.addAttribute("error", "Credenciales incorrectas (estado no 2xx)");
+                model.addAttribute("error", "Error de Keycloak: Credenciales incorrectas.");
                 model.addAttribute("tenantId", realm);
-                System.err.println("Error: Respuesta de Keycloak no 2xx: " + response.getStatusCode() + " - " + response.getBody());
-                return "login";
+                System.err.println("Error de Keycloak (status no 2xx): " + tokenResponse.getStatusCode() + " - " + tokenResponse.getBody());
+                response.sendRedirect("/login?error=true&tenantId=" + realm);
             }
         } catch (HttpClientErrorException.Unauthorized e) {
-            model.addAttribute("error", "Credenciales de usuario o cliente incorrectas. Revisa usuario/contraseña y el secreto del cliente en Keycloak.");
+            model.addAttribute("error", "Error de autenticación: Usuario o cliente no autorizado con Keycloak.");
             model.addAttribute("tenantId", realm);
-            System.err.println("Error 401 Unauthorized: " + e.getResponseBodyAsString());
-            return "login";
+            System.err.println("Error 401 Unauthorized de Keycloak: " + e.getResponseBodyAsString());
+            response.sendRedirect("/login?error=true&tenantId=" + realm);
         } catch (Exception e) {
-            model.addAttribute("error", "Error en la autenticación: " + (e.getMessage() != null ? e.getMessage() : "Error desconocido"));
+            model.addAttribute("error", "Error en la autenticación: " + (e.getMessage() != null ? e.getMessage() : "Error desconocido. Revisa logs."));
             model.addAttribute("tenantId", realm);
-            System.err.println("Error general de autenticación: " + e.getMessage());
+            System.err.println("Excepción general al autenticar: " + e.getMessage());
             e.printStackTrace();
-            return "login";
+            response.sendRedirect("/login?error=true&tenantId=" + realm);
         }
     }
 }

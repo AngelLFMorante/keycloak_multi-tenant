@@ -4,6 +4,7 @@ import com.example.keycloakdemo.repository.DynamicClientRegistrationRepository;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -11,11 +12,20 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.NoOpPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
@@ -26,7 +36,11 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository; // Importar
+import org.springframework.security.web.context.SecurityContextRepository; // Importar
 import org.springframework.web.util.UriComponentsBuilder;
 
 /**
@@ -49,15 +63,11 @@ public class SecurityConfig {
     private String[] baseScopes;
 
     private final String KEYCLOAK_AUTHORITY_PREFIX = "ROLE_";
-
-    private final CustomAuthenticationSuccessHandler successHandler;
-
-    public SecurityConfig(CustomAuthenticationSuccessHandler successHandler) {
-        this.successHandler = successHandler;
-    }
+    public static final String DUMMY_PASSWORD = "dummy_password"; // ¡Importante!
 
     /**
      * Repositorio dinámico de clientes OAuth2 para multi-tenant.
+     * (Mantener si planeas usar también el Authorization Code Flow en algún momento)
      */
     @Bean
     public ClientRegistrationRepository clientRegistrationRepository() {
@@ -87,30 +97,77 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
-                        // Recursos públicos
+                        // Recursos públicos (CSS, JS, etc.)
                         .requestMatchers("/", "/public/**", "/error").permitAll()
-                        // Login y registro plexus
-                        .requestMatchers(HttpMethod.GET, "/plexus/login", "/plexus/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/plexus/register", "/plexus/do_login").permitAll()
-                        // Login y registro inditex
-                        .requestMatchers(HttpMethod.GET, "/inditex/login", "/inditex/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/inditex/register", "/inditex/do_login").permitAll()
-                        // Resto rutas protegidas por tenant
-                        .requestMatchers("/plexus/**", "/inditex/**").authenticated()
-                        .anyRequest().authenticated()
+                        // Rutas de login y registro por realm
+                        .requestMatchers(HttpMethod.GET, "/{realm}/login", "/{realm}/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/{realm}/register", "/{realm}/do_login").permitAll()
+                        // Rutas específicas que requieren roles
+                        .requestMatchers("/plexus/home").hasRole("USER_APP") // Asume que 'USER_APP' es un rol en Keycloak
+                        // .requestMatchers("/plexus/admin/**").hasRole("ADMIN_APP") // Ejemplo de ruta de admin
+                        // Rutas generales que solo requieren autenticación
+                        .requestMatchers("/{realm}/**").authenticated() // Asegúrate de que todas las URLs bajo un realm están protegidas
+                        .anyRequest().authenticated() // Cualquier otra ruta, si la hay, también autenticada
                 )
-                // Para login inditex, tendrías que hacer algo similar o manejarlo con un login único
-                // Si quieres usar un único login para varios tenants, mejor usar lógica en el controlador
                 .logout(logout -> logout
                         .logoutUrl("/logout")
-                        .logoutSuccessHandler(oidcLogoutSuccessHandler())
+                        .logoutSuccessHandler(oidcLogoutSuccessHandler()) // Se encargará de redirigir después del logout
+                        .permitAll() // Permite a todos acceder al logout
+                )
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        .maximumSessions(1)
+                        .maxSessionsPreventsLogin(false)
+                         // Protege contra ataques de fijación de sesión
                 );
 
         return http.build();
     }
 
+    // --- BEANS NECESARIOS PARA EL LOGIN MANUAL EN LoginController ---
+
+    @Bean
+    public AuthenticationManager authenticationManager(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder);
+        return new ProviderManager(authProvider);
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return username -> {
+            return User.withUsername(username)
+                    .password(DUMMY_PASSWORD) // Debe coincidir con la de LoginController
+                    .authorities(Collections.emptyList())
+                    .build();
+        };
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+
+    @Bean
+    public AuthenticationSuccessHandler authenticationSuccessHandler() {
+        // Redirige siempre a la URL por defecto después de un login exitoso
+        SimpleUrlAuthenticationSuccessHandler handler = new SimpleUrlAuthenticationSuccessHandler("/plexus/home");
+        handler.setAlwaysUseDefaultTargetUrl(true); // Siempre redirigir a /plexus/home si no hay targetUrl guardada
+        return handler;
+    }
+
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
+    }
+
+    // --- FIN DE BEANS NECESARIOS PARA EL LOGIN MANUAL ---
+
+
     /**
      * Servicio para extraer roles del token OIDC.
+     * (Esto es para el flujo OAuth2 Login, no para tu Password Grant Type manual).
      */
     @Bean
     public OAuth2UserService<OidcUserRequest, OidcUser> oidcUserService() {
@@ -167,13 +224,14 @@ public class SecurityConfig {
                         .build()
                         .toUriString();
 
-                System.out.println("===> Logout desde LogoutSuccessHandler");
+                System.out.println("===> Logout desde LogoutSuccessHandler OIDC");
                 response.sendRedirect(finalLogoutUrl);
             } else {
-                System.out.println("===> Logout sin usuario, redirigiendo a raíz");
-                response.sendRedirect("/");
+                System.out.println("===> Logout sin usuario OIDC, redirigiendo a /login");
+                // Si el usuario no fue autenticado vía OIDC (ej. por tu flujo manual),
+                // simplemente redirige a la página de login general.
+                response.sendRedirect("/login");
             }
         };
     }
-
 }
