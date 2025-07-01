@@ -21,8 +21,14 @@
     <!-- ✅ Enlace a registro en el realm "plexus" -->
     <div class="mb-3">
         <h4>Don't have an account?</h4>
-        <a href="/plexus/register" class="btn btn-primary">Register in Plexus</a>
+        <div class="mb-3">
+            <a href="/plexus/register" class="btn btn-primary">Register in Plexus</a>
+        </div>
+        <div class="mb-3">
+            <a href="/inditex/register" class="btn btn-primary">Register in Inditex</a>
+        </div>
     </div>
+
 
     <form action="/logout" method="post" th:if="${isLoggedIn}">
         <button type="submit" class="btn btn-danger">Logout</button>
