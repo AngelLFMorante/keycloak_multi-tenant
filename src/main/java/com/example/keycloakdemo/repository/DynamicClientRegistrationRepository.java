@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
+import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -71,10 +72,21 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
         // Configurar los tenants conocidos y sus datos correspondientes en Keycloak.
         // Cada entrada asocia un segmento de la URL (el "nombre" del tenant en la URL)
         // con los detalles de su Realm en Keycloak (realmName, clientId, clientSecret).
-        tenantMapping.put("plexus", new TenantInfo("plexus-realm", "mi-app-plexus", "APE7Jo7L22EY8yTKh50v6B82nQ8l3f24"));
+        tenantMapping.put("plexus", new TenantInfo("plexus-realm", "mi-app-plexus", "oMfU7zRCWmdloK75dPKKio3x1v6FlTqm"));
         tenantMapping.put("inditex", new TenantInfo("inditex-realm", "mi-app-inditex", "5LR8rwO0VLFpog0lCrxrODfxlwQEEj7g"));
 
         // Se pueden agregar más tenants aquí según sea necesario.
+    }
+
+    /**
+     * Devuelve el mapeo de información de tenants.
+     * Este método se añade para permitir que otros componentes (como LoginController)
+     * accedan a la información del tenant, incluyendo el clientSecret, de forma dinámica.
+     *
+     * @return Un mapa que contiene la información de los tenants conocidos.
+     */
+    public Map<String, TenantInfo> getTenantMapping() {
+        return tenantMapping;
     }
 
     /**

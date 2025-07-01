@@ -98,10 +98,10 @@ public class SecurityConfig {
      * Configura un repositorio dinámico de clientes OAuth2.
      * Esto es útil en un entorno multi-tenant donde los detalles del cliente
      * (como el realm) pueden variar.
-     * @return Una instancia de {@link ClientRegistrationRepository} que gestiona clientes de Keycloak.
+     * @return Una instancia de {@link DynamicClientRegistrationRepository} que gestiona clientes de Keycloak.
      */
     @Bean
-    public ClientRegistrationRepository clientRegistrationRepository() {
+    public DynamicClientRegistrationRepository clientRegistrationRepository() {
         // Define un registro de cliente base para Keycloak con el flujo Authorization Code.
         ClientRegistration base = ClientRegistration.withRegistrationId("keycloak")
                 .clientId(baseClientId) // ID del cliente base
@@ -148,7 +148,7 @@ public class SecurityConfig {
                         // Reglas de autorización específicas para rutas que requieren roles.
                         // Ejemplo: Solo usuarios con el rol 'USER_APP' pueden acceder a /plexus/home.
                         // Asegúrate de que 'USER_APP' es el nombre exacto del rol en Keycloak.
-                        .requestMatchers("/plexus/home").hasRole("USER_APP")
+                        .requestMatchers("/{realm}/home").hasRole("USER_APP")
                         // .requestMatchers("/plexus/admin/**").hasRole("ADMIN_APP") // Ejemplo para rutas de administración
 
                         // Reglas de autorización generales:
@@ -250,15 +250,16 @@ public class SecurityConfig {
      * Handler de éxito de autenticación para el flujo de login manual.
      * Se usa para persistir el objeto {@link Authentication} en la sesión HTTP
      * y redirigir al usuario después de un login exitoso.
-     * @return Una instancia de {@link SimpleUrlAuthenticationSuccessHandler}.
+     * Este bean ahora inyecta y utiliza el {@link CustomAuthenticationSuccessHandler}
+     * para manejar la redirección dinámica basada en el tenant.
+     * @param customAuthenticationSuccessHandler El manejador personalizado para redirecciones dinámicas.
+     * @return Una instancia de {@link AuthenticationSuccessHandler}.
      */
     @Bean
-    public AuthenticationSuccessHandler authenticationSuccessHandler() {
-        // Redirige siempre a la URL por defecto después de un login exitoso.
-        // Si no se especifica una URL de destino previa al login, redirige a /plexus/home.
-        SimpleUrlAuthenticationSuccessHandler handler = new SimpleUrlAuthenticationSuccessHandler("/plexus/home");
-        handler.setAlwaysUseDefaultTargetUrl(true); // Fuerza la redirección a la URL por defecto.
-        return handler;
+    public AuthenticationSuccessHandler authenticationSuccessHandler(CustomAuthenticationSuccessHandler customAuthenticationSuccessHandler) {
+        // Inyectamos y usamos el CustomAuthenticationSuccessHandler
+        // Este handler es el que tiene la lógica para redirigir a /{tenant}/home.
+        return customAuthenticationSuccessHandler;
     }
 
     /**
