@@ -51,7 +51,7 @@
 
     <p class="text-center mt-3">
         ¿No tienes cuenta?
-        <a th:href="@{/register}">Regístrate aquí</a>
+        <a th:href="@{/{realm}/register(realm=${tenantId})}">Regístrate aquí</a>
     </p>
 </div>
 
