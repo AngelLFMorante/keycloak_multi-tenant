@@ -137,6 +137,7 @@ public class SecurityConfig {
                         // Permite el acceso a recursos públicos sin autenticación.
                         .requestMatchers("/", "/public/**", "/error").permitAll()
                         // Permite el acceso a las páginas de login y registro por GET para cualquier realm.
+                        // Se elimina "/login" aquí ya que el logout redirigirá a "/" que ya está permitido.
                         .requestMatchers(HttpMethod.GET, "/{realm}/login", "/{realm}/register").permitAll()
                         // Permite el acceso a los endpoints de registro y login manual por POST para cualquier realm.
                         .requestMatchers(HttpMethod.POST, "/{realm}/register", "/{realm}/do_login").permitAll()
@@ -349,12 +350,12 @@ public class SecurityConfig {
                 response.sendRedirect(finalLogoutUrl); // Redirige al navegador al endpoint de logout de Keycloak.
             } else {
                 // Si el usuario no fue autenticado vía OIDC (ej. por tu flujo manual),
-                // simplemente invalida la sesión local y redirige a la página de login general.
+                // simplemente invalida la sesión local y redirige a la página de inicio (/).
                 if (request.getSession(false) != null) {
                     request.getSession(false).invalidate(); // Invalida la sesión HTTP local.
                 }
-                System.out.println("===> Logout sin usuario OIDC, invalidando sesión local y redirigiendo a /login.");
-                response.sendRedirect("/login"); // Redirige a la página de login.
+                System.out.println("===> Logout sin usuario OIDC, invalidando sesión local y redirigiendo a /.");
+                response.sendRedirect("/"); // Redirige a la página de inicio (index).
             }
         };
     }

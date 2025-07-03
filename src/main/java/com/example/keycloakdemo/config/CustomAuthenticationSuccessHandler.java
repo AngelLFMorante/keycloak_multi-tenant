@@ -15,12 +15,12 @@ import org.springframework.stereotype.Component;
  * Implementa {@link AuthenticationSuccessHandler} para definir el comportamiento
  * después de que un usuario se ha autenticado exitosamente.
  * Este manejador está diseñado para aplicaciones multi-tenant, redirigiendo al usuario
- * a una URL de inicio específica del tenant basada en el ID de registro de OAuth2.
+ * a una URL de inicio específica del tenant basada en el ID de registro de OAuth2
+ * o extrayendo el tenant de la URL de la solicitud para flujos de login manual.
  *
- * NOTA: Este manejador está diseñado principalmente para el flujo OAuth2 Login (Authorization Code Flow).
- * Para el flujo de Password Grant Type implementado en el LoginController, se usó
- * {@link org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler}.
- * Si la aplicación usa ambos flujos, es importante que cada flujo invoque el handler correcto.
+ * NOTA: Este manejador está diseñado para soportar tanto el flujo OAuth2 Login
+ * (Authorization Code Flow) como el flujo de Password Grant Type implementado
+ * manualmente (por ejemplo, en un LoginController).
  */
 @Component
 public class CustomAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
@@ -41,8 +41,8 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
      * Este metodo es invocado por Spring Security después de una autenticación exitosa.
      * Su principal función es redirigir al usuario a la página de inicio específica
      * del tenant (`/{tenant}/home`) si la autenticación se realizó a través de OAuth2 Login
-     * y el tenant está mapeado. Si no se puede determinar un tenant o no es un token OAuth2,
-     * redirige a la raíz del sitio ("/").
+     * o si el tenant puede ser extraído de la URL de la solicitud para el login manual.
+     * Si no se puede determinar un tenant o no está mapeado, redirige a la raíz del sitio ("/").
      *
      * @param request        La solicitud HTTP que originó la autenticación.
      * @param response       La respuesta HTTP a la que se le puede añadir la redirección.
@@ -55,27 +55,51 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
 
-        // Verifica si el objeto de autenticación es una instancia de OAuth2AuthenticationToken.
-        // Esto indica que el login se realizó a través del flujo OAuth2/OIDC de Spring Security.
-        if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
-            // Obtiene el 'registrationId' (que representa el tenant o proveedor de identidad)
-            // del cliente OAuth2 que fue utilizado para la autenticación.
-            String registrationId = oauthToken.getAuthorizedClientRegistrationId();
-            System.out.println("Login exitoso para tenant (OAuth2): " + registrationId);
+        String tenantId = null;
 
-            // Verifica si el 'registrationId' obtenido de la autenticación OAuth2 existe
-            // en el mapa de tenants predefinido.
-            if (tenantMapping.containsKey(registrationId)) {
-                // Si el tenant existe en el mapeo, construye la URL de redirección
-                // utilizando el 'registrationId' como parte de la ruta base.
-                response.sendRedirect("/" + registrationId + "/home");
-                return; // Termina la ejecución del método después de la redirección.
+        // 1. Intenta obtener el tenant del token OAuth2 (si el login fue por OAuth2 Login)
+        if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
+            tenantId = oauthToken.getAuthorizedClientRegistrationId();
+            System.out.println("Login exitoso para tenant (OAuth2): " + tenantId);
+        } else {
+            // 2. Si no es un token OAuth2, intenta extraer el tenant de la URL de la solicitud.
+            // Esto es crucial para el flujo de login manual (Password Grant Type)
+            // asumiendo que la URL de POST de login es /{tenant}/do_login.
+            tenantId = extractTenantFromRequestUri(request);
+            System.out.println("Login exitoso (manual), intentando extraer tenant de URI: " + tenantId);
+        }
+
+        // 3. Si se encontró un tenant y está mapeado, redirige a la URL específica del tenant.
+        if (tenantId != null && tenantMapping.containsKey(tenantId)) {
+            response.sendRedirect("/" + tenantId + "/home");
+            return; // Termina la ejecución del método después de la redirección.
+        }
+
+        // 4. Si no se pudo determinar un tenant válido o no está mapeado, redirige a la raíz del sitio como fallback.
+        response.sendRedirect("/");
+    }
+
+    /**
+     * Extrae el ID del tenant de la URI de la solicitud HTTP.
+     * Asume un patrón de URL como "/{tenant}/do_login" o similar.
+     *
+     * @param request La solicitud HTTP.
+     * @return El ID del tenant si se encuentra, de lo contrario, null.
+     */
+    private String extractTenantFromRequestUri(HttpServletRequest request) {
+        String requestUri = request.getRequestURI();
+        // Ejemplo: /plexus/do_login
+        // Dividimos la URI por el carácter '/'
+        String[] parts = requestUri.split("/");
+        // Buscamos la primera parte no vacía después del primer '/' que no sea "do_login"
+        if (parts.length > 1) {
+            for (int i = 1; i < parts.length; i++) {
+                // Aseguramos que la parte no esté vacía y no sea el nombre del endpoint de login
+                if (!parts[i].isEmpty() && !parts[i].equals("do_login") && !parts[i].equals("register")) {
+                    return parts[i];
+                }
             }
         }
-        // Si la autenticación no es una instancia de OAuth2AuthenticationToken (ej. si es del flujo manual),
-        // o si el 'registrationId' de OAuth2 no se encuentra en el mapeo,
-        // se redirige a la URL raíz del sitio como fallback.
-        // Esto puede ocurrir si se usa con un tipo de autenticación diferente o si el tenant no está mapeado.
-        response.sendRedirect("/");
+        return null; // No se pudo extraer el tenant
     }
 }
