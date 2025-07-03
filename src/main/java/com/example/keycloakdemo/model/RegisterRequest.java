@@ -1,11 +1,9 @@
 package com.example.keycloakdemo.model;
 
-import lombok.Data; // Importa la anotación @Data de Lombok.
+import lombok.Data;
 
 /**
- * Clase que representa el objeto de solicitud para el registro de un nuevo usuario.
- * Utiliza la anotación {@link lombok.Data} de Lombok para generar automáticamente
- * los getters, setters, toString(), equals() y hashCode().
+ * Clase que representa el objeto de solicitud para el registro de un nuevo usuario modelo Keycloak register.
  */
 @Data
 public class RegisterRequest {

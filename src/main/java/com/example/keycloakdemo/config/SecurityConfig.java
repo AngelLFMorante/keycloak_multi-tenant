@@ -23,13 +23,11 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -37,7 +35,6 @@ import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -89,7 +86,7 @@ public class SecurityConfig {
     /**
      * Contraseña dummy utilizada para el {@link UserDetailsService} y el {@link PasswordEncoder}
      * en el flujo de login manual.
-     * Importante: NO USAR EN PRODUCCIÓN PARA CONTRSEÑAS REALES. Es solo para facilitar la integración
+     * Importante: NO USAR EN PRODUCCIÓN PARA CONTRASEÑAS REALES. Es solo para facilitar la integración
      * con el {@link DaoAuthenticationProvider} cuando Keycloak ya verificó la contraseña.
      */
     public static final String DUMMY_PASSWORD = "dummy_password";
@@ -135,7 +132,6 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 // Deshabilita la protección CSRF.
-                // Esto es común para APIs REST o cuando la protección CSRF se maneja de forma diferente.
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
                         // Permite el acceso a recursos públicos sin autenticación.
@@ -147,7 +143,7 @@ public class SecurityConfig {
 
                         // Reglas de autorización específicas para rutas que requieren roles.
                         // Ejemplo: Solo usuarios con el rol 'USER_APP' pueden acceder a /plexus/home.
-                        // Asegúrate de que 'USER_APP' es el nombre exacto del rol en Keycloak.
+                        // Asegurar de que 'USER_APP' es el nombre exacto del rol en Keycloak.
                         .requestMatchers("/{realm}/home").hasRole("USER_APP")
                         // .requestMatchers("/plexus/admin/**").hasRole("ADMIN_APP") // Ejemplo para rutas de administración
 

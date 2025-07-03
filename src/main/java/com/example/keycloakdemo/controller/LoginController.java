@@ -33,7 +33,7 @@ import java.util.*;
 import com.example.keycloakdemo.config.SecurityConfig;
 // Importa el repositorio dinámico de clientes para obtener la información del tenant
 import com.example.keycloakdemo.repository.DynamicClientRegistrationRepository;
-import com.example.keycloakdemo.model.TenantInfo; // Importa la clase TenantInfo
+import com.example.keycloakdemo.model.TenantInfo;
 
 /**
  * Controlador para gestionar el proceso de login manual de usuarios contra Keycloak
@@ -48,7 +48,7 @@ public class LoginController {
     private String keycloakBaseUrl;
 
     // Eliminamos la inyección del clientSecret directamente desde application.properties,
-    // ya que ahora lo obtendremos dinámicamente.
+    // ya que ahora lo obtengo dinámicamente.
     // @Value("${spring.security.oauth2.client.registration.keycloak.client-secret}")
     // private String clientSecret;
 

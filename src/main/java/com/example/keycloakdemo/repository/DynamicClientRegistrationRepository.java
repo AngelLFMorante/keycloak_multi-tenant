@@ -2,17 +2,15 @@ package com.example.keycloakdemo.repository;
 
 import com.example.keycloakdemo.model.TenantInfo;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.security.oauth2.client.registration.ClientRegistration;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
-import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
-import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-import org.springframework.web.util.UriComponentsBuilder;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * Repositorio personalizado de {@link ClientRegistration} que permite la configuración
@@ -76,6 +74,7 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
         tenantMapping.put("inditex", new TenantInfo("inditex-realm", "mi-app-inditex", "5LR8rwO0VLFpog0lCrxrODfxlwQEEj7g"));
 
         // Se pueden agregar más tenants aquí según sea necesario.
+        // ASEGURARSE si se utiliza en produccion de los datos sensibles, mejor administrarlo en un properties u otro microservicios
     }
 
     /**
@@ -164,7 +163,7 @@ public class DynamicClientRegistrationRepository implements ClientRegistrationRe
         System.out.println("=======================================");
         System.out.println("===> Realm: " + realmName);
         System.out.println("===> Client ID: " + clientId);
-        System.out.println("===> Client Secret: [PROTECTED]"); // No imprimir el secreto en logs de prod.
+        System.out.println("===> Client Secret: [PROTECTED]");
         System.out.println("===> Redirect URI: " + clientRegistration.getRedirectUri());
         System.out.println("===> Issuer URI: " + clientRegistration.getProviderDetails().getIssuerUri());
 

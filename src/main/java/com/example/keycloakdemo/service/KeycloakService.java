@@ -23,13 +23,6 @@ public class KeycloakService {
     private final Keycloak keycloak;
 
     /**
-     * URL base del servidor de autenticación de Keycloak.
-     * Aunque no se usa directamente en este método, se mantiene si fuera necesario para otras operaciones.
-     */
-    @Value("${keycloak.auth-server-url}")
-    private String keycloakBaseUrl; // Considerar si es realmente necesario inyectarlo aquí si no se usa.
-
-    /**
      * Constructor para la inyección de dependencias.
      *
      * @param keycloak Instancia del cliente de administración de Keycloak.
