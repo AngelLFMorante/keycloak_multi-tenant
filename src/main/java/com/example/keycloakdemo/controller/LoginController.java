@@ -2,13 +2,27 @@ package com.example.keycloakdemo.controller;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import com.example.keycloakdemo.config.SecurityConfig;
+import com.example.keycloakdemo.model.TenantInfo;
+import com.example.keycloakdemo.repository.DynamicClientRegistrationRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -17,23 +31,15 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-
-// Importa la configuración de seguridad para acceder a la constante DUMMY_PASSWORD
-import com.example.keycloakdemo.config.SecurityConfig;
-// Importa el repositorio dinámico de clientes para obtener la información del tenant
-import com.example.keycloakdemo.repository.DynamicClientRegistrationRepository;
-import com.example.keycloakdemo.model.TenantInfo;
 
 /**
  * Controlador para gestionar el proceso de login manual de usuarios contra Keycloak
@@ -41,23 +47,30 @@ import com.example.keycloakdemo.model.TenantInfo;
  * También maneja las redirecciones en caso de éxito o error en el proceso de autenticación.
  * Este controlador está diseñado para ser multi-tenant, adaptándose al 'realm' proporcionado en la URL.
  */
-@Controller
+@RestController
 public class LoginController {
 
     @Value("${keycloak.auth-server-url}")
     private String keycloakBaseUrl;
 
-    // Eliminamos la inyección del clientSecret directamente desde application.properties,
-    // ya que ahora lo obtengo dinámicamente.
-    // @Value("${spring.security.oauth2.client.registration.keycloak.client-secret}")
-    // private String clientSecret;
+    /**
+     * El nombre del unico realm de keycloak que se utiizara para todas las operaciones.
+     */
+    @Value("${keycloak.single-realm-name}")
+    private String singleKeycloakRealm;
+
+    /**
+     * Mapeo de Client IDs a Client Secrets.
+     * La clave es el client id ( del realm ) y el valor es su client secret
+     * Se inyecta desde las propiedades de la aplicación
+     */
+    @Value("#{${keycloak.client-secrets}}") //inyeccion de un mapa de propiedades
+    private Map<String,String> clientSecrets;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-
     private final AuthenticationManager authenticationManager;
     private final AuthenticationSuccessHandler authenticationSuccessHandler;
     private final SecurityContextRepository securityContextRepository;
-    private final DynamicClientRegistrationRepository dynamicClientRegistrationRepository; // Inyección del repositorio dinámico
 
     /**
      * Constructor para la inyección de dependencias de Spring.
@@ -65,7 +78,6 @@ public class LoginController {
      * @param authenticationManager           Instancia de {@link AuthenticationManager}.
      * @param authenticationSuccessHandler    Instancia de {@link AuthenticationSuccessHandler}.
      * @param securityContextRepository       Instancia de {@link SecurityContextRepository}.
-     * @param dynamicClientRegistrationRepository Instancia de {@link DynamicClientRegistrationRepository}.
      */
     public LoginController(AuthenticationManager authenticationManager,
                            AuthenticationSuccessHandler authenticationSuccessHandler,
@@ -74,7 +86,6 @@ public class LoginController {
         this.authenticationManager = authenticationManager;
         this.authenticationSuccessHandler = authenticationSuccessHandler;
         this.securityContextRepository = securityContextRepository;
-        this.dynamicClientRegistrationRepository = dynamicClientRegistrationRepository; // Asignación
     }
 
     /**
@@ -86,23 +97,21 @@ public class LoginController {
      * @param realm      El nombre del realm (tenant) para el que se intenta el login.
      * @param username   El nombre de usuario proporcionado en el formulario de login.
      * @param password   La contraseña proporcionada en el formulario de login (real, para Keycloak).
-     * @param model      El modelo para añadir atributos a la vista (usado para mensajes de error).
-     * @param session    La sesión HTTP actual.
      * @param request    La solicitud HTTP.
      * @param response   La respuesta HTTP, utilizada para redirecciones en caso de error.
      * @throws IOException Si ocurre un error de E/S durante la comunicación HTTP o la redirección.
      */
     @PostMapping("/{realm}/do_login")
-    public void doLogin(@PathVariable String realm,
+    public ResponseEntity<Map<String, Object>> doLogin(@PathVariable String realm,
                         @RequestParam String username,
                         @RequestParam String password,
-                        Model model,
-                        HttpSession session,
                         HttpServletRequest request,
                         HttpServletResponse response) throws IOException {
 
-        // Obtener la información del tenant (incluido el clientSecret) de forma dinámica.
-        TenantInfo tenantInfo = dynamicClientRegistrationRepository.getTenantMapping().get(realm);
+        Map<String, Object> responseBody = new HashMap<>();
+
+        String clientId = realm;
+        String clientSecret = clientSecrets.get(clientId);
 
         if (tenantInfo == null) {
             System.err.println("Error: Tenant no encontrado en el mapeo para realm: " + realm);
