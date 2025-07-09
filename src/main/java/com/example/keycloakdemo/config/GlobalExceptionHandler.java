@@ -3,8 +3,12 @@ package com.example.keycloakdemo.config;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -14,6 +18,8 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
  */
 @ControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * Maneja las excepciones de tipo {@link WebClientResponseException}.
@@ -34,7 +40,7 @@ public class GlobalExceptionHandler {
         errorDetails.put("path", path);
         errorDetails.put("responseBody", ex.getResponseBodyAsString());
 
-        System.err.println("WebClientResponseException capturado: "+ ex.getStatusCode() + " - " + ex.getResponseBodyAsString());
+        log.error("WebClientResponseException capturado: Status={}, URI={}, ResponseBody={}",ex.getStatusCode(), path, ex.getResponseBodyAsString(), ex);
 
         return new ResponseEntity<>(errorDetails, ex.getStatusCode());
     }
@@ -53,9 +59,39 @@ public class GlobalExceptionHandler {
         errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
         errorDetails.put("message", ex.getMessage());
 
-        System.err.println("IllegalArgumentException capturada: " + ex.getMessage());
+        log.warn("IllegalArgumentException capturada: {}", ex.getMessage(), ex);
 
         return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link MethodArgumentNotValidException}.
+     * Estas excepciones se lanzan cuando la validación de un argumento de metodo
+     * anotado con Valid o Validated falla.
+     *
+     * @param ex La excepcion {@link MethodArgumentNotValidException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON los errores de validación
+     * y un código de estado HTTP 400 (Bad Request).
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex){
+        Map<String, Object> errors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach(error ->{
+            String fieldName = ((FieldError) error).getField();
+            String errorMenssage = error.getDefaultMessage();
+            errors.put(fieldName, errorMenssage);
+        });
+
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", new Date());
+        errorDetails.put("status", HttpStatus.BAD_REQUEST.value());
+        errorDetails.put("error", "Validation Failed");
+        errorDetails.put("message", "Uno o mas campos tienen errores de validacion");
+        errorDetails.put("details", errors);
+
+        log.warn("MethodArgumentNotValidException capturada: {}", errors, ex);
+
+        return  new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
 
     /**
@@ -72,8 +108,7 @@ public class GlobalExceptionHandler {
         errorDetails.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
         errorDetails.put("message", "Ocurrió un error inesperado. Por favor, intente de nuevo mas tarde.");
 
-        System.err.println("Excepcion no capturada: " + ex.getClass().getName() + " - " + ex.getMessage());
-        ex.printStackTrace();
+        log.error("Excepcion no capturada: {}", ex.getMessage(), ex);
 
         return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
     }

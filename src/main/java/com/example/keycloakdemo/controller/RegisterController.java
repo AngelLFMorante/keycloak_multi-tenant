@@ -4,6 +4,8 @@ import com.example.keycloakdemo.model.RegisterRequest;
 import com.example.keycloakdemo.service.KeycloakService;
 import java.util.HashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class RegisterController {
 
+    private static Logger log = LoggerFactory.getLogger(RegisterController.class);
     /**
      * Servicio que interactúa con la API de administración de Keycloak para operaciones relacionadas con usuarios.
      */
@@ -40,6 +43,7 @@ public class RegisterController {
      */
     public RegisterController(KeycloakService keycloakService) {
         this.keycloakService = keycloakService;
+        log.info("RegisterController inicializado.");
     }
 
     /**
@@ -50,6 +54,7 @@ public class RegisterController {
      */
     @GetMapping("/{realm}/register")
     public ResponseEntity<Map<String,Object>> showRegisterForm(@PathVariable String realm) {
+        log.info("Solicitud GET para información de registro del tenant: {}", realm);
         Map<String, Object> response = new HashMap<>();
         response.put("realm", realm); // Añade el nombre del realm al modelo.
         response.put("registerRequest", new RegisterRequest()); // Añade un objeto vacío para el formulario.
@@ -74,26 +79,28 @@ public class RegisterController {
      */
     @PostMapping("/{realm}/register")
     public ResponseEntity<Map<String, Object>> register(@PathVariable String realm, @RequestBody RegisterRequest request) {
-        Map<String, Object> response = new HashMap<>();
+        log.info("Intento de registro de usuario para el tenant: {}", realm);
+        log.debug("Datos de registro recibidos: username={}, email={}", request.getUsername(), request.getEmail());
 
         // Verifica si las contraseñas no coinciden.
         if (!request.getPassword().equals(request.getConfirmPassword())) {
-            response.put("error", "Passwords do not match"); // Añade mensaje de error al modelo.
-            return ResponseEntity.badRequest().body(response);
+            log.warn("Error de registro: Las contraseñas no coinciden para el usuario '{}'.", request.getUsername());
+            throw new IllegalArgumentException("Password no coinciden");
         }
 
-        try {
-            // Concatena "-realm" al nombre del realm para formar el nombre completo del realm de Keycloak.
-            // Esto es crucial para que la llamada al servicio de Keycloak sea correcta.
-            keycloakService.createUser(realm, request); // Delega la creación del usuario a KeycloakService.
-
-            response.put("message", "User registered. Waiting for admin approval."); // Mensaje de éxito.
-            response.put("tenantId", realm); // Añade el ID del tenant al modelo.
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (Exception e) {
-            // Captura cualquier excepción que ocurra durante el registro.
-            response.put("error", "Registration failed: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        //Comprobar si el email existe en keycloak
+        if(keycloakService.userExistsByEmail(singleKeycloakRealm, request.getEmail())){
+            log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.getEmail(), realm);
+            throw new IllegalArgumentException(("El email '" + request.getEmail() + "' ya está registrado en Keycloak."));
         }
+
+        // Esto es crucial para que la llamada al servicio de Keycloak sea correcta.
+        keycloakService.createUser(realm, request); // Delega la creación del usuario a KeycloakService.
+        log.info("Usuario '{}' registrado exitosamente en el realm Keycloak '{}' para el tenant '{}'.", request.getUsername(), singleKeycloakRealm, realm);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "User registered. Waiting for admin approval."); // Mensaje de éxito.
+        response.put("tenantId", realm); // Añade el ID del tenant al modelo.
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
