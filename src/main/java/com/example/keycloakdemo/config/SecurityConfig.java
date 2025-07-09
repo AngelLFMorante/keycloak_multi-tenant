@@ -1,17 +1,17 @@
 package com.example.keycloakdemo.config;
 
-import com.example.keycloakdemo.repository.DynamicClientRegistrationRepository;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -23,59 +23,35 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
-import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * Configuración principal de seguridad para una aplicación multi-tenant con Keycloak.
- * Utiliza Spring Security para gestionar la autenticación y autorización,
- * soportando tanto un flujo de login manual (Password Grant Type) como la preparación
- * para un posible flujo OIDC (Authorization Code Flow).
+ * Adaptada para funcionar como un microservicio REST, centrado en el flujo
+ * de login manual (Password Grant Type) y unico realm de Keycloak con multiples clientes.
  */
 @Configuration
 @EnableWebSecurity // Habilita la configuración de seguridad web de Spring.
 public class SecurityConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     /**
      * URL base del servidor de autenticación de Keycloak, inyectada desde las propiedades.
      */
     @Value("${keycloak.auth-server-url}")
     private String keycloakAuthServerUrl;
-
-    /**
-     * ID base del cliente de Keycloak, inyectado desde las propiedades.
-     * Utilizado para configuraciones de cliente genéricas.
-     */
-    @Value("${spring.security.oauth2.client.registration.keycloak.client-id}")
-    private String baseClientId;
-
-    /**
-     * Secreto base del cliente de Keycloak, inyectado desde las propiedades.
-     * Utilizado para configuraciones de cliente genéricas y autenticación de cliente.
-     */
-    @Value("${spring.security.oauth2.client.registration.keycloak.client-secret}")
-    private String baseClientSecret;
-
-    /**
-     * Scopes base de OAuth2/OIDC solicitados, inyectados desde las propiedades.
-     * Determinan qué información del usuario se solicitará a Keycloak.
-     */
-    @Value("${spring.security.oauth2.client.registration.keycloak.scope}")
-    private String[] baseScopes;
 
     /**
      * Prefijo para los roles de Spring Security.
@@ -91,34 +67,6 @@ public class SecurityConfig {
      */
     public static final String DUMMY_PASSWORD = "dummy_password";
 
-    /**
-     * Configura un repositorio dinámico de clientes OAuth2.
-     * Esto es útil en un entorno multi-tenant donde los detalles del cliente
-     * (como el realm) pueden variar.
-     * @return Una instancia de {@link DynamicClientRegistrationRepository} que gestiona clientes de Keycloak.
-     */
-    @Bean
-    public DynamicClientRegistrationRepository clientRegistrationRepository() {
-        // Define un registro de cliente base para Keycloak con el flujo Authorization Code.
-        ClientRegistration base = ClientRegistration.withRegistrationId("keycloak")
-                .clientId(baseClientId) // ID del cliente base
-                .clientSecret(baseClientSecret) // Secreto del cliente base
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC) // Método de autenticación del cliente
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE) // Tipo de concesión de autorización
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}") // URI de redirección después de la autorización
-                .scope(baseScopes) // Scopes OpenID Connect solicitados
-                // URIs de Keycloak para los diferentes endpoints OIDC, dinámicos por realm
-                .authorizationUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/auth")
-                .tokenUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/token")
-                .userInfoUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/userinfo")
-                .jwkSetUri(keycloakAuthServerUrl + "/realms/{realmName}/protocol/openid-connect/certs")
-                .issuerUri(keycloakAuthServerUrl + "/realms/{realmName}")
-                .userNameAttributeName("preferred_username") // Atributo para el nombre de usuario
-                .build();
-
-        // Retorna un repositorio que puede crear registros de cliente dinámicamente.
-        return new DynamicClientRegistrationRepository(keycloakAuthServerUrl, base);
-    }
 
     /**
      * Configura la cadena de filtros de seguridad HTTP.
@@ -130,6 +78,8 @@ public class SecurityConfig {
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        log.info("Configurando SecurityFilterChain para el microservicio REST.");
+
         http
                 // Deshabilita la protección CSRF.
                 .csrf(AbstractHttpConfigurer::disable)
@@ -137,20 +87,9 @@ public class SecurityConfig {
                         // Permite el acceso a recursos públicos sin autenticación.
                         .requestMatchers("/", "/public/**", "/error").permitAll()
                         // Permite el acceso a las páginas de login y registro por GET para cualquier realm.
-                        // Se elimina "/login" aquí ya que el logout redirigirá a "/" que ya está permitido.
                         .requestMatchers(HttpMethod.GET, "/{realm}/login", "/{realm}/register").permitAll()
                         // Permite el acceso a los endpoints de registro y login manual por POST para cualquier realm.
-                        .requestMatchers(HttpMethod.POST, "/{realm}/register", "/{realm}/do_login").permitAll()
-
-                        // Reglas de autorización específicas para rutas que requieren roles.
-                        // Ejemplo: Solo usuarios con el rol 'USER_APP' pueden acceder a /plexus/home.
-                        // Asegurar de que 'USER_APP' es el nombre exacto del rol en Keycloak.
-                        .requestMatchers("/{realm}/home").hasRole("USER_APP")
-                        // .requestMatchers("/plexus/admin/**").hasRole("ADMIN_APP") // Ejemplo para rutas de administración
-
-                        // Reglas de autorización generales:
-                        // Todas las URLs bajo cualquier '{realm}' requieren autenticación.
-                        .requestMatchers("/{realm}/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/{realm}/register", "/{realm}/{client}/do_login").permitAll()
                         // Cualquier otra solicitud (que no haya sido permitida o protegida antes)
                         // también requiere autenticación.
                         .anyRequest().authenticated()
@@ -158,8 +97,10 @@ public class SecurityConfig {
                 // Configuración de logout.
                 .logout(logout -> logout
                         .logoutUrl("/logout") // URL para iniciar el proceso de logout.
-                        .logoutSuccessHandler(oidcLogoutSuccessHandler()) // Manejador post-logout.
+                        .logoutSuccessHandler(customLogoutSuccessHandler()) // Manejador post-logout.
                         .permitAll() // Permite que cualquier usuario acceda a la URL de logout.
+                        .invalidateHttpSession(true)
+                        .deleteCookies("JSESSIONID")
                 )
                 // Configuración de gestión de sesiones.
                 .sessionManagement(session -> session
@@ -173,21 +114,7 @@ public class SecurityConfig {
                         // sino que invalida la sesión más antigua.
                         .maxSessionsPreventsLogin(false)
                 );
-
-        /*
-         * NOTA: La siguiente sección está comentada pero muestra cómo se habilitaría
-         * el flujo OAuth2 Login (Authorization Code Flow) si se quisiera usar
-         * en conjunto o en lugar del Password Grant Type manual.
-         * En este caso, el CustomAuthenticationSuccessHandler o un handler similar
-         * se usaría aquí.
-         */
-        // .oauth2Login(oauth2 -> oauth2
-        //     .clientRegistrationRepository(clientRegistrationRepository())
-        //     .userInfoEndpoint(userInfo -> userInfo.oidcUserService(oidcUserService()))
-        //     .successHandler(authenticationSuccessHandler()) // Usar el handler que definimos abajo
-        //     .defaultSuccessUrl("/home", true) // URL por defecto después del login de OAuth2
-        // );
-
+        log.info("SecurityFilterChain configurado.");
         return http.build();
     }
 
@@ -205,6 +132,7 @@ public class SecurityConfig {
      */
     @Bean
     public AuthenticationManager authenticationManager(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+        log.debug("Configurando AuthenticationManager.");
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
         authProvider.setUserDetailsService(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder);
@@ -221,6 +149,7 @@ public class SecurityConfig {
      */
     @Bean
     public UserDetailsService userDetailsService() {
+        log.debug("Configurando UserDetailsService dummy.");
         return username -> {
             // Se asume que el usuario ya ha sido autenticado por Keycloak.
             // La contraseña debe coincidir con DUMMY_PASSWORD para que el DaoAuthenticationProvider no falle.
@@ -232,41 +161,26 @@ public class SecurityConfig {
     }
 
     /**
-     * Un {@link PasswordEncoder} dummy.
-     * No se usa para cifrar o verificar contraseñas de forma segura,
-     * solo para satisfacer los requisitos del {@link DaoAuthenticationProvider}.
-     * ¡No usar en producción para contraseñas locales o sensibles!
-     * @return Una instancia de {@link NoOpPasswordEncoder} que no opera sobre las contraseñas.
+     * Define un {@link PasswordEncoder} seguro para Spring Security.
+     * Aunque la verificación real de la contraseña la hace Keycloak, este bean es necesario
+     * para satisfacer los requisitos del {@link DaoAuthenticationProvider}.
+     * @return Una instancia de {@link BCryptPasswordEncoder}.
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return NoOpPasswordEncoder.getInstance(); // No opera, solo devuelve la contraseña tal cual.
-    }
-
-    /**
-     * Handler de éxito de autenticación para el flujo de login manual.
-     * Se usa para persistir el objeto {@link Authentication} en la sesión HTTP
-     * y redirigir al usuario después de un login exitoso.
-     * Este bean ahora inyecta y utiliza el {@link CustomAuthenticationSuccessHandler}
-     * para manejar la redirección dinámica basada en el tenant.
-     * @param customAuthenticationSuccessHandler El manejador personalizado para redirecciones dinámicas.
-     * @return Una instancia de {@link AuthenticationSuccessHandler}.
-     */
-    @Bean
-    public AuthenticationSuccessHandler authenticationSuccessHandler(CustomAuthenticationSuccessHandler customAuthenticationSuccessHandler) {
-        // Inyectamos y usamos el CustomAuthenticationSuccessHandler
-        // Este handler es el que tiene la lógica para redirigir a /{tenant}/home.
-        return customAuthenticationSuccessHandler;
+        log.debug("Configurando PasswordEncoder con BCryptPasswordEncoder.");
+        return new BCryptPasswordEncoder(); // No opera, solo devuelve la contraseña tal cual.
     }
 
     /**
      * Define un {@link SecurityContextRepository} para gestionar cómo se guarda
-     * y recupera el {@link SecurityContext} en la {@link jakarta.servlet.http.HttpSession}.
+     * y recupera el SecurityContext en la {@link jakarta.servlet.http.HttpSession}.
      * Esto es crucial para la persistencia de la autenticación entre peticiones.
      * @return Una instancia de {@link HttpSessionSecurityContextRepository}.
      */
     @Bean
     public SecurityContextRepository securityContextRepository() {
+        log.debug("Configurando SecurityContextRepository.");
         return new HttpSessionSecurityContextRepository();
     }
 
@@ -281,6 +195,7 @@ public class SecurityConfig {
      */
     @Bean
     public OAuth2UserService<OidcUserRequest, OidcUser> oidcUserService() {
+        log.debug("Configurando OidcUserService (manteniendo para posible uso futuro de OAuth2 Login).");
         final OidcUserService delegate = new OidcUserService();
 
         return (userRequest) -> {
@@ -321,42 +236,15 @@ public class SecurityConfig {
      * @return Un {@link LogoutSuccessHandler} configurado.
      */
     @Bean
-    public LogoutSuccessHandler oidcLogoutSuccessHandler() {
+    public LogoutSuccessHandler customLogoutSuccessHandler() {
+        log.debug("Configurando CustomLogoutSuccessHandler para microservicio REST.");
         return (request, response, authentication) -> {
-            // Solo procesa si la autenticación es de tipo OIDC (si se usó el flujo OAuth2 Login).
-            if (authentication != null && authentication.getPrincipal() instanceof OidcUser oidcUser) {
-                String issuer = oidcUser.getIssuer().toString(); // URL del emisor de Keycloak.
-                String idToken = oidcUser.getIdToken().getTokenValue(); // ID Token para el logout de sesión IdP.
-                String logoutUrl = issuer + "/protocol/openid-connect/logout"; // Endpoint de logout de Keycloak.
-
-                // Construye la URI de redirección post-logout de la aplicación.
-                // Redirige a la raíz de la aplicación.
-                String redirectUri = UriComponentsBuilder
-                        .fromHttpUrl(request.getRequestURL().toString())
-                        .replacePath("/")
-                        .build()
-                        .toUriString();
-
-                String encodedRedirectUri = URLEncoder.encode(redirectUri, StandardCharsets.UTF_8);
-
-                // Construye la URL final de logout de Keycloak con parámetros.
-                String finalLogoutUrl = UriComponentsBuilder.fromHttpUrl(logoutUrl)
-                        .queryParam("id_token_hint", idToken) // Pista del ID Token para Keycloak.
-                        .queryParam("post_logout_redirect_uri", encodedRedirectUri) // URI de redirección de vuelta a la app.
-                        .build()
-                        .toUriString();
-
-                System.out.println("===> Logout desde LogoutSuccessHandler OIDC: Redirigiendo a Keycloak.");
-                response.sendRedirect(finalLogoutUrl); // Redirige al navegador al endpoint de logout de Keycloak.
-            } else {
-                // Si el usuario no fue autenticado vía OIDC (ej. por tu flujo manual),
-                // simplemente invalida la sesión local y redirige a la página de inicio (/).
-                if (request.getSession(false) != null) {
-                    request.getSession(false).invalidate(); // Invalida la sesión HTTP local.
-                }
-                System.out.println("===> Logout sin usuario OIDC, invalidando sesión local y redirigiendo a /.");
-                response.sendRedirect("/"); // Redirige a la página de inicio (index).
-            }
+            // Invalida la sesión local de Spring Security.
+            // La eliminación de cookies y la invalidación de sesion ya están configuradas
+            // en el .logout() de la SecurityFilterChain.
+            // simplemente aseguramos que la sesion local se limpie.
+            log.info("Logout exitoso para el usuario '{}'. Sesión local invalidada.", authentication != null ? authentication.getName() : "desconocido");
+            response.setStatus(HttpStatus.OK.value());
         };
     }
 }

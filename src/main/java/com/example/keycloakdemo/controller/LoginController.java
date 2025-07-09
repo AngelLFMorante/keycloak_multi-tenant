@@ -30,6 +30,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -83,6 +84,20 @@ public class LoginController {
         this.securityContextRepository = securityContextRepository;
         this.webClient = webClientBuilder.build();
         log.info("LoginController inicializado.");
+    }
+
+    /**
+     * Maneja la solicitud GET para la página de login específica de un tenant.
+     * Añade el ID del tenant al modelo.
+     * @param realm El nombre del realm (tenant)
+     * @return El nombre de la vista
+     */
+    @GetMapping("/{realm}/login")
+    public ResponseEntity<Map<String, Object>> redirectToTenantLogin(@PathVariable String realm) {
+        log.info("Solicitud GET para información de registro del tenant: {}", realm);
+        Map<String, Object> response = new HashMap<>();
+        response.put("realm", realm); // Añade el ID del tenant al modelo.
+        return ResponseEntity.ok(response);
     }
 
     /**
