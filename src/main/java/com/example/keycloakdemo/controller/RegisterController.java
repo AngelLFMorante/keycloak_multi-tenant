@@ -2,6 +2,7 @@ package com.example.keycloakdemo.controller;
 
 import com.example.keycloakdemo.model.RegisterRequest;
 import com.example.keycloakdemo.service.KeycloakService;
+import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -78,7 +79,7 @@ public class RegisterController {
      * @return Un {@link ResponseEntity} con el estado de éxito o error del registro.
      */
     @PostMapping("/{realm}/register")
-    public ResponseEntity<Map<String, Object>> register(@PathVariable String realm, @RequestBody RegisterRequest request) {
+    public ResponseEntity<Map<String, Object>> register(@PathVariable String realm, @Valid @RequestBody RegisterRequest request) {
         log.info("Intento de registro de usuario para el tenant: {}", realm);
         log.debug("Datos de registro recibidos: username={}, email={}", request.getUsername(), request.getEmail());
 

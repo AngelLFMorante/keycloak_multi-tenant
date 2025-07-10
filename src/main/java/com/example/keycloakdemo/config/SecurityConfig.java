@@ -82,6 +82,8 @@ public class SecurityConfig {
         http
                 // Deshabilita la protección CSRF.
                 .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
                         // Permite el acceso a recursos públicos sin autenticación.
                         .requestMatchers("/", "/public/**", "/error").permitAll()

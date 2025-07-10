@@ -1,5 +1,6 @@
 package com.example.keycloakdemo.config;
 
+import com.example.keycloakdemo.exception.KeycloakUserCreationException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -111,5 +112,47 @@ public class GlobalExceptionHandler {
         log.error("Excepcion no capturada: {}", ex.getMessage(), ex);
 
         return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link KeycloakUserCreationException}.
+     * Estas excepciones son lanzadas específicamente por KeycloakService
+     * cuando hay un problema al interactuar con la API de administración de Keycloak para la creación de usuarios.
+     * Se mapea a un 400 Bad Request si el problema es de datos o conflicto, o 500 si es un error interno.
+     *
+     * @param ex La excepción {@link KeycloakUserCreationException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
+     */
+    @ExceptionHandler(KeycloakUserCreationException.class)
+    public ResponseEntity<Map<String, Object>> handleKeycloakUserCreationException(KeycloakUserCreationException ex) {
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", new Date());
+
+        HttpStatus status = HttpStatus.BAD_REQUEST; // Valor por defecto
+        String errorMessage = ex.getMessage();
+
+        // Intentar determinar un estado HTTP más específico basado en el mensaje de error
+        if (errorMessage != null) {
+            if (errorMessage.contains("409 Conflict") || errorMessage.contains("User exists with same username") || errorMessage.contains("User exists with same email")) {
+                status = HttpStatus.CONFLICT; // 409 Conflict
+                errorDetails.put("error", HttpStatus.CONFLICT.getReasonPhrase());
+            } else if (errorMessage.contains("Error interno") || errorMessage.contains("500 Internal Server Error")) {
+                status = HttpStatus.INTERNAL_SERVER_ERROR; // 500 Internal Server Error
+                errorDetails.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
+            } else {
+                // Si no se detecta un patrón específico, se mantiene BAD_REQUEST
+                errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
+            }
+        } else {
+            errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
+        }
+
+        errorDetails.put("status", status.value());
+        errorDetails.put("message", errorMessage);
+
+        log.error("KeycloakUserCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
+
+        return new ResponseEntity<>(errorDetails, status);
     }
 }
