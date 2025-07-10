@@ -285,7 +285,7 @@ public class LoginController {
         responseBody.put("accessToken", accessToken);
         responseBody.put("idToken", idToken);
         responseBody.put("refreshToken", refreshToken);
-        responseBody.put("experisIn", expiresIn);
+        responseBody.put("expiresIn", expiresIn);
         responseBody.put("refreshExpiresIn", refreshExpiresIn);
         responseBody.put("realm", realm);
         responseBody.put("client", client);
