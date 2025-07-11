@@ -1,19 +1,19 @@
 package com.example.keycloakdemo.controller;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.interfaces.DecodedJWT;
 import com.example.keycloakdemo.config.SecurityConfig;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito; // Importar Mockito para lenient()
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -36,14 +36,6 @@ import org.springframework.web.reactive.function.client.WebClient.ResponseSpec;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -64,7 +56,7 @@ import static org.mockito.Mockito.when;
  * sin cargar el contexto completo de Spring Boot.
  */
 @ExtendWith(MockitoExtension.class)
-class LoginControllerUnitTest {
+class LoginControllerTest {
 
     @InjectMocks
     private LoginController loginController;
@@ -103,30 +95,21 @@ class LoginControllerUnitTest {
     @BeforeEach
     void setUp() {
         // Configurar el mock de WebClient.Builder para que devuelva el mock de WebClient
-        Mockito.lenient().when(webClientBuilder.build()).thenReturn(webClient); // Lenient
-
-        // Inyectar los valores @Value y el mock de WebClient en la instancia del controlador
-        // Estos campos no se inyectan automáticamente por @InjectMocks si no están en el constructor
-        ReflectionTestUtils.setField(loginController, "keycloakBaseUrl", keycloakBaseUrl);
-        ReflectionTestUtils.setField(loginController, "singleKeycloakRealm", singleKeycloakRealm);
-        ReflectionTestUtils.setField(loginController, "clientSecrets", clientSecrets);
-        ReflectionTestUtils.setField(loginController, "webClient", webClient);
+        Mockito.lenient().when(webClientBuilder.build()).thenReturn(webClient);
 
         // Configurar el SecurityContextHolder para el test
         SecurityContextHolder.setContext(mock(SecurityContext.class));
-        Mockito.lenient().when(SecurityContextHolder.getContext().getAuthentication()).thenReturn(mock(Authentication.class)); // Lenient
+        Mockito.lenient().when(SecurityContextHolder.getContext().getAuthentication()).thenReturn(mock(Authentication.class));
 
         // Configurar el comportamiento por defecto de clientSecrets para los tests que esperan éxito
-        Mockito.lenient().when(clientSecrets.get(eq(testKeycloakClientId))).thenReturn("mock-client-secret"); // Lenient
+        Mockito.lenient().when(clientSecrets.get(eq(testKeycloakClientId))).thenReturn("mock-client-secret");
     }
 
     // Método auxiliar para configurar el encadenamiento de WebClient en cada test
-    // CAMBIO: Ahora devuelve RequestHeadersSpec para que los tests de error puedan configurar retrieve().thenThrow()
     private RequestHeadersSpec setupWebClientMockChain() {
         RequestBodyUriSpec requestBodyUriSpec = mock(RequestBodyUriSpec.class);
         RequestBodySpec requestBodySpec = mock(RequestBodySpec.class);
         RequestHeadersSpec requestHeadersSpec = mock(RequestHeadersSpec.class);
-        // ResponseSpec responseSpec = mock(ResponseSpec.class); // No se mockea aquí, se mockea en el test individual si es necesario
 
         // Configurar el comportamiento de los mocks en la cadena
         Mockito.lenient().when(webClient.post()).thenReturn(requestBodyUriSpec);
@@ -134,7 +117,7 @@ class LoginControllerUnitTest {
         Mockito.lenient().when(requestBodySpec.headers(any())).thenReturn(requestBodySpec);
         Mockito.lenient().when(requestBodySpec.contentType(any(MediaType.class))).thenReturn(requestBodySpec);
         Mockito.lenient().when(requestBodySpec.body(any(BodyInserter.class))).thenReturn(requestHeadersSpec);
-        // Mockito.lenient().when(requestHeadersSpec.retrieve()).thenReturn(responseSpec); // Esto se configura en cada test
+
         return requestHeadersSpec; // Devolver el RequestHeadersSpec para configuración posterior
     }
 
@@ -215,10 +198,9 @@ class LoginControllerUnitTest {
 
         WebClientResponseException unauthorizedException = WebClientResponseException.create(
                 HttpStatus.UNAUTHORIZED.value(), "Unauthorized", HttpHeaders.EMPTY, "{\"error\":\"invalid_grant\"}".getBytes(), StandardCharsets.UTF_8, null);
-        // CAMBIO: Configurar retrieve() para lanzar la excepción directamente
+
         when(requestHeadersSpec.retrieve()).thenThrow(unauthorizedException);
 
-        // Llamar directamente al método del controlador, que ahora lanzará la excepción
         ResponseEntity<Map<String, Object>> responseEntity = loginController.doLogin(
                 testTenantIdentifier, testKeycloakClientId, testUsername, "wrongpassword", request, response);
 
@@ -240,8 +222,12 @@ class LoginControllerUnitTest {
 
         WebClientResponseException internalServerErrorException = WebClientResponseException.create(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal Server Error", HttpHeaders.EMPTY, "{\"error\":\"server_error\"}".getBytes(), StandardCharsets.UTF_8, null);
-        // CAMBIO: Configurar retrieve() para lanzar la excepción directamente
-        when(requestHeadersSpec.retrieve()).thenThrow(internalServerErrorException);
+
+        ResponseSpec responseSpec = mock(ResponseSpec.class);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+
+        // Simular que el Mono falla lanzando la excepción cuando se hace block()
+        when(responseSpec.bodyToMono(String.class)).thenReturn(Mono.error(internalServerErrorException));
 
         ResponseEntity<Map<String, Object>> responseEntity = loginController.doLogin(
                 testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response);
@@ -252,10 +238,10 @@ class LoginControllerUnitTest {
         assertEquals("{\"error\":\"server_error\"}", responseEntity.getBody().get("details"));
 
         verify(webClient, times(1)).post();
-        // verify(responseSpec, times(1)).bodyToMono(String.class); // No se verifica bodyToMono si retrieve lanza directamente
         verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(securityContextRepository, never()).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
     }
+
 
     @Test
     @DisplayName("Debería retornar 500 Internal Server Error si la respuesta JSON de Keycloak es inválida")

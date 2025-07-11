@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock; // Usar @Mock para mocks puros de Mockito en tests unitarios
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
@@ -14,26 +15,26 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.test.util.ReflectionTestUtils; // Para inyectar @Value en tests unitarios
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when; // Importar when
 
 /**
  * Clase de test unitario para {@link SecurityConfig}.
  * Se enfoca en verificar la correcta creación y configuración de los beans de seguridad
  * definidos en la clase, aislando las dependencias.
  */
-@ExtendWith(MockitoExtension.class) // Habilita la integración de Mockito con JUnit 5
+@ExtendWith(MockitoExtension.class)
 class SecurityConfigTest {
 
     private SecurityConfig securityConfig;
 
+    @Mock // Mock de KeycloakProperties
+    private KeycloakProperties keycloakProperties;
+
     @BeforeEach
     void setUp() {
-        securityConfig = new SecurityConfig();
-        // Inyectar manualmente los valores de las propiedades @Value para el test unitario
-        ReflectionTestUtils.setField(securityConfig, "keycloakAuthServerUrl", "http://localhost:8080/auth");
-        // No es necesario inyectar KEYCLOAK_AUTHORITY_PREFIX ya que es una constante final
+        securityConfig = new SecurityConfig(keycloakProperties);
     }
 
     @Test
@@ -59,7 +60,6 @@ class SecurityConfigTest {
 
         assertNotNull(userDetailsService, "El UserDetailsService no debería ser nulo");
 
-        // Verificar que devuelve un UserDetails con la DUMMY_PASSWORD
         UserDetails userDetails = userDetailsService.loadUserByUsername("anyUser");
         assertNotNull(userDetails, "UserDetails no debería ser nulo");
         assertEquals(SecurityConfig.DUMMY_PASSWORD, userDetails.getPassword(), "La contraseña debería ser la dummy");
@@ -88,8 +88,6 @@ class SecurityConfigTest {
     @Test
     @DisplayName("Debería crear un LogoutSuccessHandler personalizado")
     void customLogoutSuccessHandler_BeanCreation() {
-        // No hay dependencias inyectadas en customLogoutSuccessHandler, así que no necesitamos mocks aquí.
-        // Solo verificamos que el bean se crea y no es nulo.
         assertNotNull(securityConfig.customLogoutSuccessHandler(), "El CustomLogoutSuccessHandler no debería ser nulo");
     }
 }

@@ -2,6 +2,7 @@ package com.example.keycloakdemo.controller;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import com.example.keycloakdemo.config.KeycloakProperties;
 import com.example.keycloakdemo.config.SecurityConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,27 +50,11 @@ public class LoginController {
 
     private static final Logger log = LoggerFactory.getLogger(LoginController.class);
 
-    @Value("${keycloak.auth-server-url}")
-    private String keycloakBaseUrl;
-
-    /**
-     * El nombre del unico realm de keycloak que se utiizara para todas las operaciones.
-     */
-    @Value("${keycloak.single-realm-name}")
-    private String singleKeycloakRealm;
-
-    /**
-     * Mapeo de Client IDs a Client Secrets.
-     * La clave es el client id ( del realm ) y el valor es su client secret
-     * Se inyecta desde las propiedades de la aplicación
-     */
-    @Value("#{${keycloak.client-secrets}}") //inyeccion de un mapa de propiedades TODO cambiar por @ConfigurationProperties
-    private Map<String,String> clientSecrets;
-
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
     private final WebClient webClient;
+    private final KeycloakProperties keycloakProperties;
 
     /**
      * Constructor para la inyección de dependencias de Spring.
@@ -79,10 +64,12 @@ public class LoginController {
      */
     public LoginController(AuthenticationManager authenticationManager,
                            SecurityContextRepository securityContextRepository,
-                           WebClient.Builder webClientBuilder) {
+                           WebClient.Builder webClientBuilder,
+                           KeycloakProperties keycloakProperties) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.webClient = webClientBuilder.build();
+        this.keycloakProperties = keycloakProperties;
         log.info("LoginController inicializado.");
     }
 
@@ -122,13 +109,13 @@ public class LoginController {
             @RequestParam String password,
             HttpServletRequest request,
             HttpServletResponse response
-    ) throws IOException {
+    ) throws Exception {
 
         log.info("Intento de login para usuario '{}' en tenant '{}' con cliente keycloak '{}'", username, realm, client);
 
         Map<String, Object> responseBody = new HashMap<>();
 
-        String clientSecret = clientSecrets.get(client);
+        String clientSecret = keycloakProperties.getClientSecrets().get(client);
 
         if (clientSecret == null) {
             log.warn("Client Secret no encontrado para el Client ID: {}", client);
@@ -138,7 +125,7 @@ public class LoginController {
         log.debug("Client Secret encontrado para Client ID: {}", client);
 
         // Construye la URL del endpoint de tokens de Keycloak para el realm específico.
-        String tokenUrl = keycloakBaseUrl + "/realms/" + singleKeycloakRealm + "/protocol/openid-connect/token";
+        String tokenUrl = keycloakProperties.getAuthServerUrl() + "/realms/" + keycloakProperties.getSingleRealmName() + "/protocol/openid-connect/token";
         log.debug("URL de token de Keycloak: {}", tokenUrl);
 
         // Prepara los parámetros para la solicitud POST al endpoint de tokens de Keycloak (Password Grant).

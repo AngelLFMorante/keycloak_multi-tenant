@@ -1,5 +1,6 @@
 package com.example.keycloakdemo.controller;
 
+import com.example.keycloakdemo.config.KeycloakProperties;
 import com.example.keycloakdemo.model.RegisterRequest;
 import com.example.keycloakdemo.service.KeycloakService;
 import jakarta.validation.Valid;
@@ -7,7 +8,6 @@ import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,20 +30,16 @@ public class RegisterController {
      */
     private final KeycloakService keycloakService;
 
-    /**
-     * El nombre del único realm de keycloak que se utilizara para todas las operaciones.
-     * Este valor se inyectará desde las propiedades de la aplicación
-     */
-    @Value("keycloak.single-realm-name")
-    private String singleKeycloakRealm;
+    private final KeycloakProperties keycloakProperties;
 
     /**
      * Constructor para la inyección de dependencias.
      *
      * @param keycloakService El servicio {@link KeycloakService} para interactuar con Keycloak.
      */
-    public RegisterController(KeycloakService keycloakService) {
+    public RegisterController(KeycloakService keycloakService,KeycloakProperties keycloakProperties) {
         this.keycloakService = keycloakService;
+        this.keycloakProperties = keycloakProperties;
         log.info("RegisterController inicializado.");
     }
 
@@ -90,14 +86,14 @@ public class RegisterController {
         }
 
         //Comprobar si el email existe en keycloak
-        if(keycloakService.userExistsByEmail(singleKeycloakRealm, request.getEmail())){
+        if(keycloakService.userExistsByEmail(keycloakProperties.getSingleRealmName(), request.getEmail())){
             log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.getEmail(), realm);
             throw new IllegalArgumentException(("El email '" + request.getEmail() + "' ya está registrado en Keycloak."));
         }
 
         // Esto es crucial para que la llamada al servicio de Keycloak sea correcta.
         keycloakService.createUser(realm, request); // Delega la creación del usuario a KeycloakService.
-        log.info("Usuario '{}' registrado exitosamente en el realm Keycloak '{}' para el tenant '{}'.", request.getUsername(), singleKeycloakRealm, realm);
+        log.info("Usuario '{}' registrado exitosamente en el realm Keycloak '{}' para el tenant '{}'.", request.getUsername(), keycloakProperties.getSingleRealmName(), realm);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "User registered. Waiting for admin approval."); // Mensaje de éxito.

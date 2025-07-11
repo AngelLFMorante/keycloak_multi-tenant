@@ -42,14 +42,12 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("Debería manejar WebClientResponseException (401 Unauthorized)")
     void handleWebClientResponseException_Unauthorized() {
-        // Simular una WebClientResponseException con estado 401
-        // No se proporciona URI en el create, por lo que el path será "Desconocido"
         WebClientResponseException ex = WebClientResponseException.create(
                 HttpStatus.UNAUTHORIZED.value(),
                 "Unauthorized",
                 HttpHeaders.EMPTY,
                 "{\"error\":\"invalid_grant\"}".getBytes(),
-                null // No se proporciona ClientRequest, por lo que getRequest() será null
+                null
         );
 
         ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleWebClientResponseException(ex);
@@ -67,14 +65,12 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("Debería manejar WebClientResponseException (404 Not Found)")
     void handleWebClientResponseException_NotFound() {
-        // Simular una WebClientResponseException con estado 404
-        // No se proporciona URI en el create, por lo que el path será "Desconocido"
         WebClientResponseException ex = WebClientResponseException.create(
                 HttpStatus.NOT_FOUND.value(),
                 "Not Found",
                 HttpHeaders.EMPTY,
                 "{\"message\":\"Endpoint not found\"}".getBytes(),
-                null // No se proporciona ClientRequest, por lo que getRequest() será null
+                null
         );
 
         ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleWebClientResponseException(ex);
@@ -85,7 +81,7 @@ class GlobalExceptionHandlerTest {
         assertEquals("Not Found", responseEntity.getBody().get("error"));
         assertTrue(responseEntity.getBody().get("message").toString().contains("Error en la comunicacion con el servicio externo"));
         assertEquals("{\"message\":\"Endpoint not found\"}", responseEntity.getBody().get("responseBody"));
-        assertEquals("Desconocido", responseEntity.getBody().get("path")); // CORREGIDO: Espera "Desconocido"
+        assertEquals("Desconocido", responseEntity.getBody().get("path"));
     }
 
 
@@ -137,12 +133,10 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("Debería manejar MethodArgumentNotValidException")
     void handleValidationExceptions() {
-        // Simular FieldErrors
         FieldError fieldError1 = new FieldError("registerRequest", "username", "El nombre de usuario no puede estar vacio");
         FieldError fieldError2 = new FieldError("registerRequest", "email", "El email debe tener un formato valido");
         List<FieldError> fieldErrors = Arrays.asList(fieldError1, fieldError2);
 
-        // Mockear MethodArgumentNotValidException y configurar el BindingResult
         MethodArgumentNotValidException ex = mock(MethodArgumentNotValidException.class);
         when(ex.getBindingResult()).thenReturn(bindingResult);
 
@@ -167,7 +161,7 @@ class GlobalExceptionHandlerTest {
     @DisplayName("Debería manejar cualquier otra Exception genérica")
     void handleAllUncaughtException() {
         String errorMessage = "Algo salió muy mal.";
-        Exception ex = new RuntimeException(errorMessage); // Simular una excepción genérica
+        Exception ex = new RuntimeException(errorMessage);
 
         ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleAllUncaughtException(ex);
 

@@ -4,7 +4,7 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+// import org.springframework.beans.factory.annotation.Value; // <--- Ya no es necesario
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,8 +13,7 @@ import org.springframework.context.annotation.Configuration;
  * Esta configuración permite a la aplicación interactuar con la API de administración de Keycloak
  * para realizar operaciones como la creación de usuarios, la gestión de roles, clientes, etc.
  *
- * Los valores de configuración para la conexión a Keycloak se inyectan desde
- * los archivos de propiedades.
+ * Los valores de configuración para la conexión a Keycloak se obtienen de {@link KeycloakProperties}.
  * Es importante notar que el 'adminRealm' es master el realm donde se autentica
  * el propio cliente de administracion, no el realm donde se gestionan los usuarios de la aplicacion.
  */
@@ -23,41 +22,13 @@ public class KeycloakConfig {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakConfig.class);
 
-    /**
-     * URL base del servidor de autenticación de Keycloak.
-     * Ejemplo: http://localhost:8080
-     */
-    @Value("${keycloak.auth-server-url}")
-    private String serverUrl;
+    // Inyectamos KeycloakProperties directamente
+    private final KeycloakProperties keycloakProperties;
 
-    /**
-     * Nombre del realm de Keycloak que se utilizará para la autenticación del usuario administrador
-     * del cliente de administración. Generalmente es "master".
-     */
-    @Value("${keycloak.admin.realm}")
-    private String adminRealm;
-
-    /**
-     * Nombre de usuario del administrador de Keycloak.
-     * Este usuario debe tener los privilegios adecuados en el 'adminRealm'
-     * para realizar las operaciones deseadas a través del cliente de administración.
-     */
-    @Value("${keycloak.admin.username}")
-    private String adminUsername;
-
-    /**
-     * Contraseña del usuario administrador de Keycloak.
-     * Esta contraseña se utiliza para autenticar el cliente de administración.
-     */
-    @Value("${keycloak.admin.password}")
-    private String adminPassword;
-
-    /**
-     * ID del cliente de Keycloak que se utiliza para la autenticación del administrador.
-     * Por defecto, para el CLI de administración, suele ser "admin-cli".
-     */
-    @Value("${keycloak.admin.client-id}")
-    private String adminClientId;
+    // Constructor para inyectar KeycloakProperties
+    public KeycloakConfig(KeycloakProperties keycloakProperties) {
+        this.keycloakProperties = keycloakProperties;
+    }
 
     /**
      * Define y configura un bean de {@link Keycloak}.
@@ -69,18 +40,18 @@ public class KeycloakConfig {
     @Bean
     public Keycloak keycloak() {
         log.info("Configurando el cliente de administracion de Keycloack...");
-        log.debug("Server URL: {}", serverUrl);
-        log.debug("Admin Realm: {}", adminRealm);
-        log.debug("Admin Username: {}", adminUsername);
-        log.debug("Admin Client ID: {}", adminClientId);
+        log.debug("Server URL: {}", keycloakProperties.getAuthServerUrl()); // Usar de KeycloakProperties
+        log.debug("Admin Realm: {}", keycloakProperties.getAdminRealm());      // Usar de KeycloakProperties
+        log.debug("Admin Username: {}", keycloakProperties.getAdminUsername()); // Usar de KeycloakProperties
+        log.debug("Admin Client ID: {}", keycloakProperties.getAdminClientId()); // Usar de KeycloakProperties
 
         // Construye una instancia de Keycloak Admin Client utilizando KeycloakBuilder.
-         Keycloak keycloakAdminClient = KeycloakBuilder.builder()
-                .serverUrl(serverUrl) // Establece la URL del servidor de Keycloak.
-                .realm(adminRealm)    // Establece el realm para la autenticación del administrador.
-                .username(adminUsername) // Establece el nombre de usuario del administrador.
-                .password(adminPassword) // Establece la contraseña del administrador.
-                .clientId(adminClientId) // Establece el ID del cliente para la autenticación del administrador.
+        Keycloak keycloakAdminClient = KeycloakBuilder.builder()
+                .serverUrl(keycloakProperties.getAuthServerUrl()) // Obtener de KeycloakProperties
+                .realm(keycloakProperties.getAdminRealm())        // Obtener de KeycloakProperties
+                .username(keycloakProperties.getAdminUsername())  // Obtener de KeycloakProperties
+                .password(keycloakProperties.getAdminPassword())  // Obtener de KeycloakProperties
+                .clientId(keycloakProperties.getAdminClientId())  // Obtener de KeycloakProperties
                 .build(); // Construye la instancia del cliente Keycloak.
 
         log.info("Cliente de administracion de Keycloak configurado exitosamente");

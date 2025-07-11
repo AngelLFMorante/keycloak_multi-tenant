@@ -1,13 +1,8 @@
 package com.example.keycloakdemo.config;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Value; // Mantener si hay otros @Value no relacionados con Keycloak
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -35,6 +30,12 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * Configuración principal de seguridad para una aplicación multi-tenant con Keycloak.
  * Adaptada para funcionar como un microservicio REST, centrado en el flujo
@@ -46,11 +47,8 @@ public class SecurityConfig {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
-    /**
-     * URL base del servidor de autenticación de Keycloak, inyectada desde las propiedades.
-     */
-    @Value("${keycloak.auth-server-url}")
-    private String keycloakAuthServerUrl;
+    // Inyectamos KeycloakProperties directamente
+    private final KeycloakProperties keycloakProperties;
 
     /**
      * Prefijo para los roles de Spring Security.
@@ -66,6 +64,10 @@ public class SecurityConfig {
      */
     public static final String DUMMY_PASSWORD = "dummy_password";
 
+    // Constructor para inyectar KeycloakProperties
+    public SecurityConfig(KeycloakProperties keycloakProperties) {
+        this.keycloakProperties = keycloakProperties;
+    }
 
     /**
      * Configura la cadena de filtros de seguridad HTTP.
