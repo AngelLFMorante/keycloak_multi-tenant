@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -36,8 +36,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.reactive.function.BodyInserters;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestTemplate;
+
 
 /**
  * Controlador para gestionar el proceso de login manual de usuarios contra Keycloak
@@ -53,22 +53,23 @@ public class LoginController {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
-    private final WebClient webClient;
+    private final RestTemplate restTemplate;
     private final KeycloakProperties keycloakProperties;
 
     /**
      * Constructor para la inyección de dependencias de Spring.
-     *
-     * @param authenticationManager           Instancia de {@link AuthenticationManager}.
-     * @param securityContextRepository       Instancia de {@link SecurityContextRepository}.
+     * @param authenticationManager
+     * @param securityContextRepository
+     * @param restTemplate
+     * @param keycloakProperties
      */
     public LoginController(AuthenticationManager authenticationManager,
                            SecurityContextRepository securityContextRepository,
-                           WebClient.Builder webClientBuilder,
+                           RestTemplate restTemplate,
                            KeycloakProperties keycloakProperties) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
-        this.webClient = webClientBuilder.build();
+        this.restTemplate = restTemplate;
         this.keycloakProperties = keycloakProperties;
         log.info("LoginController inicializado.");
     }
@@ -146,14 +147,15 @@ public class LoginController {
         headers.set("Authorization", "Basic " + encodedAuth);
         log.debug("Cabeceras de autenticación preparados.");
 
-        // Realiza la solicitud POST a Keycloak para obtener el token.
-        String tokenResponse = webClient.post()
-                .uri(tokenUrl)
-                .headers(httpHeaders -> httpHeaders.addAll(headers))
-                .body(BodyInserters.fromFormData(params))
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
+        HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(params, headers);
+
+        ResponseEntity<String> tokenResponseEntity = restTemplate.postForEntity(
+                tokenUrl,
+                requestEntity,
+                String.class
+        );
+
+        String tokenResponse = tokenResponseEntity.getBody();
 
         log.info("Respuesta exitosa de Keycloak para el usuario '{}'", username);
         JsonNode node = objectMapper.readTree(tokenResponse);

@@ -1,8 +1,8 @@
 package com.example.keycloakdemo.config;
 
+import java.util.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value; // Mantener si hay otros @Value no relacionados con Keycloak
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -14,27 +14,15 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
-import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
-import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
-import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import org.springframework.web.client.RestTemplate;
 
 /**
  * Configuración principal de seguridad para una aplicación multi-tenant con Keycloak.
@@ -189,48 +177,18 @@ public class SecurityConfig {
 
     // --- FIN DE BEANS NECESARIOS PARA EL LOGIN MANUAL ---
 
-
     /**
-     * Servicio para extraer roles del token OIDC cuando se utiliza el flujo OAuth2 Login.
-     * Este método mapea los roles de Keycloak (realm y cliente) a autoridades de Spring Security.
-     * Es relevante si también se habilita el `.oauth2Login()` en el {@link SecurityFilterChain}.
-     * @return Un {@link OAuth2UserService} que procesa la información del usuario OIDC.
+     * Define un bean de {@link RestTemplate}.
+     * Este bean es necesario para que LoginController pueda realizar
+     * llamadas HTTP síncronas a Keycloak para obtener tokens.
+     * @return Una instancia configurada de {@link RestTemplate}.
      */
     @Bean
-    public OAuth2UserService<OidcUserRequest, OidcUser> oidcUserService() {
-        log.debug("Configurando OidcUserService (manteniendo para posible uso futuro de OAuth2 Login).");
-        final OidcUserService delegate = new OidcUserService();
-
-        return (userRequest) -> {
-            OidcUser oidcUser = delegate.loadUser(userRequest); // Carga el usuario OIDC estándar.
-            Set<GrantedAuthority> mappedAuthorities = new HashSet<>();
-
-            // Extrae roles de 'realm_access' del token de identidad.
-            Map<String, Object> realmAccess = oidcUser.getClaimAsMap("realm_access");
-            if (realmAccess != null && realmAccess.containsKey("roles")) {
-                Collection<String> realmRoles = (Collection<String>) realmAccess.get("roles");
-                realmRoles.forEach(role -> mappedAuthorities.add(new SimpleGrantedAuthority(KEYCLOAK_AUTHORITY_PREFIX + role.toUpperCase())));
-            }
-
-            // Extrae roles de 'resource_access' (roles de cliente) del token de identidad.
-            Map<String, Object> resourceAccess = oidcUser.getClaimAsMap("resource_access");
-            if (resourceAccess != null) {
-                // Obtiene el ID del cliente actual para buscar roles específicos de ese cliente.
-                String currentClientId = userRequest.getClientRegistration().getClientId();
-                Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get(currentClientId);
-                if (clientAccess != null && clientAccess.containsKey("roles")) {
-                    Collection<String> clientRoles = (Collection<String>) clientAccess.get("roles");
-                    clientRoles.forEach(role -> mappedAuthorities.add(new SimpleGrantedAuthority(KEYCLOAK_AUTHORITY_PREFIX + role.toUpperCase())));
-                }
-            }
-
-            // Añade las autoridades originales (por ejemplo, 'SCOPE_openid') si existen.
-            mappedAuthorities.addAll(oidcUser.getAuthorities());
-
-            // Devuelve un nuevo OidcUser con las autoridades mapeadas.
-            return new DefaultOidcUser(mappedAuthorities, oidcUser.getIdToken(), oidcUser.getUserInfo());
-        };
+    public RestTemplate restTemplate() {
+        log.debug("Configurando RestTemplate.");
+        return new RestTemplate();
     }
+
 
     /**
      * Manejador de éxito de logout personalizado para Keycloak.

@@ -4,7 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock; // Usar @Mock para mocks puros de Mockito en tests unitarios
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
@@ -16,8 +16,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when; // Importar when
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 /**
  * Clase de test unitario para {@link SecurityConfig}.
@@ -29,7 +32,7 @@ class SecurityConfigTest {
 
     private SecurityConfig securityConfig;
 
-    @Mock // Mock de KeycloakProperties
+    @Mock
     private KeycloakProperties keycloakProperties;
 
     @BeforeEach

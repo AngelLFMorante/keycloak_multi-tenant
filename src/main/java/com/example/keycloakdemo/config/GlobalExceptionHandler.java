@@ -12,7 +12,10 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.UnknownHttpStatusCodeException;
 
 /**
  * Clase global para el manejo de excepciones en la aplicacion REST
@@ -22,28 +25,107 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+
     /**
-     * Maneja las excepciones de tipo {@link WebClientResponseException}.
-     * servicio externo a traves de WebClient (ej. 400, 401, 403, 404, 500)
-     * @param ex La excepcion {@link WebClientResponseException} capturado.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error y el codigo de estado HTTP correspondiente
+     * Maneja las excepciones de tipo {@link HttpClientErrorException} (errores 4xx).
+     * Estas excepciones son lanzadas por RestTemplate cuando el servidor externo
+     * responde con un código de estado de cliente (4xx).
+     *
+     * @param ex La excepción {@link HttpClientErrorException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y el código de estado HTTP 4xx correspondiente.
      */
-    @ExceptionHandler(WebClientResponseException.class)
-    public ResponseEntity<Map<String, Object>> handleWebClientResponseException(WebClientResponseException ex){
+    @ExceptionHandler(HttpClientErrorException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpClientErrorException(HttpClientErrorException ex) {
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", new Date());
         errorDetails.put("status", ex.getStatusCode().value());
         errorDetails.put("error", ex.getStatusText());
-        errorDetails.put("message", "Error en la comunicacion con el servicio externo: "+ ex.getMessage());
+        errorDetails.put("message", "Error del cliente al comunicarse con el servicio externo: " + ex.getMessage());
+        errorDetails.put("responseBody", ex.getResponseBodyAsString()); // Incluir el cuerpo de la respuesta si Keycloak lo envía
 
-        String path = (ex.getRequest() != null && ex.getRequest().getURI() != null) ? ex.getRequest().getURI().getPath() : "Desconocido";
-
-        errorDetails.put("path", path);
-        errorDetails.put("responseBody", ex.getResponseBodyAsString());
-
-        log.error("WebClientResponseException capturado: Status={}, URI={}, ResponseBody={}",ex.getStatusCode(), path, ex.getResponseBodyAsString(), ex);
+        log.error("HttpClientErrorException capturado: Status={}, Message={}, ResponseBody={}",
+                ex.getStatusCode(), ex.getMessage(), ex.getResponseBodyAsString(), ex);
 
         return new ResponseEntity<>(errorDetails, ex.getStatusCode());
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link HttpServerErrorException} (errores 5xx).
+     * Estas excepciones son lanzadas por RestTemplate cuando el servidor externo
+     * responde con un código de estado de servidor (5xx).
+     *
+     * @param ex La excepción {@link HttpServerErrorException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y el código de estado HTTP 5xx correspondiente.
+     */
+    @ExceptionHandler(HttpServerErrorException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpServerErrorException(HttpServerErrorException ex) {
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", new Date());
+        errorDetails.put("status", ex.getStatusCode().value());
+        errorDetails.put("error", ex.getStatusText());
+        errorDetails.put("message", "Error del servidor externo: " + ex.getMessage());
+        errorDetails.put("responseBody", ex.getResponseBodyAsString()); // Incluir el cuerpo de la respuesta si Keycloak lo envía
+
+        log.error("HttpServerErrorException capturado: Status={}, Message={}, ResponseBody={}",
+                ex.getStatusCode(), ex.getMessage(), ex.getResponseBodyAsString(), ex);
+
+        return new ResponseEntity<>(errorDetails, ex.getStatusCode());
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link ResourceAccessException}.
+     * Estas excepciones son lanzadas por RestTemplate cuando hay problemas de red,
+     * como un servidor no disponible, timeout de conexión, etc.
+     *
+     * @param ex La excepción {@link ResourceAccessException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y un código de estado HTTP 503 (Service Unavailable) o 504 (Gateway Timeout)
+     * dependiendo de la causa subyacente.
+     */
+    @ExceptionHandler(ResourceAccessException.class)
+    public ResponseEntity<Map<String, Object>> handleResourceAccessException(ResourceAccessException ex) {
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", new Date());
+        errorDetails.put("status", HttpStatus.SERVICE_UNAVAILABLE.value()); // Por defecto
+        errorDetails.put("error", HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase());
+        errorDetails.put("message", "Problema de comunicación con el servicio externo: " + ex.getMessage());
+
+        // Puedes intentar inferir un status más específico si el mensaje de la excepción lo permite
+        if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("timeout")) {
+            errorDetails.put("status", HttpStatus.GATEWAY_TIMEOUT.value());
+            errorDetails.put("error", HttpStatus.GATEWAY_TIMEOUT.getReasonPhrase());
+        }
+
+        log.error("ResourceAccessException capturado: Message={}", ex.getMessage(), ex);
+
+        return new ResponseEntity<>(errorDetails, HttpStatus.valueOf((Integer)errorDetails.get("status")));
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link UnknownHttpStatusCodeException}.
+     * Esta excepción es lanzada por RestTemplate cuando recibe un código de estado HTTP
+     * que no puede mapear a un {@link HttpStatus} conocido.
+     *
+     * @param ex La excepción {@link UnknownHttpStatusCodeException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y un código de estado HTTP 500 (Internal Server Error).
+     */
+    @ExceptionHandler(UnknownHttpStatusCodeException.class)
+    public ResponseEntity<Map<String, Object>> handleUnknownHttpStatusCodeException(UnknownHttpStatusCodeException ex) {
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", new Date());
+        errorDetails.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        errorDetails.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
+        errorDetails.put("message", "Servicio externo respondió con código de estado desconocido: " + ex.getRawStatusCode());
+        errorDetails.put("rawStatusCode", ex.getRawStatusCode());
+        errorDetails.put("responseBody", ex.getResponseBodyAsString());
+
+        log.error("UnknownHttpStatusCodeException capturado: RawStatus={}, Message={}, ResponseBody={}",
+                ex.getRawStatusCode(), ex.getMessage(), ex.getResponseBodyAsString(), ex);
+
+        return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     /**

@@ -4,7 +4,6 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-// import org.springframework.beans.factory.annotation.Value; // <--- Ya no es necesario
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -40,19 +39,19 @@ public class KeycloakConfig {
     @Bean
     public Keycloak keycloak() {
         log.info("Configurando el cliente de administracion de Keycloack...");
-        log.debug("Server URL: {}", keycloakProperties.getAuthServerUrl()); // Usar de KeycloakProperties
-        log.debug("Admin Realm: {}", keycloakProperties.getAdminRealm());      // Usar de KeycloakProperties
-        log.debug("Admin Username: {}", keycloakProperties.getAdminUsername()); // Usar de KeycloakProperties
-        log.debug("Admin Client ID: {}", keycloakProperties.getAdminClientId()); // Usar de KeycloakProperties
+        log.debug("Server URL: {}", keycloakProperties.getAuthServerUrl());
+        log.debug("Admin Realm: {}", keycloakProperties.getAdmin().getRealm());
+        log.debug("Admin Username: {}", keycloakProperties.getAdmin().getUsername());
+        log.debug("Admin Client ID: {}", keycloakProperties.getAdmin().getClientId());
 
         // Construye una instancia de Keycloak Admin Client utilizando KeycloakBuilder.
         Keycloak keycloakAdminClient = KeycloakBuilder.builder()
-                .serverUrl(keycloakProperties.getAuthServerUrl()) // Obtener de KeycloakProperties
-                .realm(keycloakProperties.getAdminRealm())        // Obtener de KeycloakProperties
-                .username(keycloakProperties.getAdminUsername())  // Obtener de KeycloakProperties
-                .password(keycloakProperties.getAdminPassword())  // Obtener de KeycloakProperties
-                .clientId(keycloakProperties.getAdminClientId())  // Obtener de KeycloakProperties
-                .build(); // Construye la instancia del cliente Keycloak.
+                .serverUrl(keycloakProperties.getAuthServerUrl())
+                .realm(keycloakProperties.getAdmin().getRealm())
+                .username(keycloakProperties.getAdmin().getUsername())
+                .password(keycloakProperties.getAdmin().getPassword())
+                .clientId(keycloakProperties.getAdmin().getClientId())
+                .build();
 
         log.info("Cliente de administracion de Keycloak configurado exitosamente");
         return keycloakAdminClient;

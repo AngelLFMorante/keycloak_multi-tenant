@@ -1,8 +1,10 @@
 package com.example.keycloakdemo.controller;
 
+import com.example.keycloakdemo.config.KeycloakProperties;
 import com.example.keycloakdemo.config.SecurityConfig;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
@@ -15,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,15 +29,9 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.reactive.function.BodyInserter;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClient.RequestBodySpec;
-import org.springframework.web.reactive.function.client.WebClient.RequestBodyUriSpec;
-import org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec;
-import org.springframework.web.reactive.function.client.WebClient.ResponseSpec;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
-import reactor.core.publisher.Mono;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -44,7 +41,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -62,19 +58,16 @@ class LoginControllerTest {
     private LoginController loginController;
 
     @Mock
-    private WebClient.Builder webClientBuilder;
-
-    @Mock
     private AuthenticationManager authenticationManager;
 
     @Mock
     private SecurityContextRepository securityContextRepository;
 
     @Mock
-    private WebClient webClient;
+    private RestTemplate restTemplate;
 
     @Mock
-    private Map<String, String> clientSecrets;
+    private KeycloakProperties keycloakProperties;
 
     @Mock
     private HttpServletRequest request;
@@ -87,6 +80,7 @@ class LoginControllerTest {
     private String testPassword = "password123";
 
     private String mockAccessToken = "mockAccessToken";
+
     private String mockIdToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3QgVXNlciIsImVtYWlsIjoidGVzdHVzZXJAZXhhbXBsZS5jb20iLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0ZXN0dXNlciIsInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJ1c2VyX2FwcCJdfSwicmVzb3VyY2VfYWNjZXNzIjp7InBsZXh1cy1hcHAtY2xpZW50Ijp7InJvbGVzIjpbImNsaWVudF9yb2xlIl19fX0.signature";
 
     private String keycloakBaseUrl = "http://localhost:8080";
@@ -94,46 +88,29 @@ class LoginControllerTest {
 
     @BeforeEach
     void setUp() {
-        // Configurar el mock de WebClient.Builder para que devuelva el mock de WebClient
-        Mockito.lenient().when(webClientBuilder.build()).thenReturn(webClient);
 
-        // Configurar el SecurityContextHolder para el test
-        SecurityContextHolder.setContext(mock(SecurityContext.class));
-        Mockito.lenient().when(SecurityContextHolder.getContext().getAuthentication()).thenReturn(mock(Authentication.class));
+        SecurityContextHolder.setContext(Mockito.mock(SecurityContext.class));
+        Mockito.lenient().when(SecurityContextHolder.getContext().getAuthentication()).thenReturn(Mockito.mock(Authentication.class));
 
-        // Configurar el comportamiento por defecto de clientSecrets para los tests que esperan éxito
-        Mockito.lenient().when(clientSecrets.get(eq(testKeycloakClientId))).thenReturn("mock-client-secret");
-    }
-
-    // Método auxiliar para configurar el encadenamiento de WebClient en cada test
-    private RequestHeadersSpec setupWebClientMockChain() {
-        RequestBodyUriSpec requestBodyUriSpec = mock(RequestBodyUriSpec.class);
-        RequestBodySpec requestBodySpec = mock(RequestBodySpec.class);
-        RequestHeadersSpec requestHeadersSpec = mock(RequestHeadersSpec.class);
-
-        // Configurar el comportamiento de los mocks en la cadena
-        Mockito.lenient().when(webClient.post()).thenReturn(requestBodyUriSpec);
-        Mockito.lenient().when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-        Mockito.lenient().when(requestBodySpec.headers(any())).thenReturn(requestBodySpec);
-        Mockito.lenient().when(requestBodySpec.contentType(any(MediaType.class))).thenReturn(requestBodySpec);
-        Mockito.lenient().when(requestBodySpec.body(any(BodyInserter.class))).thenReturn(requestHeadersSpec);
-
-        return requestHeadersSpec; // Devolver el RequestHeadersSpec para configuración posterior
+        Mockito.lenient().when(keycloakProperties.getClientSecrets()).thenReturn(Mockito.mock(Map.class));
+        Mockito.lenient().when(keycloakProperties.getClientSecrets().get(eq(testKeycloakClientId))).thenReturn("mock-client-secret");
+        Mockito.lenient().when(keycloakProperties.getAuthServerUrl()).thenReturn(keycloakBaseUrl);
+        Mockito.lenient().when(keycloakProperties.getSingleRealmName()).thenReturn(singleKeycloakRealm);
     }
 
     @Test
     @DisplayName("Debería realizar un login exitoso y retornar 200 OK")
     void doLogin_Success() throws Exception {
-        RequestHeadersSpec requestHeadersSpec = setupWebClientMockChain(); // Obtener el RequestHeadersSpec
-        ResponseSpec responseSpec = mock(ResponseSpec.class); // Mockear ResponseSpec aquí
-        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec); // Configurar retrieve para este test
-
-        // Asegurarse de que el JSON de respuesta incluya expiresIn y refreshExpiresIn
         String keycloakResponseJson = String.format(
                 "{\"access_token\":\"%s\",\"id_token\":\"%s\",\"refresh_token\":\"mockRefreshToken\",\"expires_in\":3600,\"refresh_expires_in\":1800}",
                 mockAccessToken, mockIdToken
         );
-        when(responseSpec.bodyToMono(String.class)).thenReturn(Mono.just(keycloakResponseJson));
+
+        when(restTemplate.postForEntity(
+                anyString(),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenReturn(new ResponseEntity<>(keycloakResponseJson, HttpStatus.OK));
 
         Authentication authenticatedAuth = new UsernamePasswordAuthenticationToken(
                 testUsername, SecurityConfig.DUMMY_PASSWORD, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER_APP"))
@@ -156,14 +133,12 @@ class LoginControllerTest {
         assertTrue(roles.contains("ROLE_CLIENT_ROLE"));
         assertEquals(mockAccessToken, responseEntity.getBody().get("accessToken"));
         assertEquals(mockIdToken, responseEntity.getBody().get("idToken"));
-        // CAMBIO: Asegurarse de que el valor sea un Long para la aserción
         assertEquals(3600L, responseEntity.getBody().get("expiresIn"));
         assertEquals(1800L, responseEntity.getBody().get("refreshExpiresIn"));
         assertEquals(testTenantIdentifier, responseEntity.getBody().get("realm"));
         assertEquals(testKeycloakClientId, responseEntity.getBody().get("client"));
 
-        verify(webClient, times(1)).post();
-        verify(responseSpec, times(1)).bodyToMono(String.class);
+        verify(restTemplate, times(1)).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
         verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(securityContextRepository, times(1)).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
     }
@@ -171,99 +146,94 @@ class LoginControllerTest {
     @Test
     @DisplayName("Debería retornar 400 Bad Request si el client secret no se encuentra")
     void doLogin_ClientSecretNotFound_ReturnsBadRequest() throws Exception {
-        // Configurar el mock de clientSecrets para que devuelva null
-        when(clientSecrets.get(eq(testKeycloakClientId))).thenReturn(null);
+        when(keycloakProperties.getClientSecrets().get(eq(testKeycloakClientId))).thenReturn(null);
 
-        // Capturar la excepción esperada
         IllegalArgumentException thrown = assertThrows(
                 IllegalArgumentException.class,
                 () -> loginController.doLogin(testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response),
                 "Se esperaba una IllegalArgumentException cuando el secreto del cliente no se encuentra."
         );
 
-        // Verificar el mensaje de la excepción
         String expectedMessage = "Client ID configurado pero secreto no encontrado para: " + testKeycloakClientId + ".Asegurate de que el client ID esté configurado en 'keycloak.client-secrets' en properties.";
         assertEquals(expectedMessage, thrown.getMessage());
 
-        // Verificar que no hubo interacciones con WebClient o Spring Security
-        verify(webClient, never()).post();
+        verify(restTemplate, never()).postForEntity(anyString(), any(HttpEntity.class), any());
         verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(securityContextRepository, never()).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
     }
 
     @Test
-    @DisplayName("Debería retornar 401 Unauthorized para credenciales inválidas de Keycloak")
-    void doLogin_KeycloakReturns401_ReturnsUnauthorized() throws Exception {
-        RequestHeadersSpec requestHeadersSpec = setupWebClientMockChain(); // Obtener el RequestHeadersSpec
+    @DisplayName("Debería lanzar HttpClientErrorException para credenciales inválidas de Keycloak (401)")
+    void doLogin_KeycloakReturns401_ThrowsHttpClientErrorException() throws Exception {
+        HttpClientErrorException unauthorizedException = HttpClientErrorException.create(
+                HttpStatus.UNAUTHORIZED, "Unauthorized", HttpHeaders.EMPTY, "{\"error\":\"invalid_grant\"}".getBytes(), StandardCharsets.UTF_8);
 
-        WebClientResponseException unauthorizedException = WebClientResponseException.create(
-                HttpStatus.UNAUTHORIZED.value(), "Unauthorized", HttpHeaders.EMPTY, "{\"error\":\"invalid_grant\"}".getBytes(), StandardCharsets.UTF_8, null);
+        when(restTemplate.postForEntity(
+                anyString(),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenThrow(unauthorizedException);
 
-        when(requestHeadersSpec.retrieve()).thenThrow(unauthorizedException);
+        HttpClientErrorException thrown = assertThrows(
+                HttpClientErrorException.class,
+                () -> loginController.doLogin(testTenantIdentifier, testKeycloakClientId, testUsername, "wrongpassword", request, response),
+                "Se esperaba una HttpClientErrorException para credenciales inválidas."
+        );
 
-        ResponseEntity<Map<String, Object>> responseEntity = loginController.doLogin(
-                testTenantIdentifier, testKeycloakClientId, testUsername, "wrongpassword", request, response);
+        assertEquals(HttpStatus.UNAUTHORIZED, thrown.getStatusCode());
+        assertTrue(thrown.getResponseBodyAsString().contains("invalid_grant"));
 
-        assertEquals(HttpStatus.UNAUTHORIZED, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals("Error de autenticación: Usuario o cliente no autorizado con Keycloak.", responseEntity.getBody().get("error"));
-        assertEquals("{\"error\":\"invalid_grant\"}", responseEntity.getBody().get("details"));
-
-        verify(webClient, times(1)).post();
-        // verify(responseSpec, times(1)).bodyToMono(String.class); // No se verifica bodyToMono si retrieve lanza directamente
+        verify(restTemplate, times(1)).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
         verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(securityContextRepository, never()).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
     }
 
     @Test
-    @DisplayName("Debería retornar 500 Internal Server Error para errores inesperados de Keycloak")
-    void doLogin_KeycloakReturns500_ReturnsInternalServerError() throws Exception {
-        RequestHeadersSpec requestHeadersSpec = setupWebClientMockChain(); // Obtener el RequestHeadersSpec
+    @DisplayName("Debería lanzar HttpServerErrorException para errores inesperados de Keycloak (500)")
+    void doLogin_KeycloakReturns500_ThrowsHttpServerErrorException() throws Exception {
+        HttpServerErrorException internalServerErrorException = HttpServerErrorException.create(
+                HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", HttpHeaders.EMPTY, "{\"error\":\"server_error\"}".getBytes(), StandardCharsets.UTF_8);
 
-        WebClientResponseException internalServerErrorException = WebClientResponseException.create(
-                HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal Server Error", HttpHeaders.EMPTY, "{\"error\":\"server_error\"}".getBytes(), StandardCharsets.UTF_8, null);
+        when(restTemplate.postForEntity(
+                anyString(),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenThrow(internalServerErrorException);
 
-        ResponseSpec responseSpec = mock(ResponseSpec.class);
-        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        HttpServerErrorException thrown = assertThrows(
+                HttpServerErrorException.class,
+                () -> loginController.doLogin(testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response),
+                "Se esperaba una HttpServerErrorException para errores de servidor."
+        );
 
-        // Simular que el Mono falla lanzando la excepción cuando se hace block()
-        when(responseSpec.bodyToMono(String.class)).thenReturn(Mono.error(internalServerErrorException));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, thrown.getStatusCode());
+        assertTrue(thrown.getResponseBodyAsString().contains("server_error"));
 
-        ResponseEntity<Map<String, Object>> responseEntity = loginController.doLogin(
-                testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response);
-
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals("Error de Keycloak: 500 - Internal Server Error", responseEntity.getBody().get("error"));
-        assertEquals("{\"error\":\"server_error\"}", responseEntity.getBody().get("details"));
-
-        verify(webClient, times(1)).post();
+        verify(restTemplate, times(1)).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
         verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(securityContextRepository, never()).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
     }
 
-
     @Test
-    @DisplayName("Debería retornar 500 Internal Server Error si la respuesta JSON de Keycloak es inválida")
-    void doLogin_InvalidJsonResponse_ReturnsInternalServerError() throws Exception {
-        RequestHeadersSpec requestHeadersSpec = setupWebClientMockChain(); // Obtener el RequestHeadersSpec
-        ResponseSpec responseSpec = mock(ResponseSpec.class); // Mockear ResponseSpec aquí
-        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec); // Configurar retrieve para este test
-
+    @DisplayName("Debería lanzar IOException si la respuesta JSON de Keycloak es inválida")
+    void doLogin_InvalidJsonResponse_ThrowsIOException() throws Exception {
         String invalidJson = "Esto no es JSON válido";
-        when(responseSpec.bodyToMono(String.class)).thenReturn(Mono.just(invalidJson));
 
-        ResponseEntity<Map<String, Object>> responseEntity = loginController.doLogin(
-                testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response);
+        when(restTemplate.postForEntity(
+                anyString(),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenReturn(new ResponseEntity<>(invalidJson, HttpStatus.OK));
 
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        String errorMessage = responseEntity.getBody().get("error").toString();
-        assertTrue(errorMessage.contains("Unrecognized token 'Esto'"), "El mensaje de error debería indicar token no reconocido.");
-        assertTrue(errorMessage.contains("was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"), "El mensaje de error debería indicar el formato JSON esperado.");
+        IOException thrown = assertThrows(
+                IOException.class,
+                () -> loginController.doLogin(testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response),
+                "Se esperaba una IOException para JSON inválido."
+        );
 
-        verify(webClient, times(1)).post();
-        verify(responseSpec, times(1)).bodyToMono(String.class);
+        assertTrue(thrown.getMessage().contains("Unrecognized token 'Esto'"), "El mensaje de error debería indicar token no reconocido.");
+
+        verify(restTemplate, times(1)).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
         verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(securityContextRepository, never()).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
     }

@@ -1,6 +1,7 @@
 package com.example.keycloakdemo.config;
 
 import com.example.keycloakdemo.exception.KeycloakUserCreationException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -11,13 +12,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.UnknownHttpStatusCodeException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -39,49 +42,100 @@ class GlobalExceptionHandlerTest {
     @Mock
     private BindingResult bindingResult;
 
+
     @Test
-    @DisplayName("Debería manejar WebClientResponseException (401 Unauthorized)")
-    void handleWebClientResponseException_Unauthorized() {
-        WebClientResponseException ex = WebClientResponseException.create(
-                HttpStatus.UNAUTHORIZED.value(),
+    @DisplayName("Should handle HttpClientErrorException (401 Unauthorized)")
+    void handleHttpClientErrorException_Unauthorized() {
+        String responseBody = "{\"error\":\"invalid_grant\", \"error_description\":\"Invalid credentials\"}";
+        HttpClientErrorException ex = HttpClientErrorException.create(
+                HttpStatus.UNAUTHORIZED,
                 "Unauthorized",
-                HttpHeaders.EMPTY,
-                "{\"error\":\"invalid_grant\"}".getBytes(),
-                null
+                org.springframework.http.HttpHeaders.EMPTY, // Using springframework.http.HttpHeaders
+                responseBody.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8
         );
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleWebClientResponseException(ex);
+        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleHttpClientErrorException(ex);
 
         assertEquals(HttpStatus.UNAUTHORIZED, responseEntity.getStatusCode());
         assertNotNull(responseEntity.getBody());
         assertEquals(HttpStatus.UNAUTHORIZED.value(), responseEntity.getBody().get("status"));
         assertEquals("Unauthorized", responseEntity.getBody().get("error"));
-        // Ajustar el mensaje esperado para que coincida con el controlador (sin tilde en comunicacion)
-        assertTrue(responseEntity.getBody().get("message").toString().contains("Error en la comunicacion con el servicio externo"));
-        assertEquals("{\"error\":\"invalid_grant\"}", responseEntity.getBody().get("responseBody"));
-        assertEquals("Desconocido", responseEntity.getBody().get("path")); // CORREGIDO: Espera "Desconocido"
+        assertTrue(responseEntity.getBody().get("message").toString().contains("Error del cliente al comunicarse con el servicio externo"));
+        assertEquals(responseBody, responseEntity.getBody().get("responseBody"));
     }
 
     @Test
-    @DisplayName("Debería manejar WebClientResponseException (404 Not Found)")
-    void handleWebClientResponseException_NotFound() {
-        WebClientResponseException ex = WebClientResponseException.create(
-                HttpStatus.NOT_FOUND.value(),
-                "Not Found",
-                HttpHeaders.EMPTY,
-                "{\"message\":\"Endpoint not found\"}".getBytes(),
-                null
+    @DisplayName("Should handle HttpServerErrorException (500 Internal Server Error)")
+    void handleHttpServerErrorException_InternalServerError() {
+        String responseBody = "{\"error\":\"server_error\", \"message\":\"Keycloak internal error\"}";
+        HttpServerErrorException ex = HttpServerErrorException.create(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Internal Server Error",
+                org.springframework.http.HttpHeaders.EMPTY,
+                responseBody.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8
         );
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleWebClientResponseException(ex);
+        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleHttpServerErrorException(ex);
 
-        assertEquals(HttpStatus.NOT_FOUND, responseEntity.getStatusCode());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
         assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.NOT_FOUND.value(), responseEntity.getBody().get("status"));
-        assertEquals("Not Found", responseEntity.getBody().get("error"));
-        assertTrue(responseEntity.getBody().get("message").toString().contains("Error en la comunicacion con el servicio externo"));
-        assertEquals("{\"message\":\"Endpoint not found\"}", responseEntity.getBody().get("responseBody"));
-        assertEquals("Desconocido", responseEntity.getBody().get("path"));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), responseEntity.getBody().get("status"));
+        assertEquals("Internal Server Error", responseEntity.getBody().get("error"));
+        assertTrue(responseEntity.getBody().get("message").toString().contains("Error del servidor externo"));
+        assertEquals(responseBody, responseEntity.getBody().get("responseBody"));
+    }
+
+    @Test
+    @DisplayName("Should handle ResourceAccessException (Service Unavailable)")
+    void handleResourceAccessException_ServiceUnavailable() {
+        ResourceAccessException ex = new ResourceAccessException("I/O error on POST request for \"http://keycloak.example.com\": Connection refused (Connection refused)");
+
+        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleResourceAccessException(ex);
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, responseEntity.getStatusCode());
+        assertNotNull(responseEntity.getBody());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), responseEntity.getBody().get("status"));
+        assertEquals("Service Unavailable", responseEntity.getBody().get("error"));
+        assertTrue(responseEntity.getBody().get("message").toString().contains("Problema de comunicación con el servicio externo"));
+    }
+
+    @Test
+    @DisplayName("Should handle ResourceAccessException (Gateway Timeout)")
+    void handleResourceAccessException_GatewayTimeout() {
+        ResourceAccessException ex = new ResourceAccessException("I/O error: Read timed out");
+
+        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleResourceAccessException(ex);
+
+        assertEquals(HttpStatus.GATEWAY_TIMEOUT, responseEntity.getStatusCode());
+        assertNotNull(responseEntity.getBody());
+        assertEquals(HttpStatus.GATEWAY_TIMEOUT.value(), responseEntity.getBody().get("status"));
+        assertEquals("Gateway Timeout", responseEntity.getBody().get("error"));
+        assertTrue(responseEntity.getBody().get("message").toString().contains("Problema de comunicación con el servicio externo"));
+    }
+
+    @Test
+    @DisplayName("Should handle UnknownHttpStatusCodeException")
+    void handleUnknownHttpStatusCodeException() {
+        // Simulating an unknown status code, e.g., 999
+        UnknownHttpStatusCodeException ex = new UnknownHttpStatusCodeException(
+                999,
+                "Unknown Status",
+                org.springframework.http.HttpHeaders.EMPTY,
+                "Unexpected response".getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8
+        );
+
+        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleUnknownHttpStatusCodeException(ex);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
+        assertNotNull(responseEntity.getBody());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), responseEntity.getBody().get("status"));
+        assertEquals("Internal Server Error", responseEntity.getBody().get("error"));
+        assertTrue(responseEntity.getBody().get("message").toString().contains("Servicio externo respondió con código de estado desconocido: 999"));
+        assertEquals(999, responseEntity.getBody().get("rawStatusCode"));
+        assertEquals("Unexpected response", responseEntity.getBody().get("responseBody"));
     }
 
 
