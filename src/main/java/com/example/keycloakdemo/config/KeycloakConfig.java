@@ -21,10 +21,8 @@ public class KeycloakConfig {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakConfig.class);
 
-    // Inyectamos KeycloakProperties directamente
     private final KeycloakProperties keycloakProperties;
 
-    // Constructor para inyectar KeycloakProperties
     public KeycloakConfig(KeycloakProperties keycloakProperties) {
         this.keycloakProperties = keycloakProperties;
     }

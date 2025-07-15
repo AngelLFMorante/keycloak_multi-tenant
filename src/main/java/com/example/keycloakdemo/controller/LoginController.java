@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -37,6 +38,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 
 /**
@@ -84,7 +86,16 @@ public class LoginController {
     public ResponseEntity<Map<String, Object>> redirectToTenantLogin(@PathVariable String realm) {
         log.info("Solicitud GET para información de registro del tenant: {}", realm);
         Map<String, Object> response = new HashMap<>();
-        response.put("realm", realm); // Añade el ID del tenant al modelo.
+        response.put("realm", realm);
+
+        String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
+        if (keycloakRealm == null) {
+            log.warn("Mapeo de realm no encontrado para el tenantPath: {}", realm);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realm + " no reconocido.");
+        }
+
+        response.put("keycloakRealm", keycloakRealm);
+
         return ResponseEntity.ok(response);
     }
 
@@ -116,8 +127,14 @@ public class LoginController {
 
         Map<String, Object> responseBody = new HashMap<>();
 
-        String clientSecret = keycloakProperties.getClientSecrets().get(client);
+        String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
+        if (keycloakRealm == null) {
+            log.warn("Mapeo de realm no encontrado para el tenantPath: {}", realm);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realm + " no reconocido.");
+        }
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
 
+        String clientSecret = keycloakProperties.getClientSecrets().get(client);
         if (clientSecret == null) {
             log.warn("Client Secret no encontrado para el Client ID: {}", client);
             throw new IllegalArgumentException("Client ID configurado pero secreto no encontrado para: " + client + "." +
@@ -126,7 +143,7 @@ public class LoginController {
         log.debug("Client Secret encontrado para Client ID: {}", client);
 
         // Construye la URL del endpoint de tokens de Keycloak para el realm específico.
-        String tokenUrl = keycloakProperties.getAuthServerUrl() + "/realms/" + keycloakProperties.getSingleRealmName() + "/protocol/openid-connect/token";
+        String tokenUrl = keycloakProperties.getAuthServerUrl() + "/realms/" + keycloakRealm + "/protocol/openid-connect/token";
         log.debug("URL de token de Keycloak: {}", tokenUrl);
 
         // Prepara los parámetros para la solicitud POST al endpoint de tokens de Keycloak (Password Grant).
@@ -141,23 +158,20 @@ public class LoginController {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        // Prepara la autenticación básica para el cliente (Client ID:Client Secret).
-        String clientAuth = client + ":" + clientSecret; // <--- USA EL CLIENT SECRET DINÁMICO
+        String clientAuth = client + ":" + clientSecret;
         String encodedAuth = Base64.getEncoder().encodeToString(clientAuth.getBytes(StandardCharsets.UTF_8));
         headers.set("Authorization", "Basic " + encodedAuth);
         log.debug("Cabeceras de autenticación preparados.");
 
-        HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(params, headers);
-
         ResponseEntity<String> tokenResponseEntity = restTemplate.postForEntity(
                 tokenUrl,
-                requestEntity,
+                new HttpEntity<>(params, headers),
                 String.class
         );
 
         String tokenResponse = tokenResponseEntity.getBody();
-
         log.info("Respuesta exitosa de Keycloak para el usuario '{}'", username);
+
         JsonNode node = objectMapper.readTree(tokenResponse);
 
         String accessToken = node.get("access_token").asText();
@@ -238,7 +252,7 @@ public class LoginController {
 
         // 1. Crear un UsernamePasswordAuthenticationToken INAUTENTICADO. TODO mirar como integrar el password correctamente sin hardcodeado
         UsernamePasswordAuthenticationToken authenticationRequest = new UsernamePasswordAuthenticationToken(
-                preferredUsername, SecurityConfig.DUMMY_PASSWORD
+                preferredUsername, SecurityConfig.DUMMY_PASSWORD, extractedAuthorities
         );
 
         // 2. Delegar la autenticación al AuthenticationManager de Spring Security.

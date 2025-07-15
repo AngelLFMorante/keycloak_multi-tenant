@@ -16,6 +16,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.UnknownHttpStatusCodeException;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Clase global para el manejo de excepciones en la aplicacion REST
@@ -42,7 +43,7 @@ public class GlobalExceptionHandler {
         errorDetails.put("status", ex.getStatusCode().value());
         errorDetails.put("error", ex.getStatusText());
         errorDetails.put("message", "Error del cliente al comunicarse con el servicio externo: " + ex.getMessage());
-        errorDetails.put("responseBody", ex.getResponseBodyAsString()); // Incluir el cuerpo de la respuesta si Keycloak lo envía
+        errorDetails.put("responseBody", ex.getResponseBodyAsString());
 
         log.error("HttpClientErrorException capturado: Status={}, Message={}, ResponseBody={}",
                 ex.getStatusCode(), ex.getMessage(), ex.getResponseBodyAsString(), ex);
@@ -66,7 +67,7 @@ public class GlobalExceptionHandler {
         errorDetails.put("status", ex.getStatusCode().value());
         errorDetails.put("error", ex.getStatusText());
         errorDetails.put("message", "Error del servidor externo: " + ex.getMessage());
-        errorDetails.put("responseBody", ex.getResponseBodyAsString()); // Incluir el cuerpo de la respuesta si Keycloak lo envía
+        errorDetails.put("responseBody", ex.getResponseBodyAsString());
 
         log.error("HttpServerErrorException capturado: Status={}, Message={}, ResponseBody={}",
                 ex.getStatusCode(), ex.getMessage(), ex.getResponseBodyAsString(), ex);
@@ -88,11 +89,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleResourceAccessException(ResourceAccessException ex) {
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", new Date());
-        errorDetails.put("status", HttpStatus.SERVICE_UNAVAILABLE.value()); // Por defecto
+        errorDetails.put("status", HttpStatus.SERVICE_UNAVAILABLE.value());
         errorDetails.put("error", HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase());
         errorDetails.put("message", "Problema de comunicación con el servicio externo: " + ex.getMessage());
 
-        // Puedes intentar inferir un status más específico si el mensaje de la excepción lo permite
         if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("timeout")) {
             errorDetails.put("status", HttpStatus.GATEWAY_TIMEOUT.value());
             errorDetails.put("error", HttpStatus.GATEWAY_TIMEOUT.getReasonPhrase());
@@ -211,19 +211,17 @@ public class GlobalExceptionHandler {
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", new Date());
 
-        HttpStatus status = HttpStatus.BAD_REQUEST; // Valor por defecto
+        HttpStatus status = HttpStatus.BAD_REQUEST;
         String errorMessage = ex.getMessage();
 
-        // Intentar determinar un estado HTTP más específico basado en el mensaje de error
         if (errorMessage != null) {
             if (errorMessage.contains("409 Conflict") || errorMessage.contains("User exists with same username") || errorMessage.contains("User exists with same email")) {
-                status = HttpStatus.CONFLICT; // 409 Conflict
+                status = HttpStatus.CONFLICT;
                 errorDetails.put("error", HttpStatus.CONFLICT.getReasonPhrase());
             } else if (errorMessage.contains("Error interno") || errorMessage.contains("500 Internal Server Error")) {
-                status = HttpStatus.INTERNAL_SERVER_ERROR; // 500 Internal Server Error
+                status = HttpStatus.INTERNAL_SERVER_ERROR;
                 errorDetails.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
             } else {
-                // Si no se detecta un patrón específico, se mantiene BAD_REQUEST
                 errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
             }
         } else {
@@ -236,5 +234,32 @@ public class GlobalExceptionHandler {
         log.error("KeycloakUserCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
 
         return new ResponseEntity<>(errorDetails, status);
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link ResponseStatusException}.
+     * Estas excepciones son lanzadas explícitamente en los controladores
+     * para indicar un estado HTTP y un mensaje de error específicos.
+     *
+     * @param ex La excepción {@link ResponseStatusException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y el código de estado HTTP especificado en la excepción.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatusException(ResponseStatusException ex) {
+        Map<String, Object> errorDetails = new HashMap<>();
+        int statusCode = ex.getStatusCode().value();
+
+        HttpStatus httpStatus = HttpStatus.resolve(statusCode);
+        String reasonPhrase = httpStatus != null ? httpStatus.getReasonPhrase() : "Unknown Status";
+
+        errorDetails.put("timestamp", new Date());
+        errorDetails.put("status", statusCode);
+        errorDetails.put("error", reasonPhrase);
+        errorDetails.put("message", ex.getReason() != null ? ex.getReason() : "No message available");
+
+        log.warn("ResponseStatusException capturada: Status={}, Reason={}", ex.getStatusCode(), ex.getReason(), ex);
+
+        return new ResponseEntity<>(errorDetails, ex.getStatusCode());
     }
 }

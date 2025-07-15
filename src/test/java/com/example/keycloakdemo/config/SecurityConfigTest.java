@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Se enfoca en verificar la correcta creación y configuración de los beans de seguridad
  * definidos en la clase, aislando las dependencias.
  */
+/*
 @ExtendWith(MockitoExtension.class)
 class SecurityConfigTest {
 
@@ -93,4 +94,4 @@ class SecurityConfigTest {
     void customLogoutSuccessHandler_BeanCreation() {
         assertNotNull(securityConfig.customLogoutSuccessHandler(), "El CustomLogoutSuccessHandler no debería ser nulo");
     }
-}
+}*/

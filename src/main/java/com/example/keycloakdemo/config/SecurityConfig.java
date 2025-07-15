@@ -1,5 +1,6 @@
 package com.example.keycloakdemo.config;
 
+import com.example.keycloakdemo.security.KeycloakAuthenticationProvider;
 import java.util.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +17,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
@@ -30,19 +30,12 @@ import org.springframework.web.client.RestTemplate;
  * de login manual (Password Grant Type) y unico realm de Keycloak con multiples clientes.
  */
 @Configuration
-@EnableWebSecurity // Habilita la configuración de seguridad web de Spring.
+@EnableWebSecurity
 public class SecurityConfig {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
-    // Inyectamos KeycloakProperties directamente
     private final KeycloakProperties keycloakProperties;
-
-    /**
-     * Prefijo para los roles de Spring Security.
-     * Los roles obtenidos de Keycloak se convertirán a este formato (ej. "ROLE_USER").
-     */
-    private final String KEYCLOAK_AUTHORITY_PREFIX = "ROLE_";
 
     /**
      * Contraseña dummy utilizada para el {@link UserDetailsService} y el {@link PasswordEncoder}
@@ -52,7 +45,6 @@ public class SecurityConfig {
      */
     public static final String DUMMY_PASSWORD = "dummy_password";
 
-    // Constructor para inyectar KeycloakProperties
     public SecurityConfig(KeycloakProperties keycloakProperties) {
         this.keycloakProperties = keycloakProperties;
     }
@@ -113,21 +105,18 @@ public class SecurityConfig {
     // Estos beans son cruciales para integrar el flujo de autenticación manual
     // (Password Grant Type) con el sistema de seguridad de Spring.
 
+
     /**
      * Define un {@link AuthenticationManager} que permite a Spring Security
      * registrar la autenticación después de que Keycloak la haya verificado.
      * Utiliza un {@link DaoAuthenticationProvider} con componentes dummy.
-     * @param userDetailsService El {@link UserDetailsService} dummy para la carga de usuarios.
-     * @param passwordEncoder El {@link PasswordEncoder} dummy para la verificación de contraseñas.
+     * @param keycloakAuthenticationProvider el proveedor de autenticación personalizado. // ADDED: Documentación actualizada
      * @return Una instancia de {@link AuthenticationManager}.
      */
     @Bean
-    public AuthenticationManager authenticationManager(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
-        log.debug("Configurando AuthenticationManager.");
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder);
-        return new ProviderManager(authProvider);
+    public AuthenticationManager authenticationManager(KeycloakAuthenticationProvider keycloakAuthenticationProvider) {
+        log.debug("Configurando AuthenticationManager con KeycloakAuthenticationProvider.");
+        return new ProviderManager(Collections.singletonList(keycloakAuthenticationProvider));
     }
 
     /**
@@ -149,18 +138,6 @@ public class SecurityConfig {
                     .authorities(Collections.emptyList()) // Los roles reales se establecerán en el AuthenticationToken en LoginController.
                     .build();
         };
-    }
-
-    /**
-     * Define un {@link PasswordEncoder} seguro para Spring Security.
-     * Aunque la verificación real de la contraseña la hace Keycloak, este bean es necesario
-     * para satisfacer los requisitos del {@link DaoAuthenticationProvider}.
-     * @return Una instancia de {@link BCryptPasswordEncoder}.
-     */
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        log.debug("Configurando PasswordEncoder con BCryptPasswordEncoder.");
-        return new BCryptPasswordEncoder(); // No opera, solo devuelve la contraseña tal cual.
     }
 
     /**

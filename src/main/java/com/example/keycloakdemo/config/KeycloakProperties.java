@@ -17,17 +17,17 @@ public class KeycloakProperties {
     private static final Logger log = LoggerFactory.getLogger(KeycloakProperties.class);
 
     private String authServerUrl;
-    private String singleRealmName;
     private Map<String, String> clientSecrets = new HashMap<>();
+    private Map<String, String> realmMapping = new HashMap<>();
 
-    private Admin admin = new Admin(); // ¡Importante inicializarla!
+    private Admin admin = new Admin();
 
     @Data // Anotación de Lombok para la clase anidada
-    public static class Admin { // Debe ser 'public static' para que Spring pueda instanciarla
+    public static class Admin {
         private String realm;
         private String username;
         private String password;
-        private String clientId; // Mapea a keycloak.admin.client-id
+        private String clientId;
     }
     // <-- FIN de la clase anidada -->
 
@@ -35,17 +35,28 @@ public class KeycloakProperties {
     public void init() {
         log.info("--- Propiedades Keycloak cargadas (dentro de @PostConstruct) ---");
         log.info("  authServerUrl: {}", authServerUrl);
-        log.info("  singleRealmName: {}", singleRealmName);
-        log.info("  clientSecrets: {}", clientSecrets);
 
-        // Accede a las propiedades admin a través del objeto 'admin'
         if (admin != null) {
-            log.info("  adminRealm: {}", admin.getRealm());
-            log.info("  adminUsername: {}", admin.getUsername());
-            log.info("  adminPassword: {}", admin.getPassword() != null && !admin.getPassword().isEmpty() ? "******" : "null/empty");
-            log.info("  adminClientId: {}", admin.getClientId());
+            log.info("  Admin Realm: {}", admin.getRealm());
+            log.info("  Admin Username: {}", admin.getUsername());
+            log.info("  Admin Client ID: {}", admin.getClientId());
+            log.info("  Admin Password: {}", admin.getPassword() != null && !admin.getPassword().isEmpty() ? "******" : "[No Configurada]");
         } else {
-            log.info("  Objeto 'admin' es null. Las propiedades de admin no se están enlazando.");
+            log.warn("  Objeto 'admin' es nulo. Las propiedades de admin no se están enlazando.");
+        }
+
+        if (realmMapping != null && !realmMapping.isEmpty()) {
+            log.info("  Mapeo de Realms configurado:");
+            realmMapping.forEach((path, realm) -> log.info("    - Path '{}' -> Realm '{}'", path, realm));
+        } else {
+            log.warn("  No se encontraron mapeos de realms configurados.");
+        }
+
+        if (clientSecrets != null && !clientSecrets.isEmpty()) {
+            log.info("  Secretos de Clientes configurados (solo IDs):");
+            clientSecrets.keySet().forEach(clientId -> log.info("    - Client ID: {}", clientId));
+        } else {
+            log.warn("  No se encontraron secretos de clientes configurados.");
         }
         log.info("---------------------------------------------------------------");
     }
