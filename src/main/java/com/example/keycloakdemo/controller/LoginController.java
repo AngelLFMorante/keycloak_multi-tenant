@@ -152,7 +152,7 @@ public class LoginController {
         params.add("client_id", client);
         params.add("username", username);
         params.add("password", password);
-        params.add("scope", "openid");
+        params.add("scope", "openid profile email"); // MODIFIED: Añadido "profile" y "email" al scope
         log.debug("Parametros de solicitud de token: {}", params);
 
         HttpHeaders headers = new HttpHeaders();
@@ -180,97 +180,85 @@ public class LoginController {
         long expiresIn = node.has("expires_in") ? node.get("expires_in").asLong() : 0;
         long refreshExpiresIn = node.has("refresh_expires_in") ? node.get("refresh_expires_in").asLong() : 0;
 
-        //Decodificador el Id token para obtener los claims ( atributos )
-        DecodedJWT decodeIdToken = null;
-        if (idToken != null) {
-            decodeIdToken = JWT.decode(idToken);
-            log.debug("ID Token decodificado.");
-        }else {
-            log.warn("No se recibió ID Token de Keycloak para el usuario '{}'.", username);
-        }
-
         List<SimpleGrantedAuthority> extractedAuthorities = new ArrayList<>();
         String email = null;
         String fullName = null;
         String preferredUsername = username;
 
-        if (decodeIdToken != null) {
-            // Extrae roles a nivel de Realm.
-            Map<String, Object> realmAccess = decodeIdToken.getClaim("realm_access").asMap();
-            if (realmAccess != null && realmAccess.containsKey("roles")) {
-                @SuppressWarnings("unchecked")
-                List<String> realmRoles = (List<String>) realmAccess.get("roles");
-                if (realmRoles != null) {
-                    realmRoles.forEach(role -> extractedAuthorities.add(
-                            new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())));
-                    log.debug("Roles de realm extraidos: {}", realmRoles);
-                }
-            }
-            // Extrae roles a nivel de Cliente (Resource Access).
-            Map<String, Object> resourceAccess = decodeIdToken.getClaim("resource_access").asMap();
-            if (resourceAccess != null && resourceAccess.containsKey(client)) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get(client);
-                if (clientAccess != null && clientAccess.containsKey("roles")) {
-                    @SuppressWarnings("unchecked")
-                    List<String> clientRoles = (List<String>) clientAccess.get("roles");
-                    if (clientRoles != null) {
-                        clientRoles.forEach(role-> extractedAuthorities.add(
-                                new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())));
-                        log.debug("Roles de cliente '{}' extraidos: {}", client, clientRoles);
-                    }
-                }
-            }
-            // Extrae otros claims del token si están disponibles.
-            email = decodeIdToken.getClaim("email") != null ? decodeIdToken.getClaim("email").asString() : null;
-            fullName = decodeIdToken.getClaim("name") != null ? decodeIdToken.getClaim("name").asString() : null;
-            preferredUsername = decodeIdToken.getClaim("preferred_username") != null ? decodeIdToken.getClaim("preferred_username").asString() : username;
-            log.debug("Claims de usuario extraidos: email={}, fullName={}, preferredUsername={}", email, fullName, preferredUsername);
+        // MODIFIED: Siempre decodificar el Access Token para extraer roles y claims principales
+        DecodedJWT decodedAccessToken = JWT.decode(accessToken);
+        log.debug("Access Token decodificado para extracción de claims y roles.");
 
-        } else if (accessToken != null){
-            //Si no hay ID Token, intentar decodificar el Access Token para obtener algunos claims basicos
-            DecodedJWT decodedAccessToken = JWT.decode(accessToken);
-            email = decodedAccessToken.getClaim("email") != null ? decodedAccessToken.getClaim("email").asString() : null;
-            fullName = decodedAccessToken.getClaim("name") != null ? decodedAccessToken.getClaim("name").asString() : null;
-            preferredUsername = decodedAccessToken.getClaim("preferred_username") != null ? decodedAccessToken.getClaim("preferred_username").asString() : username;
-            log.warn("ID Token no disponible. Extrayendo claims de Access Token: email={}, fullName={}, preferredUsername={}", email, fullName, preferredUsername);
+        // Extracción de claims del Access Token
+        email = decodedAccessToken.getClaim("email") != null ? decodedAccessToken.getClaim("email").asString() : null;
+        fullName = decodedAccessToken.getClaim("name") != null ? decodedAccessToken.getClaim("name").asString() : null;
+        preferredUsername = decodedAccessToken.getClaim("preferred_username") != null ? decodedAccessToken.getClaim("preferred_username").asString() : username;
+        log.debug("Claims de usuario extraidos (desde Access Token): email={}, fullName={}, preferredUsername={}", email, fullName, preferredUsername);
 
-            Map<String, Object> realmAccess = decodedAccessToken.getClaim("realm_access").asMap();
-            if (realmAccess != null && realmAccess.containsKey("roles")) {
+        // Extrae roles a nivel de Realm desde el Access Token.
+        Map<String, Object> realmAccess = decodedAccessToken.getClaim("realm_access").asMap();
+        if (realmAccess != null && realmAccess.containsKey("roles")) {
+            @SuppressWarnings("unchecked")
+            List<String> realmRoles = (List<String>) realmAccess.get("roles");
+            if (realmRoles != null) {
+                realmRoles.forEach(role -> extractedAuthorities.add(
+                        new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())));
+                log.debug("Roles de realm extraidos (desde Access Token): {}", realmRoles);
+                log.debug("Roles actuales en extractedAuthorities después de roles de realm: {}", extractedAuthorities);
+            }
+        }
+
+        // Extrae roles a nivel de Cliente (Resource Access) desde el Access Token.
+        Map<String, Object> resourceAccess = decodedAccessToken.getClaim("resource_access").asMap();
+        if (resourceAccess != null && resourceAccess.containsKey(client)) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get(client);
+            if (clientAccess != null && clientAccess.containsKey("roles")) {
                 @SuppressWarnings("unchecked")
-                List<String> realmRoles = (List<String>) realmAccess.get("roles");
-                if (realmRoles != null) {
-                    realmRoles.forEach(role -> extractedAuthorities.add(
+                List<String> clientRoles = (List<String>) clientAccess.get("roles");
+                if (clientRoles != null) {
+                    clientRoles.forEach(role -> extractedAuthorities.add(
                             new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())));
-                    log.debug("Roles de realm extraidos: {}", realmRoles);
+                    log.debug("Roles de cliente '{}' extraidos (desde Access Token): {}", client, clientRoles);
+                    log.debug("Roles actuales en extractedAuthorities después de roles de cliente: {}", extractedAuthorities);
                 }
             }
         }
 
+        // Opcional: Si el ID Token también contiene roles y quieres fusionarlos, puedes añadir lógica aquí.
+        // Sin embargo, el Access Token suele ser la fuente principal de roles para la autorización.
+        if (idToken != null) {
+            DecodedJWT decodedIdToken = JWT.decode(idToken);
+            // Puedes añadir lógica aquí para extraer roles del ID Token si sabes que los contiene
+            // y quieres fusionarlos con los del Access Token.
+            // Por lo general, el ID Token no contiene roles de acceso a recursos.
+            log.debug("ID Token decodificado, pero roles ya extraidos de Access Token. Claims del ID Token: {}", decodedIdToken.getClaims());
+        }
+
+
         // --- INICIO DE INTEGRACIÓN CON SPRING SECURITY ---
         log.debug("Integrando autenticación con Spring Security");
 
-        // 1. Crear un UsernamePasswordAuthenticationToken INAUTENTICADO. TODO mirar como integrar el password correctamente sin hardcodeado
+        log.debug("extractedAuthorities antes de pasar a authenticationManager.authenticate: {}", extractedAuthorities);
+        // 1. Crear un UsernamePasswordAuthenticationToken INAUTENTICADO.
         UsernamePasswordAuthenticationToken authenticationRequest = new UsernamePasswordAuthenticationToken(
                 preferredUsername, SecurityConfig.DUMMY_PASSWORD, extractedAuthorities
         );
+        log.debug("authenticationRequest (con roles) creado: Principal={}, Authorities={}", authenticationRequest.getPrincipal(), authenticationRequest.getAuthorities());
+
 
         // 2. Delegar la autenticación al AuthenticationManager de Spring Security.
         Authentication authenticatedResult = authenticationManager.authenticate(authenticationRequest);
         log.debug("Usuario '{}' autenticado por AuthenticationManager de Spring Security.", preferredUsername);
+        log.debug("authenticatedResult (desde AuthenticationManager): Principal={}, Authorities={}", authenticatedResult.getPrincipal(), authenticatedResult.getAuthorities());
 
-        // 3. Crear un NUEVO AuthenticationToken FINAL con el principal autenticado y los roles REALES.
-        Authentication finalAuthentication = new UsernamePasswordAuthenticationToken(
-                authenticatedResult.getPrincipal(),
-                authenticatedResult.getCredentials(),
-                extractedAuthorities
-        );
 
-        // 4. Establecer el objeto Authentication FINAL en el SecurityContextHolder.
-        SecurityContextHolder.getContext().setAuthentication(finalAuthentication);
-        log.debug("SecurityContextHolder actualizado con la autenticación final.");
+        // 3. Establecer el objeto Authentication FINAL en el SecurityContextHolder.
+        SecurityContextHolder.getContext().setAuthentication(authenticatedResult);
+        log.debug("SecurityContextHolder actualizado con la autenticación final. Roles en SecurityContext: {}", SecurityContextHolder.getContext().getAuthentication().getAuthorities());
 
-        // 5. Guardar explícitamente el SecurityContext en el repositorio de contexto de seguridad.
+
+        // 4. Guardar explícitamente el SecurityContext en el repositorio de contexto de seguridad.
         SecurityContext sc = SecurityContextHolder.getContext();
         securityContextRepository.saveContext(sc, request, response);
         log.debug("SecurityContext guardado en la sesión HTTP para el usuario '{}'.", preferredUsername);
@@ -285,6 +273,7 @@ public class LoginController {
         responseBody.put("roles", extractedAuthorities.stream()
                 .map(GrantedAuthority::getAuthority)
                 .toList());
+        log.debug("Roles finales en la respuesta JSON: {}", responseBody.get("roles"));
         responseBody.put("accessToken", accessToken);
         responseBody.put("idToken", idToken);
         responseBody.put("refreshToken", refreshToken);
