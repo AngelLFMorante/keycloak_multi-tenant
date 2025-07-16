@@ -102,7 +102,7 @@ public class RegisterController {
             throw new IllegalArgumentException(("El email '" + request.getEmail() + "' ya está registrado en Keycloak."));
         }
 
-        keycloakService.createUser(realm, request);
+        keycloakService.createUser(keycloakRealm, request);
         log.info("Usuario '{}' registrado exitosamente en el realm Keycloak '{}' para el tenant '{}'.", request.getUsername(), keycloakRealm, realm);
 
         Map<String, Object> response = new HashMap<>();
