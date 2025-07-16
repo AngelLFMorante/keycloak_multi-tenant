@@ -1,263 +1,174 @@
 package com.example.keycloakdemo.controller;
 
 import com.example.keycloakdemo.config.KeycloakProperties;
-import com.example.keycloakdemo.exception.KeycloakUserCreationException;
 import com.example.keycloakdemo.model.RegisterRequest;
 import com.example.keycloakdemo.service.KeycloakService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2ClientAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientWebSecurityAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Clase de test de integración para {@link RegisterController}.
- * Utiliza {@link WebMvcTest} para probar la capa web (controlador y configuración de seguridad)
- * sin levantar todo el contexto de Spring Boot. {@link MockMvc} se usa para simular solicitudes HTTP.
- * Las dependencias del controlador (ej. {@link KeycloakService}) se mockean.
- *
- * Se excluyen las auto-configuraciones de OAuth2 Client ya que la aplicación no utiliza
- * el flujo de autenticación estándar de Spring Security con OAuth2/OIDC.
- */
-@WebMvcTest(
-        controllers = RegisterController.class,
-        excludeAutoConfiguration = { // Excluir auto-configuraciones de OAuth2 Client
-                OAuth2ClientAutoConfiguration.class,
-                OAuth2ClientWebSecurityAutoConfiguration.class
-        }
-)
-@Import({com.example.keycloakdemo.config.SecurityConfig.class, com.example.keycloakdemo.config.GlobalExceptionHandler.class, org.springframework.boot.autoconfigure.validation.ValidationAutoConfiguration.class})
+@ExtendWith(MockitoExtension.class)
 class RegisterControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @MockitoBean
+    @Mock
     private KeycloakService keycloakService;
-
-    @MockitoBean
+    @Mock
     private KeycloakProperties keycloakProperties;
 
-    private String testTenantIdentifier = "plexus";
-    private String registerUrl = "/" + testTenantIdentifier + "/register";
+    @InjectMocks
+    private RegisterController registerController;
+
+    private String realm;
+    private String keycloakRealm;
+    private Map<String, String> realmMapping;
 
     @BeforeEach
     void setUp() {
-        when(keycloakProperties.getSingleRealmName()).thenReturn(testTenantIdentifier);
+        realm = "plexus";
+        keycloakRealm = "plexus-realm";
+
+        realmMapping = new HashMap<>();
+        realmMapping.put(realm, keycloakRealm);
+
+        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
     }
 
     @Test
-    @DisplayName("GET /register debería retornar 200 OK con información del endpoint")
-    void getRegisterForm_ReturnsOk() throws Exception {
-        mockMvc.perform(get(registerUrl)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk()) // Espera un estado HTTP 200 OK
-                .andExpect(jsonPath("$.realm").value(testTenantIdentifier))
-                .andExpect(jsonPath("$.registerRequest").exists());
+    @DisplayName("showRegisterForm debería retornar el realm y registerRequest")
+    void showRegisterForm_shouldReturnRealmInfo() {
+        ResponseEntity<Map<String, Object>> responseEntity = registerController.showRegisterForm(realm);
+
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        Map<String, Object> body = responseEntity.getBody();
+        assertNotNull(body);
+        assertEquals(realm, body.get("realm"));
+        assertEquals(keycloakRealm, body.get("keycloakRealm"));
+        assertTrue(body.get("registerRequest") instanceof RegisterRequest);
     }
 
     @Test
-    @DisplayName("POST /register debería registrar un usuario exitosamente y retornar 201 Created")
-    void registerUser_Success() throws Exception {
-        when(keycloakService.userExistsByEmail(anyString(), anyString())).thenReturn(false);
+    @DisplayName("showRegisterForm debería lanzar ResponseStatusException si el realm no está mapeado")
+    void showRegisterForm_shouldThrowExceptionForUnmappedRealm() {
+        String unknownRealm = "unknown";
+        when(keycloakProperties.getRealmMapping()).thenReturn(Collections.emptyMap());
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
+            registerController.showRegisterForm(unknownRealm);
+        });
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Tenant " + unknownRealm + " no reconocido."));
+    }
+
+    @Test
+    @DisplayName("register debería crear un usuario exitosamente")
+    void register_shouldCreateUserSuccessfully() {
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setUsername("testuser");
+        registerRequest.setEmail("test@example.com");
+        registerRequest.setPassword("Password123!");
+        registerRequest.setConfirmPassword("Password123!");
+
+        when(keycloakService.userExistsByEmail(keycloakRealm, registerRequest.getEmail())).thenReturn(false);
         doNothing().when(keycloakService).createUser(anyString(), any(RegisterRequest.class));
 
-        RegisterRequest validRequest = new RegisterRequest();
-        validRequest.setUsername("newuser");
-        validRequest.setPassword("SecurePass123!");
-        validRequest.setConfirmPassword("SecurePass123!");
-        validRequest.setEmail("newuser@example.com");
-        validRequest.setFirstName("New");
-        validRequest.setLastName("User");
+        ResponseEntity<Map<String, Object>> responseEntity = registerController.register(realm, registerRequest);
 
-        mockMvc.perform(post(registerUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(validRequest)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.message").value("User registered. Waiting for admin approval."))
-                .andExpect(jsonPath("$.tenantId").value(testTenantIdentifier));
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.CREATED, responseEntity.getStatusCode());
+        Map<String, Object> body = responseEntity.getBody();
+        assertNotNull(body);
+        assertEquals("User registered. Waiting for admin approval.", body.get("message"));
+        assertEquals(realm, body.get("tenantId"));
+        assertEquals(keycloakRealm, body.get("keycloakRealm"));
 
-        verify(keycloakService, times(1)).userExistsByEmail(anyString(), eq(validRequest.getEmail()));
-        verify(keycloakService, times(1)).createUser(anyString(), any(RegisterRequest.class));
+        verify(keycloakService, times(1)).userExistsByEmail(keycloakRealm, registerRequest.getEmail());
+        verify(keycloakService, times(1)).createUser(realm, registerRequest);
     }
 
     @Test
-    @DisplayName("POST /register debería retornar 400 Bad Request si las contraseñas no coinciden")
-    void registerUser_PasswordsMismatch_ReturnsBadRequest() throws Exception {
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername("user");
-        request.setPassword("SecurePass1!");
-        request.setConfirmPassword("SecurePass2!");
-        request.setEmail("user@example.com");
-        request.setFirstName("Test");
-        request.setLastName("User");
+    @DisplayName("register debería lanzar IllegalArgumentException si las contraseñas no coinciden")
+    void register_shouldThrowExceptionIfPasswordsMismatch() {
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setUsername("testuser");
+        registerRequest.setEmail("test@example.com");
+        registerRequest.setPassword("Password123!");
+        registerRequest.setConfirmPassword("MismatchPassword!");
 
-        mockMvc.perform(post(registerUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Bad Request"))
-                .andExpect(jsonPath("$.message").value("Password no coinciden"));
+        verifyNoInteractions(keycloakService);
 
-        // Verificar que no hubo interacciones con keycloakService
-        verify(keycloakService, never()).userExistsByEmail(anyString(), anyString());
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            registerController.register(realm, registerRequest);
+        });
+
+        assertEquals("Password no coinciden", exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("register debería lanzar IllegalArgumentException si el email ya existe")
+    void register_shouldThrowExceptionIfEmailExists() {
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setUsername("testuser");
+        registerRequest.setEmail("existing@example.com");
+        registerRequest.setPassword("Password123!");
+        registerRequest.setConfirmPassword("Password123!");
+
+        when(keycloakService.userExistsByEmail(keycloakRealm, registerRequest.getEmail())).thenReturn(true);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            registerController.register(realm, registerRequest);
+        });
+
+        assertTrue(exception.getMessage().contains("El email 'existing@example.com' ya está registrado en Keycloak."));
+
+        verify(keycloakService, times(1)).userExistsByEmail(keycloakRealm, registerRequest.getEmail());
         verify(keycloakService, never()).createUser(anyString(), any(RegisterRequest.class));
     }
 
     @Test
-    @DisplayName("POST /register debería retornar 400 Bad Request si el email ya existe")
-    void registerUser_EmailAlreadyExists_ReturnsBadRequest() throws Exception {
-        when(keycloakService.userExistsByEmail(anyString(), anyString())).thenReturn(true);
+    @DisplayName("register debería lanzar ResponseStatusException si el realm no está mapeado")
+    void register_shouldThrowExceptionForUnmappedRealm() {
+        String unknownRealm = "unknown";
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setUsername("testuser");
+        registerRequest.setEmail("test@example.com");
+        registerRequest.setPassword("Password123!");
+        registerRequest.setConfirmPassword("Password123!");
 
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername("existinguser");
-        request.setPassword("SecurePass123!");
-        request.setConfirmPassword("SecurePass123!");
-        request.setEmail("existing@example.com");
-        request.setFirstName("Existing");
-        request.setLastName("User");
+        when(keycloakProperties.getRealmMapping()).thenReturn(Collections.emptyMap());
 
-        mockMvc.perform(post(registerUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Bad Request"))
-                .andExpect(jsonPath("$.message").value("El email 'existing@example.com' ya está registrado en Keycloak."));
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
+            registerController.register(unknownRealm, registerRequest);
+        });
 
-        // Verificar interacciones
-        verify(keycloakService, times(1)).userExistsByEmail(anyString(), eq(request.getEmail()));
-        verify(keycloakService, never()).createUser(anyString(), any(RegisterRequest.class));
-    }
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Tenant " + unknownRealm + " no reconocido."));
 
-    @Test
-    @DisplayName("POST /register debería retornar 400 Bad Request si faltan campos requeridos (Bean Validation)")
-    void registerUser_MissingRequiredFields_ReturnsBadRequest() throws Exception {
-        RegisterRequest invalidRequest = new RegisterRequest();
-        invalidRequest.setUsername("");
-        invalidRequest.setPassword("pass");
-        invalidRequest.setConfirmPassword("pass");
-        invalidRequest.setEmail("invalid-email");
-        invalidRequest.setFirstName("");
-        invalidRequest.setLastName("");
-
-        mockMvc.perform(post(registerUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidRequest)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Validation Failed"))
-                .andExpect(jsonPath("$.message").value("Uno o mas campos tienen errores de validacion"))
-                .andExpect(jsonPath("$.details.username").value("El nombre de usuario no puede estar vacio"))
-                .andExpect(jsonPath("$.details.password").value("La contraseña debe tener al menos 8 caracteres"))
-                .andExpect(jsonPath("$.details.email").value("El email debe tener un formato valido"))
-                .andExpect(jsonPath("$.details.firstName").value("El nombre no puede estar vacio"))
-                .andExpect(jsonPath("$.details.lastName").value("El apellido no puede estar vacio"));
-
-        verify(keycloakService, never()).userExistsByEmail(anyString(), anyString());
-        verify(keycloakService, never()).createUser(anyString(), any(RegisterRequest.class));
-    }
-
-    @Test
-    @DisplayName("POST /register debería retornar 409 Conflict si KeycloakUserCreationException indica conflicto")
-    void registerUser_KeycloakServiceThrowsConflictException_ReturnsConflict() throws Exception {
-        when(keycloakService.userExistsByEmail(anyString(), anyString())).thenReturn(false);
-
-        doThrow(new KeycloakUserCreationException("Error al crear usuario en Keycloak. Estado HTTP: 409. Detalles: User exists with same username."))
-                .when(keycloakService).createUser(anyString(), any(RegisterRequest.class));
-
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername("conflictuser");
-        request.setPassword("SecurePass123!");
-        request.setConfirmPassword("SecurePass123!");
-        request.setEmail("conflict@example.com");
-        request.setFirstName("Conflict");
-        request.setLastName("User");
-
-        mockMvc.perform(post(registerUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("Conflict"))
-                .andExpect(jsonPath("$.message").value("Error al crear usuario en Keycloak. Estado HTTP: 409. Detalles: User exists with same username."));
-
-        verify(keycloakService, times(1)).userExistsByEmail(anyString(), eq(request.getEmail()));
-        verify(keycloakService, times(1)).createUser(anyString(), any(RegisterRequest.class));
-    }
-
-    @Test
-    @DisplayName("POST /register debería retornar 500 Internal Server Error si KeycloakUserCreationException es genérica")
-    void registerUser_KeycloakServiceThrowsGenericException_ReturnsInternalServerError() throws Exception {
-        when(keycloakService.userExistsByEmail(anyString(), anyString())).thenReturn(false);
-
-        doThrow(new KeycloakUserCreationException("Error interno al crear usuario: Problema de conexión con Keycloak."))
-                .when(keycloakService).createUser(anyString(), any(RegisterRequest.class));
-
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername("internalerror");
-        request.setPassword("SecurePass123!");
-        request.setConfirmPassword("SecurePass123!");
-        request.setEmail("internal@example.com");
-        request.setFirstName("Internal");
-        request.setLastName("Error");
-
-        mockMvc.perform(post(registerUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error").value("Internal Server Error"))
-                .andExpect(jsonPath("$.message").value("Error interno al crear usuario: Problema de conexión con Keycloak."));
-
-        verify(keycloakService, times(1)).userExistsByEmail(anyString(), eq(request.getEmail()));
-        verify(keycloakService, times(1)).createUser(anyString(), any(RegisterRequest.class));
-    }
-
-    @Test
-    @DisplayName("POST /register debería retornar 500 Internal Server Error para excepciones inesperadas")
-    void registerUser_UnexpectedException_ReturnsInternalServerError() throws Exception {
-        when(keycloakService.userExistsByEmail(anyString(), anyString())).thenReturn(false);
-
-        doThrow(new RuntimeException("Error inesperado en el servicio de Keycloak."))
-                .when(keycloakService).createUser(anyString(), any(RegisterRequest.class));
-
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername("unexpected");
-        request.setPassword("SecurePass123!");
-        request.setConfirmPassword("SecurePass123!");
-        request.setEmail("unexpected@example.com");
-        request.setFirstName("Unexpected");
-        request.setLastName("Error");
-
-        mockMvc.perform(post(registerUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error").value("Internal Server Error"))
-                .andExpect(jsonPath("$.message").value("Ocurrió un error inesperado. Por favor, intente de nuevo mas tarde."));
-
-        verify(keycloakService, times(1)).userExistsByEmail(anyString(), eq(request.getEmail()));
-        verify(keycloakService, times(1)).createUser(anyString(), any(RegisterRequest.class));
+        verifyNoInteractions(keycloakService);
     }
 }

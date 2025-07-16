@@ -2,11 +2,11 @@ package com.example.keycloakdemo.controller;
 
 import com.example.keycloakdemo.config.KeycloakProperties;
 import com.example.keycloakdemo.config.SecurityConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,12 +15,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -29,213 +26,248 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Clase de test unitario para {@link LoginController}.
- * Utiliza Mockito para aislar el controlador y probar su lógica de negocio
- * sin cargar el contexto completo de Spring Boot.
- */
-/*
 @ExtendWith(MockitoExtension.class)
 class LoginControllerTest {
 
-    @InjectMocks
-    private LoginController1 loginController;
-
     @Mock
     private AuthenticationManager authenticationManager;
-
     @Mock
     private SecurityContextRepository securityContextRepository;
-
     @Mock
     private RestTemplate restTemplate;
-
     @Mock
     private KeycloakProperties keycloakProperties;
-
     @Mock
     private HttpServletRequest request;
     @Mock
     private HttpServletResponse response;
+    @Mock
+    private SecurityContext securityContext;
 
-    private String testTenantIdentifier = "plexus";
-    private String testKeycloakClientId = "plexus-app-client";
-    private String testUsername = "testuser";
-    private String testPassword = "password123";
+    @InjectMocks
+    private LoginController loginController;
 
-    private String mockAccessToken = "mockAccessToken";
-
-    private String mockIdToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3QgVXNlciIsImVtYWlsIjoidGVzdHVzZXJAZXhhbXBsZS5jb20iLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0ZXN0dXNlciIsInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJ1c2VyX2FwcCJdfSwicmVzb3VyY2VfYWNjZXNzIjp7InBsZXh1cy1hcHAtY2xpZW50Ijp7InJvbGVzIjpbImNsaWVudF9yb2xlIl19fX0.signature";
-
-    private String keycloakBaseUrl = "http://localhost:8080";
-    private String singleKeycloakRealm = "plexus";
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
+        SecurityContextHolder.setContext(securityContext);
+    }
 
-        SecurityContextHolder.setContext(Mockito.mock(SecurityContext.class));
-        Mockito.lenient().when(SecurityContextHolder.getContext().getAuthentication()).thenReturn(Mockito.mock(Authentication.class));
+    private String createMockJwt(String username, String email, String fullName, List<String> realmRoles, Map<String, List<String>> clientRoles, String issuer) {
+        try {
+            Map<String, Object> headerClaims = new HashMap<>();
+            headerClaims.put("alg", "HS256");
+            headerClaims.put("typ", "JWT");
 
-        Mockito.lenient().when(keycloakProperties.getClientSecrets()).thenReturn(Mockito.mock(Map.class));
-        Mockito.lenient().when(keycloakProperties.getClientSecrets().get(eq(testKeycloakClientId))).thenReturn("mock-client-secret");
-        Mockito.lenient().when(keycloakProperties.getAuthServerUrl()).thenReturn(keycloakBaseUrl);
-        Mockito.lenient().when(keycloakProperties.getSingleRealmName()).thenReturn(singleKeycloakRealm);
+            Map<String, Object> payloadClaims = new HashMap<>();
+            payloadClaims.put("sub", "54321");
+            payloadClaims.put("name", fullName);
+            payloadClaims.put("preferred_username", username);
+            payloadClaims.put("email", email);
+            payloadClaims.put("iss", issuer);
+
+            Map<String, Object> realmAccessClaim = new HashMap<>();
+            realmAccessClaim.put("roles", realmRoles);
+            payloadClaims.put("realm_access", realmAccessClaim);
+
+            Map<String, Object> resourceAccessClaim = new HashMap<>();
+            clientRoles.forEach((clientId, rolesList) -> {
+                Map<String, Object> clientAccess = new HashMap<>();
+                clientAccess.put("roles", rolesList);
+                resourceAccessClaim.put(clientId, clientAccess);
+            });
+            payloadClaims.put("resource_access", resourceAccessClaim);
+
+            String header = objectMapper.writeValueAsString(headerClaims);
+            String payload = objectMapper.writeValueAsString(payloadClaims);
+
+            String encodedHeader = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(header.getBytes());
+            String encodedPayload = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes());
+
+            return encodedHeader + "." + encodedPayload + ".mocksignature";
+        } catch (Exception e) {
+            throw new RuntimeException("Error creating mock JWT", e);
+        }
     }
 
     @Test
-    @DisplayName("Debería realizar un login exitoso y retornar 200 OK")
-    void doLogin_Success() throws Exception {
-        String keycloakResponseJson = String.format(
-                "{\"access_token\":\"%s\",\"id_token\":\"%s\",\"refresh_token\":\"mockRefreshToken\",\"expires_in\":3600,\"refresh_expires_in\":1800}",
-                mockAccessToken, mockIdToken
-        );
+    @DisplayName("Debería retornar el realm del tenant para GET /realm/login")
+    void redirectToTenantLogin_shouldReturnTenantRealm() {
+        String realm = "plexus";
+        String keycloakRealm = "plexus-realm";
+        Map<String, String> realmMapping = new HashMap<>();
+        realmMapping.put(realm, keycloakRealm);
 
-        when(restTemplate.postForEntity(
-                anyString(),
-                any(HttpEntity.class),
-                eq(String.class)
-        )).thenReturn(new ResponseEntity<>(keycloakResponseJson, HttpStatus.OK));
+        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
 
-        Authentication authenticatedAuth = new UsernamePasswordAuthenticationToken(
-                testUsername, SecurityConfig.DUMMY_PASSWORD, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER_APP"))
-        );
-        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authenticatedAuth);
-        doNothing().when(securityContextRepository).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
+        ResponseEntity<Map<String, Object>> responseEntity = loginController.redirectToTenantLogin(realm);
 
-        ResponseEntity<Map<String, Object>> responseEntity = loginController.doLogin(
-                testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response);
-
+        assertNotNull(responseEntity);
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals("Login successful", responseEntity.getBody().get("message"));
-        assertEquals(testUsername, responseEntity.getBody().get("username"));
-        assertEquals("testuser@example.com", responseEntity.getBody().get("email"));
-        assertEquals("Test User", responseEntity.getBody().get("fullName"));
-        List<String> roles = (List<String>) responseEntity.getBody().get("roles");
-        assertNotNull(roles);
-        assertTrue(roles.contains("ROLE_USER_APP"));
-        assertTrue(roles.contains("ROLE_CLIENT_ROLE"));
-        assertEquals(mockAccessToken, responseEntity.getBody().get("accessToken"));
-        assertEquals(mockIdToken, responseEntity.getBody().get("idToken"));
-        assertEquals(3600L, responseEntity.getBody().get("expiresIn"));
-        assertEquals(1800L, responseEntity.getBody().get("refreshExpiresIn"));
-        assertEquals(testTenantIdentifier, responseEntity.getBody().get("realm"));
-        assertEquals(testKeycloakClientId, responseEntity.getBody().get("client"));
+        assertEquals(realm, responseEntity.getBody().get("realm"));
+        assertEquals(keycloakRealm, responseEntity.getBody().get("keycloakRealm"));
+    }
 
-        verify(restTemplate, times(1)).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
+    @Test
+    @DisplayName("Debería lanzar ResponseStatusException si el realm no está mapeado para GET /realm/login")
+    void redirectToTenantLogin_shouldThrowExceptionForUnmappedRealm() {
+        String realm = "unknown";
+        when(keycloakProperties.getRealmMapping()).thenReturn(Collections.emptyMap());
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
+            loginController.redirectToTenantLogin(realm);
+        });
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Tenant " + realm + " no reconocido."));
+    }
+
+    @Test
+    @DisplayName("Debería procesar el login exitosamente y retornar tokens y roles")
+    void doLogin_shouldProcessLoginSuccessfully() throws Exception {
+        String realm = "plexus";
+        String client = "mi-app-plexus";
+        String username = "testuser";
+        String password = "testpassword";
+        String keycloakRealm = "plexus-realm";
+        String clientSecret = "mock-client-secret";
+
+        Map<String, String> realmMapping = new HashMap<>();
+        realmMapping.put(realm, keycloakRealm);
+
+        Map<String, String> clientSecrets = new HashMap<>();
+        clientSecrets.put(client, clientSecret);
+
+        String authServerUrl = "http://localhost:8080";
+        String issuerUrl = authServerUrl + "/realms/" + keycloakRealm;
+
+        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
+        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
+        when(keycloakProperties.getAuthServerUrl()).thenReturn(authServerUrl);
+
+        List<String> mockRealmRoles = List.of("app_users", "offline_access");
+        Map<String, List<String>> mockClientRoles = new HashMap<>();
+        mockClientRoles.put(client, List.of("user_app"));
+
+        String mockAccessToken = createMockJwt(username, "test@example.com", "Test User", mockRealmRoles, mockClientRoles, issuerUrl);
+        String mockIdToken = createMockJwt(username, "test@example.com", "Test User", Collections.emptyList(), Collections.emptyMap(), issuerUrl);
+
+        String keycloakTokenResponse = "{" +
+                "\"access_token\":\"" + mockAccessToken + "\"," +
+                "\"id_token\":\"" + mockIdToken + "\"," +
+                "\"refresh_token\":\"some-refresh-token\"," +
+                "\"expires_in\":300," +
+                "\"refresh_expires_in\":1800" +
+                "}";
+
+        when(restTemplate.postForEntity(
+                any(String.class),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenReturn(new ResponseEntity<>(keycloakTokenResponse, HttpStatus.OK));
+
+        List<SimpleGrantedAuthority> expectedAuthorities = new java.util.ArrayList<>();
+        mockRealmRoles.forEach(role -> expectedAuthorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())));
+        mockClientRoles.get(client).forEach(role -> expectedAuthorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())));
+
+        Authentication auth = new UsernamePasswordAuthenticationToken(username, SecurityConfig.DUMMY_PASSWORD, expectedAuthorities);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
+
+        doAnswer(invocation -> {
+            Authentication authentication = invocation.getArgument(0);
+            when(securityContext.getAuthentication()).thenReturn(authentication);
+            return null;
+        }).when(securityContext).setAuthentication(any(Authentication.class));
+
+        ResponseEntity<Map<String, Object>> responseEntity = loginController.doLogin(realm, client, username, password, request, response);
+
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+
+        Map<String, Object> responseBody = responseEntity.getBody();
+        assertNotNull(responseBody);
+        assertEquals("Login successful", responseBody.get("message"));
+        assertEquals("testuser", responseBody.get("username"));
+        assertEquals("test@example.com", responseBody.get("email"));
+        assertEquals("Test User", responseBody.get("fullName"));
+
+        List<String> actualRoles = (List<String>) responseBody.get("roles");
+        assertNotNull(actualRoles);
+        assertEquals(expectedAuthorities.size(), actualRoles.size());
+        assertTrue(actualRoles.contains("ROLE_APP_USERS"));
+        assertTrue(actualRoles.contains("ROLE_OFFLINE_ACCESS"));
+        assertTrue(actualRoles.contains("ROLE_USER_APP"));
+
+        assertNotNull(responseBody.get("accessToken"));
+        assertNotNull(responseBody.get("idToken"));
+        assertNotNull(responseBody.get("refreshToken"));
+        assertEquals(300L, responseBody.get("expiresIn"));
+        assertEquals(1800L, responseBody.get("refreshExpiresIn"));
+        assertEquals(realm, responseBody.get("realm"));
+        assertEquals(client, responseBody.get("client"));
+
+        verify(keycloakProperties, times(1)).getRealmMapping();
+        verify(keycloakProperties, times(1)).getClientSecrets();
+        verify(keycloakProperties, times(1)).getAuthServerUrl();
+        verify(restTemplate, times(1)).postForEntity(any(String.class), any(HttpEntity.class), eq(String.class));
         verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
-        verify(securityContextRepository, times(1)).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
+        verify(securityContextRepository, times(1)).saveContext(eq(securityContext), eq(request), eq(response));
+        verify(securityContext, times(1)).setAuthentication(any(Authentication.class));
     }
 
     @Test
-    @DisplayName("Debería retornar 400 Bad Request si el client secret no se encuentra")
-    void doLogin_ClientSecretNotFound_ReturnsBadRequest() throws Exception {
-        when(keycloakProperties.getClientSecrets().get(eq(testKeycloakClientId))).thenReturn(null);
+    @DisplayName("Debería lanzar ResponseStatusException si el tenant no está mapeado durante el login")
+    void doLogin_shouldThrowExceptionForUnmappedRealm() {
+        String realm = "unknown";
+        String client = "mi-app-plexus";
+        String username = "user";
+        String password = "password";
 
-        IllegalArgumentException thrown = assertThrows(
-                IllegalArgumentException.class,
-                () -> loginController.doLogin(testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response),
-                "Se esperaba una IllegalArgumentException cuando el secreto del cliente no se encuentra."
-        );
+        when(keycloakProperties.getRealmMapping()).thenReturn(Collections.emptyMap());
 
-        String expectedMessage = "Client ID configurado pero secreto no encontrado para: " + testKeycloakClientId + ".Asegurate de que el client ID esté configurado en 'keycloak.client-secrets' en properties.";
-        assertEquals(expectedMessage, thrown.getMessage());
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
+            loginController.doLogin(realm, client, username, password, request, response);
+        });
 
-        verify(restTemplate, never()).postForEntity(anyString(), any(HttpEntity.class), any());
-        verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
-        verify(securityContextRepository, never()).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Tenant " + realm + " no reconocido."));
     }
 
     @Test
-    @DisplayName("Debería lanzar HttpClientErrorException para credenciales inválidas de Keycloak (401)")
-    void doLogin_KeycloakReturns401_ThrowsHttpClientErrorException() throws Exception {
-        HttpClientErrorException unauthorizedException = HttpClientErrorException.create(
-                HttpStatus.UNAUTHORIZED, "Unauthorized", HttpHeaders.EMPTY, "{\"error\":\"invalid_grant\"}".getBytes(), StandardCharsets.UTF_8);
+    @DisplayName("Debería lanzar IllegalArgumentException si el secreto del cliente no está configurado")
+    void doLogin_shouldThrowExceptionForMissingClientSecret() {
+        String realm = "plexus";
+        String client = "unknown-client";
+        String username = "user";
+        String password = "password";
 
-        when(restTemplate.postForEntity(
-                anyString(),
-                any(HttpEntity.class),
-                eq(String.class)
-        )).thenThrow(unauthorizedException);
+        Map<String, String> realmMapping = new HashMap<>();
+        realmMapping.put(realm, "plexus-realm");
 
-        HttpClientErrorException thrown = assertThrows(
-                HttpClientErrorException.class,
-                () -> loginController.doLogin(testTenantIdentifier, testKeycloakClientId, testUsername, "wrongpassword", request, response),
-                "Se esperaba una HttpClientErrorException para credenciales inválidas."
-        );
+        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
+        when(keycloakProperties.getClientSecrets()).thenReturn(Collections.emptyMap());
 
-        assertEquals(HttpStatus.UNAUTHORIZED, thrown.getStatusCode());
-        assertTrue(thrown.getResponseBodyAsString().contains("invalid_grant"));
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            loginController.doLogin(realm, client, username, password, request, response);
+        });
 
-        verify(restTemplate, times(1)).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
-        verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
-        verify(securityContextRepository, never()).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
+        assertTrue(exception.getMessage().contains("Client ID configurado pero secreto no encontrado para: " + client));
     }
-
-    @Test
-    @DisplayName("Debería lanzar HttpServerErrorException para errores inesperados de Keycloak (500)")
-    void doLogin_KeycloakReturns500_ThrowsHttpServerErrorException() throws Exception {
-        HttpServerErrorException internalServerErrorException = HttpServerErrorException.create(
-                HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", HttpHeaders.EMPTY, "{\"error\":\"server_error\"}".getBytes(), StandardCharsets.UTF_8);
-
-        when(restTemplate.postForEntity(
-                anyString(),
-                any(HttpEntity.class),
-                eq(String.class)
-        )).thenThrow(internalServerErrorException);
-
-        HttpServerErrorException thrown = assertThrows(
-                HttpServerErrorException.class,
-                () -> loginController.doLogin(testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response),
-                "Se esperaba una HttpServerErrorException para errores de servidor."
-        );
-
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, thrown.getStatusCode());
-        assertTrue(thrown.getResponseBodyAsString().contains("server_error"));
-
-        verify(restTemplate, times(1)).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
-        verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
-        verify(securityContextRepository, never()).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
-    }
-
-    @Test
-    @DisplayName("Debería lanzar IOException si la respuesta JSON de Keycloak es inválida")
-    void doLogin_InvalidJsonResponse_ThrowsIOException() throws Exception {
-        String invalidJson = "Esto no es JSON válido";
-
-        when(restTemplate.postForEntity(
-                anyString(),
-                any(HttpEntity.class),
-                eq(String.class)
-        )).thenReturn(new ResponseEntity<>(invalidJson, HttpStatus.OK));
-
-        IOException thrown = assertThrows(
-                IOException.class,
-                () -> loginController.doLogin(testTenantIdentifier, testKeycloakClientId, testUsername, testPassword, request, response),
-                "Se esperaba una IOException para JSON inválido."
-        );
-
-        assertTrue(thrown.getMessage().contains("Unrecognized token 'Esto'"), "El mensaje de error debería indicar token no reconocido.");
-
-        verify(restTemplate, times(1)).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
-        verify(authenticationManager, never()).authenticate(any(UsernamePasswordAuthenticationToken.class));
-        verify(securityContextRepository, never()).saveContext(any(SecurityContext.class), any(HttpServletRequest.class), any(HttpServletResponse.class));
-    }
-}*/
+}

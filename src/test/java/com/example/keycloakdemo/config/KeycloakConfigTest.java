@@ -24,13 +24,17 @@ class KeycloakConfigTest {
     @Mock
     private KeycloakProperties keycloakProperties;
 
+    @Mock
+    private KeycloakProperties.Admin keycloakAdminProperties;
+
     @BeforeEach
     void setUp() {
+        when(keycloakProperties.getAdmin()).thenReturn(keycloakAdminProperties);
         when(keycloakProperties.getAuthServerUrl()).thenReturn("http://mock-keycloak:8080");
-        when(keycloakProperties.getAdmin().getRealm()).thenReturn("master");
-        when(keycloakProperties.getAdmin().getUsername()).thenReturn("testadmin");
-        when(keycloakProperties.getAdmin().getPassword()).thenReturn("testpassword");
-        when(keycloakProperties.getAdmin().getClientId()).thenReturn("test-admin-cli");
+        when(keycloakAdminProperties.getRealm()).thenReturn("master");
+        when(keycloakAdminProperties.getUsername()).thenReturn("testadmin");
+        when(keycloakAdminProperties.getPassword()).thenReturn("testpassword");
+        when(keycloakAdminProperties.getClientId()).thenReturn("test-admin-cli");
 
         keycloakConfig = new KeycloakConfig(keycloakProperties);
     }
