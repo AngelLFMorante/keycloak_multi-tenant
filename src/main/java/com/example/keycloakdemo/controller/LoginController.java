@@ -146,13 +146,12 @@ public class LoginController {
         String tokenUrl = keycloakProperties.getAuthServerUrl() + "/realms/" + keycloakRealm + "/protocol/openid-connect/token";
         log.debug("URL de token de Keycloak: {}", tokenUrl);
 
-        // Prepara los parámetros para la solicitud POST al endpoint de tokens de Keycloak (Password Grant).
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
         params.add("grant_type", "password");
         params.add("client_id", client);
         params.add("username", username);
         params.add("password", password);
-        params.add("scope", "openid profile email"); // MODIFIED: Añadido "profile" y "email" al scope
+        params.add("scope", "openid profile email");
         log.debug("Parametros de solicitud de token: {}", params);
 
         HttpHeaders headers = new HttpHeaders();
@@ -185,7 +184,6 @@ public class LoginController {
         String fullName = null;
         String preferredUsername = username;
 
-        // MODIFIED: Siempre decodificar el Access Token para extraer roles y claims principales
         DecodedJWT decodedAccessToken = JWT.decode(accessToken);
         log.debug("Access Token decodificado para extracción de claims y roles.");
 
@@ -225,47 +223,31 @@ public class LoginController {
             }
         }
 
-        // Opcional: Si el ID Token también contiene roles y quieres fusionarlos, puedes añadir lógica aquí.
-        // Sin embargo, el Access Token suele ser la fuente principal de roles para la autorización.
         if (idToken != null) {
             DecodedJWT decodedIdToken = JWT.decode(idToken);
-            // Puedes añadir lógica aquí para extraer roles del ID Token si sabes que los contiene
-            // y quieres fusionarlos con los del Access Token.
-            // Por lo general, el ID Token no contiene roles de acceso a recursos.
             log.debug("ID Token decodificado, pero roles ya extraidos de Access Token. Claims del ID Token: {}", decodedIdToken.getClaims());
         }
 
 
-        // --- INICIO DE INTEGRACIÓN CON SPRING SECURITY ---
         log.debug("Integrando autenticación con Spring Security");
-
         log.debug("extractedAuthorities antes de pasar a authenticationManager.authenticate: {}", extractedAuthorities);
-        // 1. Crear un UsernamePasswordAuthenticationToken INAUTENTICADO.
+
         UsernamePasswordAuthenticationToken authenticationRequest = new UsernamePasswordAuthenticationToken(
                 preferredUsername, SecurityConfig.DUMMY_PASSWORD, extractedAuthorities
         );
         log.debug("authenticationRequest (con roles) creado: Principal={}, Authorities={}", authenticationRequest.getPrincipal(), authenticationRequest.getAuthorities());
 
-
-        // 2. Delegar la autenticación al AuthenticationManager de Spring Security.
         Authentication authenticatedResult = authenticationManager.authenticate(authenticationRequest);
         log.debug("Usuario '{}' autenticado por AuthenticationManager de Spring Security.", preferredUsername);
         log.debug("authenticatedResult (desde AuthenticationManager): Principal={}, Authorities={}", authenticatedResult.getPrincipal(), authenticatedResult.getAuthorities());
 
-
-        // 3. Establecer el objeto Authentication FINAL en el SecurityContextHolder.
         SecurityContextHolder.getContext().setAuthentication(authenticatedResult);
         log.debug("SecurityContextHolder actualizado con la autenticación final. Roles en SecurityContext: {}", SecurityContextHolder.getContext().getAuthentication().getAuthorities());
 
-
-        // 4. Guardar explícitamente el SecurityContext en el repositorio de contexto de seguridad.
         SecurityContext sc = SecurityContextHolder.getContext();
         securityContextRepository.saveContext(sc, request, response);
         log.debug("SecurityContext guardado en la sesión HTTP para el usuario '{}'.", preferredUsername);
 
-        // --- FIN DE INTEGRACIÓN CON SPRING SECURITY ---
-
-        //Respuesta Json para frontend
         responseBody.put("message", "Login successful");
         responseBody.put("username", preferredUsername);
         responseBody.put("email", email);

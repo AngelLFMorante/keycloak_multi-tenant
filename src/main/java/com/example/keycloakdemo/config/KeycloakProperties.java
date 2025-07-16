@@ -22,14 +22,13 @@ public class KeycloakProperties {
 
     private Admin admin = new Admin();
 
-    @Data // Anotación de Lombok para la clase anidada
+    @Data
     public static class Admin {
         private String realm;
         private String username;
         private String password;
         private String clientId;
     }
-    // <-- FIN de la clase anidada -->
 
     @PostConstruct
     public void init() {

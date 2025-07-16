@@ -85,7 +85,6 @@ public class RegisterController {
         log.info("Intento de registro de usuario para el tenant: {}", realm);
         log.debug("Datos de registro recibidos: username={}, email={}", request.getUsername(), request.getEmail());
 
-        // 1. Obtener el realm real de Keycloak a partir del tenantPath
         String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
         if (keycloakRealm == null) {
             log.warn("Mapeo de realm no encontrado para el tenantPath: {}", realm);
@@ -93,20 +92,16 @@ public class RegisterController {
         }
         log.debug("TenantPath '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
 
-
-        // Verifica si las contraseñas no coinciden.
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             log.warn("Error de registro: Las contraseñas no coinciden para el usuario '{}'.", request.getUsername());
             throw new IllegalArgumentException("Password no coinciden");
         }
 
-        //Comprobar si el email existe en keycloak
         if(keycloakService.userExistsByEmail(keycloakRealm, request.getEmail())){
             log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.getEmail(), realm);
             throw new IllegalArgumentException(("El email '" + request.getEmail() + "' ya está registrado en Keycloak."));
         }
 
-        // Esto es crucial para que la llamada al servicio de Keycloak sea correcta.
         keycloakService.createUser(realm, request);
         log.info("Usuario '{}' registrado exitosamente en el realm Keycloak '{}' para el tenant '{}'.", request.getUsername(), keycloakRealm, realm);
 
