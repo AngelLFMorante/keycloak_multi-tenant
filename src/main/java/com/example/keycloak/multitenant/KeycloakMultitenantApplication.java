@@ -7,10 +7,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 
 @SpringBootApplication
 @EnableConfigurationProperties(KeycloakProperties.class)
-public class KeycloakDemoApplication {
+public class KeycloakMultitenantApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(KeycloakDemoApplication.class, args);
+		SpringApplication.run(KeycloakMultitenantApplication.class, args);
 	}
 
 }
