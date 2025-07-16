@@ -9,10 +9,11 @@
 		<relativePath/>
 	</parent>
 	<groupId>com.example</groupId>
-	<artifactId>keycloak-demo</artifactId>
+	<artifactId>keycloak-multitenant</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>keycloak-demo</name>
-	<description>Demo project for Spring Boot</description>
+	<name>keycloak-multitenant</name>
+	<description>Este proyecto es una aplicación Spring Boot que integra la gestión de autenticación y autorización mediante Keycloak en un entorno multitenant. El objetivo es facilitar la configuración de un sistema seguro con múltiples inquilinos utilizando la API de administración de Keycloak. Además, incluye validación de beans, soporte para JWT y documentación de la API con OpenAPI.</description>
+
 	<url/>
 	<licenses>
 		<license/>
