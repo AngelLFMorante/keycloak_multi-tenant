@@ -1,124 +1,195 @@
------
+[![Java](https://img.shields.io/badge/Java-17-007396?style=flat\&logo=java\&logoColor=white)](https://www.java.com/)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-3-6DB33F?style=flat\&logo=spring-boot\&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Keycloak](https://img.shields.io/badge/Keycloak-22+-7C3AED?style=flat\&logo=keycloak\&logoColor=white)](https://www.keycloak.org/)
+[![Postman](https://img.shields.io/badge/Postman-FF6C37?style=flat\&logo=postman\&logoColor=white)](https://www.postman.com/)
+[![Swagger](https://img.shields.io/badge/Swagger-3-85EA2D?style=flat\&logo=swagger)](https://swagger.io/)
+[![Docker](https://img.shields.io/badge/Docker-Container_Ready-2496ED?style=flat\&logo=docker\&logoColor=white)](https://www.docker.com/)
 
-# Keycloak Demo Application
+# Microservicio de Autenticación con Spring Boot y Keycloak
 
-This application showcases a robust multi-tenant authentication system built with **Spring Boot** and **Keycloak**. It's designed to seamlessly handle user authentication for different "tenants" (like "plexus" and "inditex"), each with their own dedicated home page and authentication flow, all managed through dynamic client registration with Keycloak.
+**Microservicio de Autenticación** es una API REST desarrollada con **Spring Boot** que permite gestionar el login de usuarios mediante Keycloak con soporte multi-realm. Proporciona endpoints para login, logout, registro y gestión de sesiones, todo centralizado y extensible.
 
------
+## 📌 Objetivo
 
-## 🚀 Getting Started
+* Gestionar usuarios mediante Keycloak Admin Client.
+* Permitir login y registro desde múltiples realms.
+* Mantener sesiones activas y válidas entre Keycloak y el backend.
+* Registrar errores de red, validación, y seguridad de manera estructurada.
 
-This guide will walk you through setting up and running both Keycloak (via Docker) and the Spring Boot application.
+## 🛠️ Tecnologías Usadas
 
-### Prerequisites
+* **Java 17**
+* **Spring Boot 3.x**
+* **Spring Security** con configuración personalizada
+* **Keycloak 22+** con clientes confidenciales
+* **Keycloak Admin Client SDK**
+* **Docker** y **Docker Compose** para orquestación
+* **RestTemplate** para comunicación con Keycloak
+* **SLF4J + Logback** para logs
+* **Swagger/OpenAPI** para documentación REST
 
-Before you begin, ensure you have the following installed:
+## 🚀 Cómo Ejecutar el Proyecto
 
-* **Docker:** For running the Keycloak server.
-* **Java 17 or higher:** To run the Spring Boot application.
-* **Maven:** For building and managing the Spring Boot project.
-
------
-
-## 🛠️ Technologies Used
-
-* **Keycloak:** Open Source Identity and Access Management
-
-  [](https://www.keycloak.org/)
-
-* **Spring Boot:** A powerful Java-based framework for creating stand-alone, production-grade Spring applications with minimal configuration.
-
-  [](https://spring.io/)
-
-* **Java:** The core programming language used for the backend application.
-
-  [](https://www.oracle.com/java/)
-
-* **Maven:** A dependency management and build automation tool for Java projects.
-
-  [](https://maven.apache.org/)
-
-* **Thymeleaf:** A server-side Java template engine used for rendering dynamic HTML content in the web views.
-
-  [](https://www.thymeleaf.org/)
-
-* **Bootstrap:** A popular CSS framework used for developing responsive and mobile-first front-end web development.
-
-  [](https://getbootstrap.com/)
-
------
-
-## ⚙️ How it Works
-
-This application implements a multi-tenant architecture by leveraging Keycloak's flexible realm and client configurations.
-
-* **Dynamic Client Registration:** The core of the multi-tenancy lies in the `DynamicClientRegistrationRepository`. This custom component intercepts authentication requests and dynamically configures the OAuth2 client for **Spring Security** based on the tenant identified in the URL (e.g., `/plexus/login`, `/inditex/login`). This means you don't need to hardcode client registrations for every tenant in your `application.properties`.
-* **Tenant-Specific Realms:** Each tenant (e.g., "plexus", "inditex") is mapped to its own **Keycloak Realm**, allowing for isolated user management, roles, and authentication policies.
-* **Custom Authentication Success Handler:** After a successful login, the `CustomAuthenticationSuccessHandler` redirects the user to their specific tenant's home page (e.g., `/{tenant}/home`), providing a personalized experience.
-* **Role Extraction:** The `oidcUserService` is customized to extract user roles from both `realm_access` and `resource_access` claims within the **Keycloak** ID Token, ensuring granular authorization within the application.
-* **Logout Handling:** A custom `LogoutSuccessHandler` ensures that users are properly logged out from **Keycloak** as well, invalidating their session and redirecting them back to the application's root.
-
------
-
-## 🚀 Running the Application
-
-Follow these steps to get the application up and running:
-
-### 1\. Start Keycloak with Docker
-
-First, launch your Keycloak instance using Docker. This command will start Keycloak, expose it on port `8080`, and set up an initial administrator user. The `-v keycloak_data:/opt/keycloak/data` part ensures that your Keycloak data (realms, users, clients) persists even if you stop and restart the container.
+### 1. Clonar el Repositorio
 
 ```bash
-docker run -p 8080:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin -v keycloak_data:/opt/keycloak/data quay.io/keycloak/keycloak:latest start-dev
+  git clone https://github.com/AngelLFMorante/keycloak_multi-tenant
+  cd tu-repo
 ```
 
-Once Keycloak is running, access its administration console at `http://localhost:8080` and log in with the `admin` credentials you set (`admin`/`admin`).
-
-**Keycloak Configuration Steps:**
-
-* **Create Realms:** Create two new realms: `plexus-realm` and `inditex-realm`.
-* **Create Clients:** Within each realm, create a client:
-    * For `plexus-realm`: Create a client with `Client ID` `mi-app-plexus`.
-    * For `inditex-realm`: Create a client with `Client ID` `mi-app-inditex`.
-* **Configure Client Settings:** For each client (`mi-app-plexus` and `mi-app-inditex`):
-    * Set **Client authentication** to `On`.
-    * Generate a **Client secret** (you'll need to update this in `DynamicClientRegistrationRepository.java` for the respective tenant, but for this demo, the hardcoded values are `APE7Jo7L22EY8yTKh50v6B82nQ8l3f24` for `plexus` and `5LR8rwO0VLFpog0lCrxrODfxlwQEEj7g` for `inditex`).
-    * Add a **Valid redirect URIs** entry: `http://localhost:8081/login/oauth2/code/*`.
-    * Set **Web origins** to `http://localhost:8081`.
-* **Create Users:** Create users within each realm. For example, a user in `plexus-realm` and another in `inditex-realm`.
-
-### 2\. Build and Run the Spring Boot Application
-
-Navigate to the root directory of your Spring Boot project in the terminal.
+### 2. Levantar Keycloak con Docker (modo desarrollo y persistencia)
 
 ```bash
-# Build the application
-mvn clean install
-
-# Run the application
-mvn spring-boot:run
+    docker run -p 8080:8080 \
+    -e KEYCLOAK_ADMIN=admin \
+    -e KEYCLOAK_ADMIN_PASSWORD=admin \
+    -v keycloak_data:/opt/keycloak/data \
+    quay.io/keycloak/keycloak:latest start-dev
 ```
 
-The application will start on **port 8081** (as configured in `application.properties`).
+Esto levantará Keycloak en http://localhost:8080 con persistencia de datos gracias al volumen keycloak_data.
 
------
+### 3. Crear Realm y Configuraciones en Keycloak
 
-## 🌐 Accessing the Application
+Accede a `http://localhost:8080` con:
 
-Open your web browser and navigate to `http://localhost:8081`. You will see the main landing page with options to log in to different tenants.
+* **usuario**: `admin`
+* **contraseña**: `admin`
 
-* **Login to Plexus:** Click on "Go to Plexus App (Requires Login)" or navigate directly to `http://localhost:8081/plexus/login`. You will be redirected to the **Keycloak** login page for `plexus-realm`.
-* **Login to Inditex:** Click on "Go to Inditex App (Requires Login)" or navigate directly to `http://localhost:8081/inditex/login`. You will be redirected to the **Keycloak** login page for `inditex-realm`.
+Luego:
 
-After successfully authenticating with **Keycloak**, you will be redirected to the respective tenant's home page (e.g., `http://localhost:8081/plexus/home`), displaying your user information and roles.
+* Crea un **Realm**: `demo-realm`
+* Crea un **Cliente**: `demo-client`
+* Agrega URL de redirección: `http://localhost:8081/*`
+* Crea **roles**: `user`, `admin`
+* Crea un **usuario**: `angel` / `1234`, con rol `user`
 
------
+### ⚙️ Configuración de `application.properties`
 
-## 🔚 Logging Out
+```properties
+  keycloak.auth-server-url=http://localhost:8080
+  keycloak.admin.realm=master
+  keycloak.admin.username=admin
+  keycloak.admin.password=admin
+  keycloak.admin.client-id=admin-cli
+```
 
-From any tenant's home page, simply click the **"Logout"** button. This will initiate the **OAuth2** logout flow, redirecting you back to the application's public home page and ending your session in **Keycloak**.
+## ▶️ Ejecutar la Aplicación
 
------
-## 👤 Author
+```bash
+  ./mvnw spring-boot:run
+```
 
-Ángel (Plexus)
+O usando Docker:
+
+```bash
+  docker build -t spring-auth-service .
+  docker run -p 8081:8081 --name keycloak-demo-container keycloak-demo-app
+```
+
+## 🔐 Endpoints Disponibles
+
+| Método | Endpoint                     | Descripción                     |
+| ------ | ---------------------------- | ------------------------------- |
+| GET    | `/{realm}/login`             | Página de login                 |
+| POST   | `/{realm}/{client}/do_login` | Login con usuario/password      |
+| POST   | `/{realm}/register`          | Registro de usuario en Keycloak |
+| GET    | `/logout`                    | Logout y cierre de sesión       |
+| GET    | `/swagger-ui/index.html`     | Acceso a Swagger UI             |
+
+## 🧪 Postman cURL's de Ejemplo
+
+### 🔑 Login
+
+```bash
+  curl -X POST \
+  http://localhost:8081/{REALM_PATH}/{CLIENT_ID}/do_login \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'username={USERNAME}&password={PASSWORD}'
+```
+
+### 🧍 Registro
+
+```bash
+  curl -X POST \
+  http://localhost:8081/{REALM_PATH}/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "username": "{NEW_USERNAME}",
+        "email": "{NEW_EMAIL}",
+        "password": "{NEW_PASSWORD}",
+        "confirmPassword": "{NEW_PASSWORD}"
+      }'
+```
+
+## 🧯 Manejo de Errores
+
+* `ResourceAccessException` → errores de red
+* `HttpClientErrorException` / `HttpServerErrorException` → errores HTTP
+* Validaciones (`@Valid`) y errores personalizados
+* Excepciones generales y de Keycloak (duplicados, estados inválidos)
+
+## 🔐 Seguridad de la Aplicación
+
+* Login multi-realm
+* Logout bidireccional (Keycloak + backend)
+* Máxima 1 sesión activa por usuario
+* Rutas públicas permitidas: `/public`, `/swagger-ui`, `/v3/api-docs/**`
+* Password dummy no valida credenciales reales
+
+## 🧠 Cómo Funciona la Aplicación
+
+### 🏷️ Multi-tenant: Realms y Clients dinámicos
+
+La aplicación soporta múltiples **realms** y **clients** configurables a través del archivo `application.properties`. Esto permite enrutar y validar las credenciales de los usuarios contra distintos entornos Keycloak de forma dinámica.
+
+#### 🔁 Realms dinámicos
+
+Se define un mapeo donde el segmento de URL (por ejemplo, `demo`) se asocia a un nombre real del realm en Keycloak:
+
+```properties
+keycloak.realm-mapping.plexus=plexus-realm
+keycloak.realm-mapping.inditex=inditex-realm
+```
+
+Así, una petición a `http://localhost:8081/plexus/login` será tratada como perteneciente al realm `plexus-realm` en Keycloak.
+
+#### 🔑 Clients y Secrets por Realm
+
+Cada realm tiene su propio cliente configurado. En `application.properties`, se declaran los `client-id` y sus `client-secrets`:
+
+```properties
+keycloak.client-secrets.mi-app-plexus=<<secret>>
+keycloak.client-secrets.mi-app-inditex=<<secret>>
+```
+
+Cuando un usuario intenta hacer login desde un endpoint como:
+
+```
+POST /plexus/mi-app-plexus/do_login
+```
+
+La aplicación busca en `application.properties` el secreto para `mi-app-plexus` y lo utiliza para comunicarse con el realm `plexus-realm`.
+
+Estas asociaciones deben existir previamente en el archivo de configuración y deben coincidir con los valores reales configurados en Keycloak.
+
+* Autenticación centralizada mediante Keycloak.
+* Gestión de usuarios vía Keycloak Admin Client.
+* Configuración de múltiples realms desde `application.properties`.
+* Manejo estructurado de excepciones, tokens, sesiones y logout.
+
+## ✅ Pruebas Unitarias
+
+Ejecuta:
+
+```bash
+  mvn test
+```
+
+## 👤 Autor
+
+**Angel L. Fernandez Morante**
+
+## 📝 Licencia
+
+MIT
