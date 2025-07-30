@@ -1,4 +1,4 @@
-openapi: 3.0.3 # CAMBIO: De 3.1.0 a 3.0.3
+openapi: 3.0.3
 info:
   title: Keycloak Demo API
   description: |
@@ -8,7 +8,7 @@ info:
     corresponde a un tenant específico mapeado a un realm en Keycloak.
   version: 1.0.0
 servers:
-  - url: https://api.yourdomain.com # CAMBIAR ESTO por la URL base real (ej. https://api.yourdomain.com/v1)
+  - url: https://api.yourdomain.com # URL base real (ej. https://api.yourdomain.com/v1)
     description: Servidor de Producción
   - url: http://localhost:8081 # URL base (ej. http://localhost:8081)
     description: Servidor de Desarrollo Local
@@ -269,7 +269,7 @@ paths:
         500:
           $ref: '#/components/responses/InternalServerError'
 
-  /logout: #**Modificado: Nuevo path para el logout
+  /logout:
     post:
       summary: Cerrar sesión (Logout)
       description: Invalida la sesión actual en la aplicación y revoca el Refresh Token en Keycloak.
@@ -277,7 +277,7 @@ paths:
       operationId: doLogout
       tags:
         - Autenticación
-      security: #**Modificado: Indica que requiere autenticación (sesión activa)
+      security:
         - cookieAuth: [ ] # Asume que la autenticación se basa en la cookie de sesión
       responses:
         200:
@@ -399,25 +399,6 @@ components:
           description: El Client ID utilizado para el login.
           example: my-app-client
 
-    CreateRoleRequest: #**Modificado: Nuevo esquema para la solicitud de creación de rol
-      type: object
-      description: Objeto de solicitud para la creación de un nuevo rol.
-      properties:
-        name:
-          type: string
-          description: Nombre único del rol.
-          minLength: 3
-          maxLength: 50
-          example: MANAGER_ROLE
-        description:
-          type: string
-          description: Descripción del rol.
-          maxLength: 255
-          nullable: true
-          example: Rol para usuarios con privilegios de gestión.
-      required:
-        - name
-
     # Esquemas para respuestas de error (reutilizables)
     ErrorResponse:
       type: object
@@ -497,14 +478,14 @@ components:
         Los tokens se obtienen a través del endpoint do_login.
       flows:
         password:
-          tokenUrl: http://localhost:8080/realms/master/protocol/openid-connect/token # CAMBIA ESTO a tu URL real de token de Keycloak (authServerUrl + /realms/TU_REALM/protocol/openid-connect/token)
+          tokenUrl: http://localhost:8080/realms/master/protocol/openid-connect/token # URL real de token de Keycloak (authServerUrl + /realms/TU_REALM/protocol/openid-connect/token)
           scopes:
             openid: Permite solicitar un ID Token.
             profile: Permite solicitar información básica del perfil del usuario.
             email: Permite solicitar la dirección de correo electrónico del usuario.
             # Añade aquí otros scopes si tu aplicación los usa y los configuras en Keycloak
             # Ej: read:user, write:products
-    cookieAuth: #**Modificado: Nuevo esquema de seguridad para autenticación basada en cookies (JSESSIONID)
+    cookieAuth:
       type: apiKey
       in: cookie
       name: JSESSIONID
