@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -247,6 +248,12 @@ public class LoginController {
         SecurityContext sc = SecurityContextHolder.getContext();
         securityContextRepository.saveContext(sc, request, response);
         log.debug("SecurityContext guardado en la sesión HTTP para el usuario '{}'.", preferredUsername);
+
+        HttpSession session = request.getSession(true);
+        session.setAttribute("refreshToken", refreshToken);
+        session.setAttribute("realm", realm);
+        session.setAttribute("clientUsed", client);
+        log.debug("Refresh Token, realm '{}' y clientUsed '{}' guardados en la sesión.", realm, client);
 
         responseBody.put("message", "Login successful");
         responseBody.put("username", preferredUsername);
