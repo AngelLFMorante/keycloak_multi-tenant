@@ -156,7 +156,7 @@ class SecurityConfigTest {
     @Test
     @DisplayName("customLogoutSuccessHandler debería ser un LogoutSuccessHandler y establecer el estado OK")
     void customLogoutSuccessHandler_shouldSetStatusOk() throws Exception {
-        LogoutSuccessHandler handler = securityConfig.customLogoutSuccessHandler();
+        LogoutSuccessHandler handler = securityConfig.customLogoutSuccessHandler(new RestTemplate());
         assertNotNull(handler);
 
         HttpServletRequest mockRequest = mock(HttpServletRequest.class);
