@@ -8,9 +8,9 @@ info:
     corresponde a un tenant específico mapeado a un realm en Keycloak.
   version: 1.0.0
 servers:
-  - url: https://api.yourdomain.com # URL base real (ej. https://api.yourdomain.com/v1)
+  - url: https://api.yourdomain.com
     description: Servidor de Producción
-  - url: http://localhost:8081 # URL base (ej. http://localhost:8081)
+  - url: http://localhost:8081
     description: Servidor de Desarrollo Local
 
 tags:
@@ -18,6 +18,8 @@ tags:
     description: Operaciones relacionadas con el login y manejo de sesiones.
   - name: Registro de Usuarios
     description: Operaciones para el registro de nuevos usuarios.
+  - name: Gestión de Roles
+    description: Operaciones para la creación y gestión de roles en Keycloak.
 
 paths:
   /{realm}/login:
@@ -278,7 +280,7 @@ paths:
       tags:
         - Autenticación
       security:
-        - cookieAuth: [ ] # Asume que la autenticación se basa en la cookie de sesión
+        - cookieAuth: [ ]
       responses:
         200:
           description: Sesión cerrada exitosamente.
@@ -290,6 +292,163 @@ paths:
                   message:
                     type: string
                     example: Logout successful
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+  /{realm}/roles:
+    post:
+      summary: Crear un nuevo rol
+      description: Crea un nuevo rol en el realm de Keycloak asociado al tenant especificado.
+        Requiere autenticación con un usuario que tenga permisos administrativos para gestionar roles.
+      operationId: createRole
+      tags:
+        - Gestión de Roles
+      parameters:
+        - name: realm
+          in: path
+          description: El nombre del realm (tenant) donde se creará el rol.
+          required: true
+          schema:
+            type: string
+          example: mytenant
+      requestBody:
+        description: Datos para la creación del rol.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        201:
+          description: Rol creado exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Rol creado exitosamente.
+                  roleName:
+                    type: string
+                    example: NEW_CUSTOM_ROLE
+                  realm:
+                    type: string
+                    example: mytenant
+        400:
+          description: Errores de validación en los datos del rol.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                validationError:
+                  summary: Error de validación de campos
+                  value:
+                    timestamp: '2025-07-16T10:00:00.000+00:00'
+                    status: 400
+                    error: Bad Request
+                    message: El nombre del rol no puede estar vacío
+                    details:
+                      name: El nombre del rol debe tener entre 3 y 50 caracteres
+                    path: /mytenant/roles
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFoundTenant'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+    get: #**Modificado: Nuevo método GET para obtener roles
+      summary: Obtener todos los roles del realm
+      description: Obtiene una lista de todos los roles de realm disponibles para el tenant especificado.
+        Requiere autenticación con un usuario que tenga permisos para ver roles.
+      operationId: getRoles
+      tags:
+        - Gestión de Roles
+      parameters:
+        - name: realm
+          in: path
+          description: El nombre del realm (tenant) del cual se obtendrán los roles.
+          required: true
+          schema:
+            type: string
+          example: mytenant
+      responses:
+        200:
+          description: Lista de roles obtenida exitosamente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleRepresentation' #**Modificado: Referencia al esquema de rol
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFoundTenant'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+  /{realm}/roles/{roleName}: #**Modificado: Nuevo path para operaciones con un rol específico
+    delete:
+      summary: Eliminar un rol
+      description: Elimina un rol por su nombre del realm de Keycloak asociado al tenant especificado.
+        Requiere autenticación con un usuario que tenga permisos administrativos para eliminar roles.
+      operationId: deleteRole
+      tags:
+        - Gestión de Roles
+      parameters:
+        - name: realm
+          in: path
+          description: El nombre del realm (tenant) del cual se eliminará el rol.
+          required: true
+          schema:
+            type: string
+          example: mytenant
+        - name: roleName
+          in: path
+          description: El nombre del rol a eliminar.
+          required: true
+          schema:
+            type: string
+          example: DELETED_ROLE
+      responses:
+        200:
+          description: Rol eliminado exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Rol 'DELETED_ROLE' eliminado exitosamente.
+                  realm:
+                    type: string
+                    example: mytenant
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          description: Rol no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2025-07-30T10:00:00.000+00:00'
+                status: 404
+                error: Not Found
+                message: Rol 'NON_EXISTENT_ROLE' no encontrado en el realm 'mytenant'.
+                path: /mytenant/roles/NON_EXISTENT_ROLE
         500:
           $ref: '#/components/responses/InternalServerError'
 
@@ -399,6 +558,59 @@ components:
           description: El Client ID utilizado para el login.
           example: my-app-client
 
+    CreateRoleRequest:
+      type: object
+      description: Objeto de solicitud para la creación de un nuevo rol.
+      properties:
+        name:
+          type: string
+          description: Nombre único del rol.
+          minLength: 3
+          maxLength: 50
+          example: MANAGER_ROLE
+        description:
+          type: string
+          description: Descripción del rol.
+          maxLength: 255
+          nullable: true
+          example: Rol para usuarios con privilegios de gestión.
+      required:
+        - name
+
+    RoleRepresentation: #**Modificado: Nuevo esquema para la representación de un rol de Keycloak
+      type: object
+      description: Representación de un rol de Keycloak.
+      properties:
+        id:
+          type: string
+          description: ID único del rol en Keycloak.
+          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+        name:
+          type: string
+          description: Nombre del rol.
+          example: "admin"
+        description:
+          type: string
+          description: Descripción del rol.
+          nullable: true
+          example: "Administrador del sistema"
+        composite:
+          type: boolean
+          description: Indica si el rol es compuesto (contiene otros roles).
+          example: false
+        clientRole:
+          type: boolean
+          description: Indica si el rol es un rol de cliente (true) o de realm (false).
+          example: false
+        containerId:
+          type: string
+          description: ID del contenedor (realm o cliente) al que pertenece el rol.
+          example: "mytenant-realm"
+        # Puedes añadir más propiedades si las necesitas y Keycloak las devuelve
+      required:
+        - id
+        - name
+
     # Esquemas para respuestas de error (reutilizables)
     ErrorResponse:
       type: object
@@ -471,6 +683,31 @@ components:
             error: Internal Server Error
             message: Ocurrió un error inesperado. Por favor, intente de nuevo mas tarde.
             path: /some-faulty-endpoint
+    Unauthorized:
+      description: No autenticado. La solicitud requiere autenticación.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2025-07-30T10:00:00.000+00:00'
+            status: 401
+            error: Unauthorized
+            message: Se requiere autenticación para acceder a este recurso.
+            path: /mytenant/roles
+    Forbidden:
+      description: Prohibido. El usuario autenticado no tiene los permisos necesarios.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2025-07-30T10:00:00.000+00:00'
+            status: 403
+            error: Forbidden
+            message: No tiene los permisos necesarios para realizar esta operación.
+            path: /mytenant/roles
+
   securitySchemes:
     keycloakOAuth2Password:
       type: oauth2
@@ -478,13 +715,11 @@ components:
         Los tokens se obtienen a través del endpoint do_login.
       flows:
         password:
-          tokenUrl: http://localhost:8080/realms/master/protocol/openid-connect/token # URL real de token de Keycloak (authServerUrl + /realms/TU_REALM/protocol/openid-connect/token)
+          tokenUrl: http://localhost:8080/realms/master/protocol/openid-connect/token
           scopes:
             openid: Permite solicitar un ID Token.
             profile: Permite solicitar información básica del perfil del usuario.
             email: Permite solicitar la dirección de correo electrónico del usuario.
-            # Añade aquí otros scopes si tu aplicación los usa y los configuras en Keycloak
-            # Ej: read:user, write:products
     cookieAuth:
       type: apiKey
       in: cookie
