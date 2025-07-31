@@ -1,7 +1,6 @@
-openapi: 3.0.3 # CAMBIO: De 3.1.0 a 3.0.3
+openapi: 3.0.3
 info:
   title: Keycloak Demo API
-  # summary: API de autenticación y registro de usuarios con Keycloak (flujo de Password Grant y multi-tenant). # CAMBIO: ELIMINADO
   description: |
     Esta API proporciona endpoints para la gestión de usuarios, incluyendo el login a través del flujo
     Password Grant de Keycloak y el registro de nuevos usuarios.
@@ -9,9 +8,9 @@ info:
     corresponde a un tenant específico mapeado a un realm en Keycloak.
   version: 1.0.0
 servers:
-  - url: https://api.yourdomain.com # CAMBIAR ESTO por la URL base real (ej. https://api.yourdomain.com/v1)
+  - url: https://api.yourdomain.com # URL base real (ej. https://api.yourdomain.com/v1)
     description: Servidor de Producción
-  - url: http://localhost:8080 # URL base (ej. http://localhost:8080/v1)
+  - url: http://localhost:8081 # URL base (ej. http://localhost:8081)
     description: Servidor de Desarrollo Local
 
 tags:
@@ -270,6 +269,30 @@ paths:
         500:
           $ref: '#/components/responses/InternalServerError'
 
+  /logout:
+    post:
+      summary: Cerrar sesión (Logout)
+      description: Invalida la sesión actual en la aplicación y revoca el Refresh Token en Keycloak.
+        Requiere una sesión activa (JSESSIONID) para identificar al usuario.
+      operationId: doLogout
+      tags:
+        - Autenticación
+      security:
+        - cookieAuth: [ ] # Asume que la autenticación se basa en la cookie de sesión
+      responses:
+        200:
+          description: Sesión cerrada exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logout successful
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   schemas:
     RegisterRequest:
@@ -343,7 +366,7 @@ components:
           description: Lista de roles del usuario extraídos de Keycloak (ej. "ROLE_USER", "ROLE_MANAGEMENT_ACCESS").
           items:
             type: string
-          example: ["ROLE_USER", "ROLE_MANAGEMENT_ACCESS"]
+          example: [ "ROLE_USER", "ROLE_MANAGEMENT_ACCESS" ]
         accessToken:
           type: string
           description: El Access Token JWT emitido por Keycloak.
@@ -448,7 +471,6 @@ components:
             error: Internal Server Error
             message: Ocurrió un error inesperado. Por favor, intente de nuevo mas tarde.
             path: /some-faulty-endpoint
-
   securitySchemes:
     keycloakOAuth2Password:
       type: oauth2
@@ -456,10 +478,15 @@ components:
         Los tokens se obtienen a través del endpoint do_login.
       flows:
         password:
-          tokenUrl: http://localhost:8080/realms/master/protocol/openid-connect/token # CAMBIA ESTO a tu URL real de token de Keycloak (authServerUrl + /realms/TU_REALM/protocol/openid-connect/token)
+          tokenUrl: http://localhost:8080/realms/master/protocol/openid-connect/token # URL real de token de Keycloak (authServerUrl + /realms/TU_REALM/protocol/openid-connect/token)
           scopes:
             openid: Permite solicitar un ID Token.
             profile: Permite solicitar información básica del perfil del usuario.
             email: Permite solicitar la dirección de correo electrónico del usuario.
             # Añade aquí otros scopes si tu aplicación los usa y los configuras en Keycloak
             # Ej: read:user, write:products
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+      description: Autenticación basada en la cookie de sesión JSESSIONID de Spring Security.
