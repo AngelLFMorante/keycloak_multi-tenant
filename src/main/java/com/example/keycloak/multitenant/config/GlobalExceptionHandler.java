@@ -1,5 +1,6 @@
 package com.example.keycloak.multitenant.config;
 
+import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import java.util.Date;
 import java.util.HashMap;
@@ -100,7 +101,7 @@ public class GlobalExceptionHandler {
 
         log.error("ResourceAccessException capturado: Message={}", ex.getMessage(), ex);
 
-        return new ResponseEntity<>(errorDetails, HttpStatus.valueOf((Integer)errorDetails.get("status")));
+        return new ResponseEntity<>(errorDetails, HttpStatus.valueOf((Integer) errorDetails.get("status")));
     }
 
     /**
@@ -131,11 +132,12 @@ public class GlobalExceptionHandler {
     /**
      * Maneja las excepciones de tipo {@link IllegalArgumentException}
      * Argumentos de entrada no validas
+     *
      * @param ex la excepcion {@link IllegalArgumentException} capturada.
      * @return un {@link ResponseEntity} con un mapa JSon que describe el error
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex){
+    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", new Date());
         errorDetails.put("status", HttpStatus.BAD_REQUEST.value());
@@ -157,9 +159,9 @@ public class GlobalExceptionHandler {
      * y un código de estado HTTP 400 (Bad Request).
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex){
+    public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, Object> errors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach(error ->{
+        ex.getBindingResult().getAllErrors().forEach(error -> {
             String fieldName = ((FieldError) error).getField();
             String errorMenssage = error.getDefaultMessage();
             errors.put(fieldName, errorMenssage);
@@ -174,17 +176,18 @@ public class GlobalExceptionHandler {
 
         log.warn("MethodArgumentNotValidException capturada: {}", errors, ex);
 
-        return  new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
 
     /**
      * Maneja cualquier otra excecion no capturada por los manejadores especificos.
      * Proporciona un mensaje de error generico para evitar exponer detalles internos
+     *
      * @param ex La excepcion {@link Exception} generica capturada.
      * @return Un {@link ResponseEntity} describe el rror y codigo de estado Http 500
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleAllUncaughtException(Exception ex){
+    public ResponseEntity<Map<String, Object>> handleAllUncaughtException(Exception ex) {
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", new Date());
         errorDetails.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
@@ -232,6 +235,46 @@ public class GlobalExceptionHandler {
         errorDetails.put("message", errorMessage);
 
         log.error("KeycloakUserCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
+
+        return new ResponseEntity<>(errorDetails, status);
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link KeycloakRoleCreationException}.
+     * Estas excepciones son lanzadas específicamente por KeycloakService
+     * cuando hay un problema al interactuar con la API de administración de Keycloak para la creación de roles.
+     * Se mapea a un 400 Bad Request si el problema es de datos o conflicto, o 500 si es un error interno.
+     *
+     * @param ex La excepción {@link KeycloakRoleCreationException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
+     */
+    @ExceptionHandler(KeycloakRoleCreationException.class)
+    public ResponseEntity<Map<String, Object>> handleKeycloakRoleCreationException(KeycloakRoleCreationException ex) {
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", new Date());
+
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        String errorMessage = ex.getMessage();
+
+        if (errorMessage != null) {
+            if (errorMessage.contains("409 Conflict") || errorMessage.contains("Role exists with same name")) {
+                status = HttpStatus.CONFLICT;
+                errorDetails.put("error", HttpStatus.CONFLICT.getReasonPhrase());
+            } else if (errorMessage.contains("Error interno") || errorMessage.contains("500 Internal Server Error")) {
+                status = HttpStatus.INTERNAL_SERVER_ERROR;
+                errorDetails.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
+            } else {
+                errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
+            }
+        } else {
+            errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
+        }
+
+        errorDetails.put("status", status.value());
+        errorDetails.put("message", errorMessage);
+
+        log.error("KeycloakRoleCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
 
         return new ResponseEntity<>(errorDetails, status);
     }

@@ -1,13 +1,18 @@
 package com.example.keycloak.multitenant.service;
 
+import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
+import com.example.keycloak.multitenant.model.CreateRoleRequest;
 import com.example.keycloak.multitenant.model.RegisterRequest;
+import jakarta.ws.rs.ClientErrorException;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,9 +97,9 @@ public class KeycloakService {
                 log.error("Fallo al crear usuario '{}' en Keycloak. Status: {}, Detalles: {}", request.getUsername(), response.getStatus(), errorDetails);
                 throw new KeycloakUserCreationException("Error al crear usuario en Keycloak. Estado HTTP: " + response.getStatus() + ". Detalles: " + errorDetails);
             }
-        }catch (KeycloakUserCreationException e){
+        } catch (KeycloakUserCreationException e) {
             throw e;
-        }catch (Exception e){
+        } catch (Exception e) {
             log.error("Excepción inesperada al intentar crear usuario '{}'  en Keycloak : {}", request.getUsername(), realm);
             throw new KeycloakUserCreationException("Error inesperado al crear usuario: " + e.getMessage(), e);
         }
@@ -102,23 +107,74 @@ public class KeycloakService {
 
     /**
      * Comprueba si un usuario con el email dado ya existe en Keycloak
+     *
      * @param realm El nombre del realm de Keycloak a consultar
      * @param email El email a buscar
      * @return true si el email existe en Keycloak
      */
-    public boolean userExistsByEmail(String realm, String email){
+    public boolean userExistsByEmail(String realm, String email) {
         log.debug("Comprobando si el email '{}' ya existe en el realm '{}'.", email, realm);
         RealmResource realmResource = keycloak.realm(realm);
         UsersResource userResource = realmResource.users();
 
         List<UserRepresentation> users = userResource.searchByEmail(email, true);
 
-        if( users != null && !users.isEmpty()){
+        if (users != null && !users.isEmpty()) {
             log.info("Email '{}' ya existe en el realm '{}'.", email, realm);
             return true;
-        }else{
+        } else {
             log.debug("Email '{}' no encontrado en el realm '{}'.", email, realm);
             return false;
         }
+    }
+
+    /**
+     * Crea un nuevo rol en un realm especifico de Keycloak
+     *
+     * @param realm   realm keycloak
+     * @param request datos del crear role
+     */
+    public void createRole(String realm, CreateRoleRequest request) {
+        log.info("Intentando crear el rol '{}' en el realm '{}'.", request.getName(), realm);
+        log.debug("Datos del rol para creación: nombre='{}', descripción='{}'", request.getName(), request.getDescription());
+
+        RoleRepresentation role = new RoleRepresentation();
+        role.setName(request.getName());
+        role.setDescription(request.getDescription());
+        role.setClientRole(false); //rol de realm no de cliente
+
+        RealmResource realmResource = keycloak.realm(realm);
+
+        boolean rolExist = realmResource.roles().list().stream().anyMatch(
+                r -> r.getName().equals((role.getName())));
+
+        if (!rolExist) {
+            try {
+                realmResource.roles().create(role);
+            } catch (WebApplicationException e) {
+
+                Response response = e.getResponse();
+                String errorMessage;
+
+                if (response != null) {
+                    int statusCode = response.getStatus();
+                    errorMessage = response.readEntity(String.class);
+
+                    log.error("Error al crear el rol '{}'. Estado HTTP: {}, Detalles: {}", request.getName(), statusCode, errorMessage);
+                    throw new KeycloakRoleCreationException("Error al crear el rol en Keycloak. Estado HTTP: " + statusCode + ". Detalles: " + errorMessage);
+                }
+
+                log.error("Error inesperado al intentar crear el rol '{}' en Keycloak: {}", request.getName(), e.getMessage(), e);
+                throw new RuntimeException("Error inesperado al crear el rol: " + e.getMessage(), e);
+
+            } catch (Exception e) {
+                log.error("Exception inesperado al intentar crear el rol '{}' en Keycloak: {}", request.getName(), e.getMessage(), e);
+                throw new RuntimeException("Error inesperado al crear el rol: " + e.getMessage(), e);
+            }
+        } else {
+            log.error("Fallo, role '{}' ya existe en Keycloak.", request.getName());
+            throw new KeycloakRoleCreationException("El rol '" + request.getName() + "' ya existe en el realm '" + realm + "'.");
+        }
+
     }
 }
