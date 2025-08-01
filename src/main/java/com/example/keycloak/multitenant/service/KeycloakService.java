@@ -4,7 +4,6 @@ import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
 import com.example.keycloak.multitenant.model.RegisterRequest;
-import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -193,7 +192,7 @@ public class KeycloakService {
         boolean rolExist = realmResource.roles().list().stream().anyMatch(
                 r -> r.getName().equals(roleName));
 
-        if (!rolExist) {
+        if (rolExist) {
             try {
                 realmResource.roles().deleteRole(roleName);
             } catch (Exception e) {
