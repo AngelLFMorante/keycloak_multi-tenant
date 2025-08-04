@@ -4,7 +4,7 @@ import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
 import com.example.keycloak.multitenant.model.RegisterRequest;
-import jakarta.ws.rs.ClientErrorException;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
@@ -175,6 +175,55 @@ public class KeycloakService {
             log.error("Fallo, role '{}' ya existe en Keycloak.", request.getName());
             throw new KeycloakRoleCreationException("El rol '" + request.getName() + "' ya existe en el realm '" + realm + "'.");
         }
+    }
 
+    /**
+     * Elimina un rol por su nombre en un realm especifico de keycloak
+     *
+     * @param realm    El nombre del realm de Keycloak donde se eliminará el rol.
+     * @param roleName El nombre del rol a eliminar.
+     * @throws RuntimeException  Si la eliminación del rol falla en Keycloak.
+     * @throws NotFoundException Si el rol no se encuentra.
+     */
+    public void deleteRole(String realm, String roleName) {
+        log.info("Intentando eliminar el rol '{}' del realm '{}'.", roleName, realm);
+
+        RealmResource realmResource = keycloak.realm(realm);
+        boolean rolExist = realmResource.roles().list().stream().anyMatch(
+                r -> r.getName().equals(roleName));
+
+        if (rolExist) {
+            try {
+                realmResource.roles().deleteRole(roleName);
+            } catch (Exception e) {
+                log.error("Excepción inesperada al intentar eliminar el rol '{}' del realm '{}': {}", roleName, realm, e.getMessage(), e);
+                throw new RuntimeException("Error inesperado al eliminar el rol: " + e.getMessage(), e);
+            }
+        } else {
+            log.warn("El rol '{}' no fue encontrado en el realm '{}' para eliminación.", roleName, realm);
+            throw new NotFoundException("Rol '" + roleName + "' no encontrado en el realm '" + realm + "'.");
+        }
+    }
+
+    /**
+     * Obtiene una lista de todos los roles de realm disponibles en un realm específico de Keycloak.
+     *
+     * @param realm El nombre del realm de Keycloak a consultar.
+     * @return Una lista de objetos {@link RoleRepresentation} que representan los roles.
+     * @throws RuntimeException Si la obtención de roles falla en Keycloak.
+     */
+    public List<RoleRepresentation> getRoles(String realm) {
+        log.info("Intentando obtener todos los roles del realm '{}'.", realm);
+
+        RealmResource realmResource = keycloak.realm(realm);
+
+        try {
+            List<RoleRepresentation> roles = realmResource.roles().list();
+            log.info("Se obtuvieron {} roles del realm '{}'.", roles.size(), realm);
+            return roles;
+        } catch (Exception e) {
+            log.error("Excepción inesperada al intentar obtener roles del realm '{}': {}", realm, e.getMessage(), e);
+            throw new RuntimeException("Error inesperado al obtener roles: " + e.getMessage(), e);
+        }
     }
 }

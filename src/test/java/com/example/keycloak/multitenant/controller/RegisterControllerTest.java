@@ -108,7 +108,7 @@ class RegisterControllerTest {
         assertEquals(keycloakRealm, body.get("keycloakRealm"));
 
         verify(keycloakService, times(1)).userExistsByEmail(keycloakRealm, registerRequest.getEmail());
-        verify(keycloakService, times(1)).createUser(realm, registerRequest);
+        verify(keycloakService, times(1)).createUser(keycloakRealm, registerRequest);
     }
 
     @Test

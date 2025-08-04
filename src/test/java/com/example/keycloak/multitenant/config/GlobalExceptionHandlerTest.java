@@ -1,5 +1,6 @@
 package com.example.keycloak.multitenant.config;
 
+import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -263,5 +264,68 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), responseEntity.getBody().get("status"));
         assertEquals("Internal Server Error", responseEntity.getBody().get("error"));
         assertEquals("Ocurrió un error inesperado. Por favor, intente de nuevo mas tarde.", responseEntity.getBody().get("message"));
+    }
+
+    @Test
+    @DisplayName("Debería manejar KeycloakRoleCreationException (Conflict 409)")
+    void handleKeycloakRoleCreationException_Conflict() {
+        String errorMessage = "Error al crear rol en Keycloak. Estado HTTP: 409 Conflict. Detalles: Role exists with same name.";
+        KeycloakRoleCreationException ex = new KeycloakRoleCreationException(errorMessage);
+
+        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+
+        assertEquals(HttpStatus.CONFLICT, responseEntity.getStatusCode());
+        assertNotNull(responseEntity.getBody());
+        assertEquals(HttpStatus.CONFLICT.value(), responseEntity.getBody().get("status"));
+        assertEquals("Conflict", responseEntity.getBody().get("error"));
+        assertEquals(errorMessage, responseEntity.getBody().get("message"));
+        assertNotNull(responseEntity.getBody().get("timestamp"));
+    }
+
+    @Test
+    @DisplayName("Debería manejar KeycloakRoleCreationException (Internal Server Error 500)")
+    void handleKeycloakRoleCreationException_InternalServerError() {
+        String errorMessage = "Error interno al crear rol: 500 Internal Server Error.";
+        KeycloakRoleCreationException ex = new KeycloakRoleCreationException(errorMessage);
+
+        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
+        assertNotNull(responseEntity.getBody());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), responseEntity.getBody().get("status"));
+        assertEquals("Internal Server Error", responseEntity.getBody().get("error"));
+        assertEquals(errorMessage, responseEntity.getBody().get("message"));
+        assertNotNull(responseEntity.getBody().get("timestamp"));
+    }
+
+    @Test
+    @DisplayName("Debería manejar KeycloakRoleCreationException (Bad Request 400 por defecto)")
+    void handleKeycloakRoleCreationException_BadRequestDefault() {
+        String errorMessage = "Datos de rol inválidos enviados a Keycloak.";
+        KeycloakRoleCreationException ex = new KeycloakRoleCreationException(errorMessage);
+
+        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+
+        assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
+        assertNotNull(responseEntity.getBody());
+        assertEquals(HttpStatus.BAD_REQUEST.value(), responseEntity.getBody().get("status"));
+        assertEquals("Bad Request", responseEntity.getBody().get("error"));
+        assertEquals(errorMessage, responseEntity.getBody().get("message"));
+        assertNotNull(responseEntity.getBody().get("timestamp"));
+    }
+
+    @Test
+    @DisplayName("Debería manejar KeycloakRoleCreationException con mensaje nulo (Bad Request 400)")
+    void handleKeycloakRoleCreationException_NullMessage() {
+        KeycloakRoleCreationException ex = new KeycloakRoleCreationException(null);
+
+        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+
+        assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
+        assertNotNull(responseEntity.getBody());
+        assertEquals(HttpStatus.BAD_REQUEST.value(), responseEntity.getBody().get("status"));
+        assertEquals("Bad Request", responseEntity.getBody().get("error"));
+        assertEquals(null, responseEntity.getBody().get("message"));
+        assertNotNull(responseEntity.getBody().get("timestamp"));
     }
 }

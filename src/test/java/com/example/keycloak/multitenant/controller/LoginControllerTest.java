@@ -5,6 +5,7 @@ import com.example.keycloak.multitenant.config.SecurityConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +56,8 @@ class LoginControllerTest {
     private HttpServletRequest request;
     @Mock
     private HttpServletResponse response;
+    @Mock
+    private HttpSession session;
     @Mock
     private SecurityContext securityContext;
 
@@ -147,6 +150,7 @@ class LoginControllerTest {
         String password = "testpassword";
         String keycloakRealm = "plexus-realm";
         String clientSecret = "mock-client-secret";
+        String refreshTokenValue = "some-refresh-token";
 
         Map<String, String> realmMapping = new HashMap<>();
         realmMapping.put(realm, keycloakRealm);
@@ -171,7 +175,7 @@ class LoginControllerTest {
         String keycloakTokenResponse = "{" +
                 "\"access_token\":\"" + mockAccessToken + "\"," +
                 "\"id_token\":\"" + mockIdToken + "\"," +
-                "\"refresh_token\":\"some-refresh-token\"," +
+                "\"refresh_token\":\"" + refreshTokenValue + "\"," +
                 "\"expires_in\":300," +
                 "\"refresh_expires_in\":1800" +
                 "}";
@@ -194,6 +198,8 @@ class LoginControllerTest {
             when(securityContext.getAuthentication()).thenReturn(authentication);
             return null;
         }).when(securityContext).setAuthentication(any(Authentication.class));
+
+        when(request.getSession(true)).thenReturn(session);
 
         ResponseEntity<Map<String, Object>> responseEntity = loginController.doLogin(realm, client, username, password, request, response);
 
@@ -229,6 +235,11 @@ class LoginControllerTest {
         verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(securityContextRepository, times(1)).saveContext(eq(securityContext), eq(request), eq(response));
         verify(securityContext, times(1)).setAuthentication(any(Authentication.class));
+
+        verify(request, times(1)).getSession(true);
+        verify(session, times(1)).setAttribute("refreshToken", refreshTokenValue);
+        verify(session, times(1)).setAttribute("realm", realm);
+        verify(session, times(1)).setAttribute("clientUsed", client);
     }
 
     @Test
