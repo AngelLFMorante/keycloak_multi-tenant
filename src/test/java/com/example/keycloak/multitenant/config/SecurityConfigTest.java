@@ -103,7 +103,7 @@ class SecurityConfigTest {
         keycloakProperties.setRealmMapping(realmMapping);
         keycloakProperties.setClientSecrets(clientSecrets);
 
-        securityConfig = new SecurityConfig(keycloakProperties);
+        securityConfig = new SecurityConfig();
     }
 
     @Test
@@ -126,14 +126,6 @@ class SecurityConfigTest {
                 .andExpect(status().isBadRequest()); // Sigue siendo 400 del controlador, no 403 CSRF.
     }
 
-    @Test
-    @DisplayName("El endpoint de logout debería funcionar y limpiar la autenticación")
-    @WithMockUser("testuser")
-    void securityFilterChain_logoutShouldWork() throws Exception {
-        mockMvc.perform(logout("/logout"))
-                .andExpect(status().isOk())
-                .andExpect(unauthenticated());
-    }
 
     @Test
     @DisplayName("authenticationManager debería ser un ProviderManager y contener KeycloakAuthenticationProvider")
@@ -181,103 +173,4 @@ class SecurityConfigTest {
         assertNotNull(restTemplate);
         assertTrue(restTemplate instanceof RestTemplate);
     }
-
-    @Test
-    @DisplayName("customLogoutSuccessHandler debería ser un LogoutSuccessHandler y establecer el estado OK")
-    void customLogoutSuccessHandler_shouldSetStatusOk() throws Exception {
-        LogoutSuccessHandler handler = securityConfig.customLogoutSuccessHandler(new RestTemplate());
-        assertNotNull(handler);
-
-        HttpServletRequest mockRequest = mock(HttpServletRequest.class);
-        HttpServletResponse mockResponse = mock(HttpServletResponse.class);
-        Authentication mockAuthentication = mock(Authentication.class);
-
-        when(mockAuthentication.getName()).thenReturn("testUser");
-
-        handler.onLogoutSuccess(mockRequest, mockResponse, mockAuthentication);
-
-        verify(mockResponse, times(1)).setStatus(HttpStatus.OK.value());
-        verify(mockAuthentication, times(1)).getName();
-    }
-
-    @Test
-    @DisplayName("Debería revocar el refresh token cuando la sesión contiene refreshToken, realm y clientUsed")
-    @WithMockUser("testuser")
-    void shouldRevokeRefreshTokenOnLogout() throws Exception {
-        when(mockRequest.getSession(false)).thenReturn(mockSession);
-        when(mockSession.getAttribute("refreshToken")).thenReturn("dummy-refresh-token");
-        when(mockSession.getAttribute("realm")).thenReturn("test-realm");
-        when(mockSession.getAttribute("clientUsed")).thenReturn("test-client");
-
-        ResponseEntity<String> mockResponseEntity = ResponseEntity.ok("Success");
-
-        when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
-                .thenReturn(mockResponseEntity);
-
-        LogoutSuccessHandler handler = securityConfig.customLogoutSuccessHandler(restTemplate);
-        handler.onLogoutSuccess(mockRequest, mockResponse, mock(Authentication.class));
-
-        verify(restTemplate, times(1)).postForEntity(anyString(), any(), eq(String.class));
-        verify(mockResponse, times(1)).setStatus(HttpStatus.OK.value());
-    }
-
-
-    @Test
-    @DisplayName("Debería manejar excepción al intentar revocar el refresh token")
-    @WithMockUser("testuser")
-    void shouldHandleExceptionWhenRevokingRefreshToken() throws Exception {
-        when(mockRequest.getSession(false)).thenReturn(mockSession);
-        when(mockSession.getAttribute("refreshToken")).thenReturn("dummy-refresh-token");
-        when(mockSession.getAttribute("realm")).thenReturn("test-realm");
-        when(mockSession.getAttribute("clientUsed")).thenReturn("test-client");
-
-        doThrow(new RuntimeException("Error al intentar revocar el token")).when(restTemplate)
-                .postForEntity(anyString(), any(), eq(String.class));
-
-        LogoutSuccessHandler handler = securityConfig.customLogoutSuccessHandler(restTemplate);
-        handler.onLogoutSuccess(mockRequest, mockResponse, mock(Authentication.class));
-
-        verify(restTemplate, times(1)).postForEntity(anyString(), any(), eq(String.class));
-        verify(mockResponse, times(1)).setStatus(HttpStatus.OK.value());
-    }
-
-
-    @Test
-    @DisplayName("No debería revocar el refresh token si faltan refreshToken, realm o clientUsed en la sesión")
-    @WithMockUser("testuser")
-    void shouldNotRevokeRefreshTokenIfMissingSessionAttributes() throws Exception {
-        when(mockRequest.getSession(false)).thenReturn(mockSession);
-        when(mockSession.getAttribute("refreshToken")).thenReturn(null);
-        when(mockSession.getAttribute("realm")).thenReturn("test-realm");
-        when(mockSession.getAttribute("clientUsed")).thenReturn("test-client");
-
-        LogoutSuccessHandler handler = securityConfig.customLogoutSuccessHandler(restTemplate);
-        handler.onLogoutSuccess(mockRequest, mockResponse, mock(Authentication.class));
-
-        verify(restTemplate, times(0)).postForEntity(anyString(), any(), eq(String.class));
-        verify(mockResponse, times(1)).setStatus(HttpStatus.OK.value());
-    }
-
-    @Test
-    @DisplayName("Debería no revocar el token si keycloakRealm o clientSecret son null")
-    void shouldNotRevokeIfKeycloakRealmOrClientSecretAreNull() throws Exception {
-        when(mockRequest.getSession(false)).thenReturn(mockSession);
-        when(mockSession.getAttribute("refreshToken")).thenReturn("dummy-refresh-token");
-        when(mockSession.getAttribute("realm")).thenReturn("realm-sin-mapeo");
-        when(mockSession.getAttribute("clientUsed")).thenReturn("client-sin-secreto");
-
-        KeycloakProperties keycloakProperties = new KeycloakProperties();
-        keycloakProperties.setAuthServerUrl("http://localhost:8080");
-        keycloakProperties.setRealmMapping(new HashMap<>());
-        keycloakProperties.setClientSecrets(new HashMap<>());
-
-        SecurityConfig config = new SecurityConfig(keycloakProperties);
-        LogoutSuccessHandler handler = config.customLogoutSuccessHandler(restTemplate);
-
-        handler.onLogoutSuccess(mockRequest, mockResponse, mock(Authentication.class));
-
-        verify(mockResponse, times(1)).setStatus(HttpStatus.OK.value());
-        verify(restTemplate, times(0)).postForEntity(anyString(), any(), eq(String.class));
-    }
-
 }
