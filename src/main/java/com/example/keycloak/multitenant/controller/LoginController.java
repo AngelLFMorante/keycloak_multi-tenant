@@ -3,6 +3,7 @@ package com.example.keycloak.multitenant.controller;
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.config.SecurityConfig;
 import com.example.keycloak.multitenant.model.AuthResponse;
+import com.example.keycloak.multitenant.model.RefreshTokenRequest;
 import com.example.keycloak.multitenant.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -157,14 +158,14 @@ public class LoginController {
      * Maneja la solicitud POST para renovar un token de acceso utilizando un refresh token.
      * El refresh token, realm y client se esperan en el cuerpo JSON de la solicitud de Go.
      *
-     * @param refreshToken Objeto que contiene el refresh token.
+     * @param token Objeto que contiene el refresh token.
      * @return Un {@link ResponseEntity} con el nuevo access token, id token y refresh token.
      */
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String, Object>> refreshToken(HttpServletRequest request, @RequestBody String refreshToken) {
+    public ResponseEntity<Map<String, Object>> refreshToken(HttpServletRequest request, @RequestBody RefreshTokenRequest token) {
         log.info("Intento de refresh token");
 
-        if (refreshToken == null || refreshToken.isBlank()) {
+        if (token.refreshToken() == null || token.refreshToken().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El campo refresh_token es obnligatorio.");
         }
 
@@ -182,7 +183,7 @@ public class LoginController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faltan datos de sesion: 'realm' o 'client'.");
         }
 
-        AuthResponse authResponse = authService.refreshToken(refreshToken, realm, client);
+        AuthResponse authResponse = authService.refreshToken(token.refreshToken(), realm, client);
 
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("message", "Token refreshed successfully");
@@ -199,10 +200,10 @@ public class LoginController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, Object>> logout(HttpServletRequest request, @RequestBody String refreshToken) {
+    public ResponseEntity<Map<String, Object>> logout(HttpServletRequest request, @RequestBody RefreshTokenRequest token) {
         log.info("Intento de logout...");
 
-        if (refreshToken == null || refreshToken.isBlank()) {
+        if (token.refreshToken() == null || token.refreshToken().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El campo 'refresh_token' es obligatorio.");
         }
 
@@ -220,7 +221,7 @@ public class LoginController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faltan datos de sesion: 'realm' o 'client'.");
         }
 
-        authService.revokeRefreshToken(refreshToken, realm, client);
+        authService.revokeRefreshToken(token.refreshToken(), realm, client);
         session.invalidate();
 
         Map<String, Object> response = new HashMap<>();
