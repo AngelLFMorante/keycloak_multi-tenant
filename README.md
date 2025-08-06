@@ -7,7 +7,9 @@
 
 # Microservicio de Autenticación con Spring Boot y Keycloak
 
-**Microservicio de Autenticación** es una API REST desarrollada con **Spring Boot** que permite gestionar el login de usuarios mediante Keycloak con soporte multi-realm. Proporciona endpoints para login, logout, registro y gestión de sesiones, todo centralizado y extensible.
+**Microservicio de Autenticación** es una API REST desarrollada con **Spring Boot** que permite gestionar el login de
+usuarios mediante Keycloak con soporte multi-realm. Proporciona endpoints para login, logout, registro y gestión de
+sesiones, todo centralizado y extensible.
 
 ## 📌 Objetivo
 
@@ -47,7 +49,8 @@
     quay.io/keycloak/keycloak:latest start-dev
 ```
 
-Esto levantará Keycloak en http://localhost:8080 con persistencia de datos gracias al volumen keycloak_data.
+Esto levantará Keycloak en [http://localhost:8080](http://localhost:8080) con persistencia de datos gracias al volumen
+keycloak\_data.
 
 ### 3. Crear Realm y Configuraciones en Keycloak
 
@@ -68,10 +71,10 @@ Luego:
 
 ```properties
   keycloak.auth-server-url=http://localhost:8080
-  keycloak.admin.realm=master
-  keycloak.admin.username=admin
-  keycloak.admin.password=admin
-  keycloak.admin.client-id=admin-cli
+keycloak.admin.realm=master
+keycloak.admin.username=admin
+keycloak.admin.password=admin
+keycloak.admin.client-id=admin-cli
 ```
 
 ## ▶️ Ejecutar la Aplicación
@@ -89,40 +92,92 @@ O usando Docker:
 
 ## 🔐 Endpoints Disponibles
 
-| Método | Endpoint                     | Descripción                     |
-| ------ | ---------------------------- | ------------------------------- |
-| GET    | `/{realm}/login`             | Página de login                 |
-| POST   | `/{realm}/{client}/do_login` | Login con usuario/password      |
-| POST   | `/{realm}/register`          | Registro de usuario en Keycloak |
-| GET    | `/logout`                    | Logout y cierre de sesión       |
-| GET    | `/swagger-ui/index.html`     | Acceso a Swagger UI             |
+| Método | Endpoint                            | Descripción                     |
+|--------|-------------------------------------|---------------------------------|
+| GET    | `/api/v1/{realm}/login`             | Página de login                 |
+| POST   | `/api/v1/{realm}/{client}/do_login` | Login con usuario/password      |
+| POST   | `/api/v1/{realm}/register`          | Registro de usuario en Keycloak |
+| GET    | `/api/v1/logout`                    | Logout y cierre de sesión       |
+| GET    | `/api/v1/{realm}/roles`             | Obtener todos los roles         |
+| POST   | `/api/v1/{realm}/roles`             | Crear un nuevo rol              |
+| DELETE | `/api/v1/{realm}/roles/{roleName}`  | Eliminar un rol específico      |
+| GET    | `/swagger-ui/index.html`            | Acceso a Swagger UI             |
 
 ## 🧪 Postman cURL's de Ejemplo
 
 ### 🔑 Login
 
 ```bash
-  curl -X POST \
-  http://localhost:8081/{REALM_PATH}/{CLIENT_ID}/do_login \
+    curl -X POST http://localhost:8081/api/v1/{REALM_PATH}/{CLIENT_ID}/do_login \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'username={USERNAME}&password={PASSWORD}'
 ```
 
-### 🧍 Registro
+### 🔄 Refresh Token
 
 ```bash
   curl -X POST \
-  http://localhost:8081/{REALM_PATH}/register \
-  -H 'Content-Type: application/json' \
-  -d '{
-        "username": "{NEW_USERNAME}",
-        "email": "{NEW_EMAIL}",
-        "password": "{NEW_PASSWORD}",
-        "confirmPassword": "{NEW_PASSWORD}"
-      }'
+http://localhost:8081/api/v1/refresh \
+-H 'Content-Type: application/json' \
+-d '{
+      "refresh_token": "eyJhbG..."
+    }'
 ```
 
-## 🧯 Manejo de Errores
+### 🔐 Logout
+
+```bash
+  curl -X POST \
+http://localhost:8081/api/v1/logout \
+-H 'Content-Type: application/json' \
+-d '{
+      "refresh_token": "eyJhbG..."
+    }'
+```
+
+### 🧝 Registro
+
+```bash
+  curl -X POST \
+http://localhost:8081/api/v1/{REALM_PATH}/register \
+-H 'Content-Type: application/json' \
+-d '{
+      "username": "newuser",
+      "email": "newuser@example.com",
+      "password": "password123",
+      "confirmPassword": "password123",
+      "firstName": "New",
+      "lastName": "User"
+    }'
+```
+
+### 🧾 Obtener Roles
+
+```bash
+  curl -X GET http://localhost:8081/api/v1/{REALM_PATH}/roles
+```
+
+### ➕ Crear Rol
+
+```bash
+  curl -X POST \
+http://localhost:8081/api/v1/{REALM_PATH}/roles \
+-H 'Content-Type: application/json' \
+-H 'Authorization: Bearer <access_token>' \
+-d '{
+      "name": "new_role",
+      "description": "A new role created via API"
+    }'
+```
+
+### ❌ Eliminar Rol
+
+```bash
+  curl -X DELETE \
+http://localhost:8081/api/v1/{REALM_PATH}/roles/{ROLE_NAME}
+```
+
+## 🫰 Manejo de Errores
 
 * `ResourceAccessException` → errores de red
 * `HttpClientErrorException` / `HttpServerErrorException` → errores HTTP
@@ -141,7 +196,8 @@ O usando Docker:
 
 ### 🏷️ Multi-tenant: Realms y Clients dinámicos
 
-La aplicación soporta múltiples **realms** y **clients** configurables a través del archivo `application.properties`. Esto permite enrutar y validar las credenciales de los usuarios contra distintos entornos Keycloak de forma dinámica.
+La aplicación soporta múltiples **realms** y **clients** configurables a través del archivo `application.properties`.
+Esto permite enrutar y validar las credenciales de los usuarios contra distintos entornos Keycloak de forma dinámica.
 
 #### 🔁 Realms dinámicos
 
@@ -152,11 +208,13 @@ keycloak.realm-mapping.plexus=plexus-realm
 keycloak.realm-mapping.inditex=inditex-realm
 ```
 
-Así, una petición a `http://localhost:8081/plexus/login` será tratada como perteneciente al realm `plexus-realm` en Keycloak.
+Así, una petición a `http://localhost:8081/api/v1/plexus/login` será tratada como perteneciente al realm `plexus-realm`
+en Keycloak.
 
 #### 🔑 Clients y Secrets por Realm
 
-Cada realm tiene su propio cliente configurado. En `application.properties`, se declaran los `client-id` y sus `client-secrets`:
+Cada realm tiene su propio cliente configurado. En `application.properties`, se declaran los `client-id` y sus
+`client-secrets`:
 
 ```properties
 keycloak.client-secrets.mi-app-plexus=<<secret>>
@@ -166,12 +224,14 @@ keycloak.client-secrets.mi-app-inditex=<<secret>>
 Cuando un usuario intenta hacer login desde un endpoint como:
 
 ```
-POST /plexus/mi-app-plexus/do_login
+POST /api/v1/plexus/mi-app-plexus/do_login
 ```
 
-La aplicación busca en `application.properties` el secreto para `mi-app-plexus` y lo utiliza para comunicarse con el realm `plexus-realm`.
+La aplicación busca en `application.properties` el secreto para `mi-app-plexus` y lo utiliza para comunicarse con el
+realm `plexus-realm`.
 
-Estas asociaciones deben existir previamente en el archivo de configuración y deben coincidir con los valores reales configurados en Keycloak.
+Estas asociaciones deben existir previamente en el archivo de configuración y deben coincidir con los valores reales
+configurados en Keycloak.
 
 * Autenticación centralizada mediante Keycloak.
 * Gestión de usuarios vía Keycloak Admin Client.
@@ -190,6 +250,6 @@ Ejecuta:
 
 **Angel L. Fernandez Morante**
 
-## 📝 Licencia
+## 📜 Licencia
 
 MIT
