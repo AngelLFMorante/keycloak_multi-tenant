@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -23,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
  * La creación de usuarios en Keycloak se delega a {@link KeycloakService}.
  */
 @RestController
+@RequestMapping("/api/v1")
 public class RegisterController {
 
     private static Logger log = LoggerFactory.getLogger(RegisterController.class);
@@ -38,7 +40,7 @@ public class RegisterController {
      *
      * @param keycloakService El servicio {@link KeycloakService} para interactuar con Keycloak.
      */
-    public RegisterController(KeycloakService keycloakService,KeycloakProperties keycloakProperties) {
+    public RegisterController(KeycloakService keycloakService, KeycloakProperties keycloakProperties) {
         this.keycloakService = keycloakService;
         this.keycloakProperties = keycloakProperties;
         log.info("RegisterController inicializado.");
@@ -51,7 +53,7 @@ public class RegisterController {
      * @return El nombre de la vista ("register") que contiene el formulario de registro.
      */
     @GetMapping("/{realm}/register")
-    public ResponseEntity<Map<String,Object>> showRegisterForm(@PathVariable String realm) {
+    public ResponseEntity<Map<String, Object>> showRegisterForm(@PathVariable String realm) {
         log.info("Solicitud GET para información de registro del tenant: {}", realm);
         Map<String, Object> response = new HashMap<>();
         response.put("realm", realm);
@@ -74,10 +76,10 @@ public class RegisterController {
      * a {@link KeycloakService}. Devuelve JSON con el estado de la operación.
      *
      * @param realm   El nombre del tenant extraído de la URL. Este `realm`
-     * se usará para cualquier lógica específica del cliente si fuera necesario,
-     * pero el registro de usuario se hace en el `singleKeycloakRealm` principal.
+     *                se usará para cualquier lógica específica del cliente si fuera necesario,
+     *                pero el registro de usuario se hace en el `singleKeycloakRealm` principal.
      * @param request El objeto {@link RegisterRequest} que contiene los datos del formulario de registro,
-     * recibido del cuerpo de la solicitud JSON.
+     *                recibido del cuerpo de la solicitud JSON.
      * @return Un {@link ResponseEntity} con el estado de éxito o error del registro.
      */
     @PostMapping("/{realm}/register")
@@ -97,7 +99,7 @@ public class RegisterController {
             throw new IllegalArgumentException("Password no coinciden");
         }
 
-        if(keycloakService.userExistsByEmail(keycloakRealm, request.getEmail())){
+        if (keycloakService.userExistsByEmail(keycloakRealm, request.getEmail())) {
             log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.getEmail(), realm);
             throw new IllegalArgumentException(("El email '" + request.getEmail() + "' ya está registrado en Keycloak."));
         }

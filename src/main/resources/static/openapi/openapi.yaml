@@ -1,45 +1,29 @@
 openapi: 3.0.3
 info:
-  title: Keycloak Demo API
-  description: |
-    Esta API proporciona endpoints para la gestión de usuarios, incluyendo el login a través del flujo
-    Password Grant de Keycloak y el registro de nuevos usuarios.
-    Está diseñada para operar en un entorno multi-tenant, donde cada 'realm' en la URL
-    corresponde a un tenant específico mapeado a un realm en Keycloak.
+  title: Keycloak Multi-Tenant API
+  description: API REST para la gestión de autenticación en un entorno multi-tenant con Keycloak. Utiliza un flujo de Password Grant Type para el login.
   version: 1.0.0
 servers:
-  - url: https://api.yourdomain.com
-    description: Servidor de Producción
-  - url: http://localhost:8081
-    description: Servidor de Desarrollo Local
-
-tags:
-  - name: Autenticación
-    description: Operaciones relacionadas con el login y manejo de sesiones.
-  - name: Registro de Usuarios
-    description: Operaciones para el registro de nuevos usuarios.
-  - name: Gestión de Roles
-    description: Operaciones para la creación y gestión de roles en Keycloak.
+  - url: 'http://localhost:8081/api/v1'
+    description: Servidor de desarrollo
 
 paths:
   /{realm}/login:
     get:
-      summary: Obtener información del login de un tenant
-      description: Proporciona información básica sobre el endpoint de login para un tenant/realm específico.
-      operationId: getTenantLoginInfo
+      summary: Obtiene información del tenant para el login
+      operationId: getLoginInfo
       tags:
-        - Autenticación
+        - Authentication
       parameters:
         - name: realm
           in: path
-          description: El nombre del realm (tenant) al que se intenta acceder.
+          description: El identificador del tenant (realm)
           required: true
           schema:
             type: string
-          example: mytenant
       responses:
-        200:
-          description: Información de login del tenant obtenida con éxito.
+        '200':
+          description: Información del tenant para el login
           content:
             application/json:
               schema:
@@ -47,36 +31,153 @@ paths:
                 properties:
                   realm:
                     type: string
-                    description: El nombre del tenant solicitado.
                   keycloakRealm:
                     type: string
-                    description: El nombre del realm real de Keycloak al que mapea este tenant.
-                example:
-                  realm: mytenant
-                  keycloakRealm: master
-        404:
-          $ref: '#/components/responses/NotFoundTenant'
-        500:
-          $ref: '#/components/responses/InternalServerError'
+        '404':
+          description: Tenant no reconocido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /{realm}/{client}/do_login:
+    post:
+      summary: Autentica un usuario y crea una sesión
+      description: Delega la autenticación a Keycloak y, si es exitosa, establece una sesión de Spring Security.
+      operationId: doLogin
+      tags:
+        - Authentication
+      parameters:
+        - name: realm
+          in: path
+          description: El identificador del tenant (realm)
+          required: true
+          schema:
+            type: string
+        - name: client
+          in: path
+          description: El ID del cliente de Keycloak
+          required: true
+          schema:
+            type: string
+        - name: username
+          in: query
+          description: El nombre de usuario para el login
+          required: true
+          schema:
+            type: string
+        - name: password
+          in: query
+          description: La contraseña del usuario
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Login exitoso, se devuelven los tokens y la información del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Credenciales inválidas o datos de sesión faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant o cliente no reconocido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /refresh:
+    post:
+      summary: Renueva el token de acceso usando un refresh token
+      operationId: refreshToken
+      tags:
+        - Authentication
+      requestBody:
+        description: Objeto que contiene el refresh token
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Renovación de token exitosa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponseRefresh'
+        '400':
+          description: Refresh token no válido o datos de sesión faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sesión no activa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /logout:
+    post:
+      summary: Revoca el refresh token y cierra la sesión del usuario
+      operationId: logout
+      tags:
+        - Authentication
+      requestBody:
+        description: Objeto que contiene el refresh token a revocar
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Logout exitoso, token revocado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logout exitoso. Token revocado."
+        '400':
+          description: Refresh token no válido o datos de sesión faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sesión no activa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /{realm}/register:
     get:
-      summary: Obtener información del registro de un tenant
-      description: Proporciona información básica sobre el endpoint de registro para un tenant/realm específico.
-      operationId: getTenantRegisterInfo
+      summary: Obtiene información del tenant para el registro
+      operationId: getRegisterInfo
       tags:
-        - Registro de Usuarios
+        - User Management
       parameters:
         - name: realm
           in: path
-          description: El nombre del realm (tenant) al que se intenta acceder para registrarse.
+          description: El identificador del tenant (realm)
           required: true
           schema:
             type: string
-          example: mytenant
       responses:
-        200:
-          description: Información de registro del tenant obtenida con éxito.
+        '200':
+          description: Información del tenant para el registro
           content:
             application/json:
               schema:
@@ -84,53 +185,38 @@ paths:
                 properties:
                   realm:
                     type: string
-                    description: El nombre del tenant solicitado.
                   registerRequest:
                     $ref: '#/components/schemas/RegisterRequest'
                   keycloakRealm:
                     type: string
-                    description: El nombre del realm real de Keycloak al que mapea este tenant.
-                example:
-                  realm: mytenant
-                  registerRequest:
-                    username: ""
-                    email: ""
-                    password: ""
-                    confirmPassword: ""
-                    firstName: ""
-                    lastName: ""
-                  keycloakRealm: master
-        404:
-          $ref: '#/components/responses/NotFoundTenant'
-        500:
-          $ref: '#/components/responses/InternalServerError'
-
+        '404':
+          description: Tenant no reconocido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
-      summary: Registrar un nuevo usuario
-      description: Registra un nuevo usuario en Keycloak para un tenant/realm específico.
-        Requiere que las contraseñas coincidan y que el email no esté ya registrado.
-        El usuario se crea deshabilitado por defecto, requiriendo aprobación del administrador.
+      summary: Registra un nuevo usuario en un tenant
       operationId: registerUser
       tags:
-        - Registro de Usuarios
+        - User Management
       parameters:
         - name: realm
           in: path
-          description: El nombre del realm (tenant) donde se registrará el usuario.
+          description: El identificador del tenant (realm)
           required: true
           schema:
             type: string
-          example: mytenant
       requestBody:
-        description: Datos del usuario para el registro.
+        description: Datos del nuevo usuario a registrar
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
       responses:
-        201:
-          description: Usuario registrado con éxito.
+        '201':
+          description: Usuario registrado exitosamente
           content:
             application/json:
               schema:
@@ -138,191 +224,92 @@ paths:
                 properties:
                   message:
                     type: string
-                    description: Mensaje de éxito.
+                    example: "User registered. Waiting for admin approval."
                   tenantId:
                     type: string
-                    description: El ID del tenant.
                   keycloakRealm:
                     type: string
-                    description: El realm de Keycloak asociado.
-                example:
-                  message: User registered. Waiting for admin approval.
-                  tenantId: mytenant
-                  keycloakRealm: master
-        400:
-          description: Errores de validación de los campos de entrada o contraseñas no coinciden.
+        '400':
+          description: Error de validación, contraseñas no coincidentes o email ya registrado
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                validationError:
-                  summary: Error de validación de campos
-                  value:
-                    timestamp: '2025-07-16T10:00:00.000+00:00'
-                    status: 400
-                    error: Bad Request
-                    message: Uno o mas campos tienen errores de validacion
-                    details:
-                      username: El nombre de usuario no puede estar vacio
-                      email: El email debe tener un formato valido
-                    path: /mytenant/register
-                passwordMismatch:
-                  summary: Contraseñas no coinciden
-                  value:
-                    timestamp: '2025-07-16T10:00:00.000+00:00'
-                    status: 400
-                    error: Bad Request
-                    message: Password no coinciden
-                    path: /mytenant/register
-        404:
-          $ref: '#/components/responses/NotFoundTenant'
-        409:
-          description: El usuario (email o username) ya está registrado en Keycloak.
+        '404':
+          description: Tenant no reconocido
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                timestamp: '2025-07-16T10:00:00.000+00:00'
-                status: 409
-                error: Conflict
-                message: El email 'existing@example.com' ya está registrado en Keycloak.
-                path: /mytenant/register
-        500:
-          $ref: '#/components/responses/InternalServerError'
-
-  /{realm}/{client}/do_login:
-    post:
-      summary: Autenticación de usuario vía Password Grant (Keycloak)
-      description: Autentica a un usuario contra Keycloak utilizando el flujo de Password Grant.
-        Tras una autenticación exitosa en Keycloak, integra la sesión con Spring Security y devuelve los tokens.
-      operationId: doLogin
-      tags:
-        - Autenticación
-      parameters:
-        - name: realm
-          in: path
-          description: El nombre del realm (tenant) para el que se intenta el login.
-          required: true
-          schema:
-            type: string
-          example: mytenant
-        - name: client
-          in: path
-          description: El Client ID configurado en Keycloak para el cual se intenta el login.
-          required: true
-          schema:
-            type: string
-          example: my-app-client
-      requestBody:
-        description: Credenciales del usuario para el login.
-        required: true
-        content:
-          application/x-www-form-urlencoded: # Keycloak Password Grant espera x-www-form-urlencoded
-            schema:
-              type: object
-              properties:
-                username:
-                  type: string
-                  description: El nombre de usuario.
-                  example: user@example.com
-                password:
-                  type: string
-                  format: password
-                  description: La contraseña del usuario.
-                  example: mysecretpassword
-              required:
-                - username
-                - password
-      responses:
-        200:
-          description: Login exitoso. Devuelve los tokens de Keycloak y la información del usuario.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LoginSuccessResponse'
-        400:
-          description: Credenciales inválidas, cliente de Keycloak no encontrado o secreto de cliente no configurado.
+        '409':
+          description: El usuario ya existe o hay un conflicto con la creación en Keycloak
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalidCredentials:
-                  summary: Credenciales inválidas
-                  value:
-                    timestamp: '2025-07-16T10:00:00.000+00:00'
-                    status: 400
-                    error: Bad Request
-                    message: Invalid credentials or Keycloak client error.
-                    responseBody: '{"error":"invalid_grant","error_description":"Invalid user credentials"}'
-                    path: /mytenant/my-app-client/do_login
-                clientSecretNotFound:
-                  summary: Secreto de cliente no encontrado
-                  value:
-                    timestamp: '2025-07-16T10:00:00.000+00:00'
-                    status: 400
-                    error: Bad Request
-                    message: Client ID configurado pero secreto no encontrado para my-app-client.Asegurate de que el client ID esté configurado en 'keycloak.client-secrets' en properties.
-                    path: /mytenant/my-app-client/do_login
-        404:
-          $ref: '#/components/responses/NotFoundTenant'
-        500:
-          $ref: '#/components/responses/InternalServerError'
-
-  /logout:
-    post:
-      summary: Cerrar sesión (Logout)
-      description: Invalida la sesión actual en la aplicación y revoca el Refresh Token en Keycloak.
-        Requiere una sesión activa (JSESSIONID) para identificar al usuario.
-      operationId: doLogout
-      tags:
-        - Autenticación
-      security:
-        - cookieAuth: [ ]
-      responses:
-        200:
-          description: Sesión cerrada exitosamente.
+        '500':
+          description: Error interno del servidor al interactuar con Keycloak
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Logout successful
-        401:
-          $ref: '#/components/responses/Unauthorized'
-        500:
-          $ref: '#/components/responses/InternalServerError'
+                $ref: '#/components/schemas/ErrorResponse'
 
   /{realm}/roles:
-    post:
-      summary: Crear un nuevo rol
-      description: Crea un nuevo rol en el realm de Keycloak asociado al tenant especificado.
-        Requiere autenticación con un usuario que tenga permisos administrativos para gestionar roles.
-      operationId: createRole
+    get:
+      summary: Obtiene todos los roles disponibles en un tenant
+      operationId: getRoles
       tags:
-        - Gestión de Roles
+        - Role Management
       parameters:
         - name: realm
           in: path
-          description: El nombre del realm (tenant) donde se creará el rol.
+          description: El identificador del tenant (realm)
           required: true
           schema:
             type: string
-          example: mytenant
+      responses:
+        '200':
+          description: Lista de roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleRepresentation'
+        '404':
+          description: Tenant no reconocido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno del servidor al obtener los roles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Crea un nuevo rol en un tenant
+      operationId: createRole
+      tags:
+        - Role Management
+      parameters:
+        - name: realm
+          in: path
+          description: El identificador del tenant (realm)
+          required: true
+          schema:
+            type: string
       requestBody:
-        description: Datos para la creación del rol.
+        description: Datos del rol a crear
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateRoleRequest'
       responses:
-        201:
-          description: Rol creado exitosamente.
+        '201':
+          description: Rol creado exitosamente
           content:
             application/json:
               schema:
@@ -330,98 +317,58 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: Rol creado exitosamente.
+                    example: "Rol creado exitosamente."
                   roleName:
                     type: string
-                    example: NEW_CUSTOM_ROLE
                   realm:
                     type: string
-                    example: mytenant
-        400:
-          description: Errores de validación en los datos del rol.
+        '400':
+          description: Error de validación en los datos del rol
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                validationError:
-                  summary: Error de validación de campos
-                  value:
-                    timestamp: '2025-07-16T10:00:00.000+00:00'
-                    status: 400
-                    error: Bad Request
-                    message: El nombre del rol no puede estar vacío
-                    details:
-                      name: El nombre del rol debe tener entre 3 y 50 caracteres
-                    path: /mytenant/roles
-        401:
-          $ref: '#/components/responses/Unauthorized'
-        403:
-          $ref: '#/components/responses/Forbidden'
-        404:
-          $ref: '#/components/responses/NotFoundTenant'
-        500:
-          $ref: '#/components/responses/InternalServerError'
-
-    get: #**Modificado: Nuevo método GET para obtener roles
-      summary: Obtener todos los roles del realm
-      description: Obtiene una lista de todos los roles de realm disponibles para el tenant especificado.
-        Requiere autenticación con un usuario que tenga permisos para ver roles.
-      operationId: getRoles
-      tags:
-        - Gestión de Roles
-      parameters:
-        - name: realm
-          in: path
-          description: El nombre del realm (tenant) del cual se obtendrán los roles.
-          required: true
-          schema:
-            type: string
-          example: mytenant
-      responses:
-        200:
-          description: Lista de roles obtenida exitosamente.
+        '404':
+          description: Tenant no reconocido
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/RoleRepresentation' #**Modificado: Referencia al esquema de rol
-        401:
-          $ref: '#/components/responses/Unauthorized'
-        403:
-          $ref: '#/components/responses/Forbidden'
-        404:
-          $ref: '#/components/responses/NotFoundTenant'
-        500:
-          $ref: '#/components/responses/InternalServerError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El rol ya existe o hay un conflicto en Keycloak
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno del servidor al crear el rol
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /{realm}/roles/{roleName}: #**Modificado: Nuevo path para operaciones con un rol específico
+  /{realm}/roles/{roleName}:
     delete:
-      summary: Eliminar un rol
-      description: Elimina un rol por su nombre del realm de Keycloak asociado al tenant especificado.
-        Requiere autenticación con un usuario que tenga permisos administrativos para eliminar roles.
+      summary: Elimina un rol de un tenant
       operationId: deleteRole
       tags:
-        - Gestión de Roles
+        - Role Management
       parameters:
         - name: realm
           in: path
-          description: El nombre del realm (tenant) del cual se eliminará el rol.
+          description: El identificador del tenant (realm)
           required: true
           schema:
             type: string
-          example: mytenant
         - name: roleName
           in: path
-          description: El nombre del rol a eliminar.
+          description: El nombre del rol a eliminar
           required: true
           schema:
             type: string
-          example: DELETED_ROLE
       responses:
-        200:
-          description: Rol eliminado exitosamente.
+        '200':
+          description: Rol eliminado exitosamente
           content:
             application/json:
               schema:
@@ -429,299 +376,197 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: Rol 'DELETED_ROLE' eliminado exitosamente.
+                    example: "Rol 'admin' eliminado exitosamente."
                   realm:
                     type: string
-                    example: mytenant
-        401:
-          $ref: '#/components/responses/Unauthorized'
-        403:
-          $ref: '#/components/responses/Forbidden'
-        404:
-          description: Rol no encontrado.
+        '404':
+          description: Tenant o rol no encontrado
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                timestamp: '2025-07-30T10:00:00.000+00:00'
-                status: 404
-                error: Not Found
-                message: Rol 'NON_EXISTENT_ROLE' no encontrado en el realm 'mytenant'.
-                path: /mytenant/roles/NON_EXISTENT_ROLE
-        500:
-          $ref: '#/components/responses/InternalServerError'
+        '500':
+          description: Error interno del servidor al eliminar el rol
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   schemas:
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Login successful"
+        username:
+          type: string
+        email:
+          type: string
+        fullName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        access_token:
+          type: string
+        idToken:
+          type: string
+        refresh_token:
+          type: string
+        expiresIn:
+          type: integer
+        refreshExpiresIn:
+          type: integer
+        realm:
+          type: string
+        client:
+          type: string
+      example:
+        message: "Login successful"
+        username: "user.test"
+        email: "user@test.com"
+        fullName: "Test User"
+        roles:
+          - "ROLE_USER"
+        access_token: "eyJ..."
+        idToken: "eyJ..."
+        refresh_token: "eyJ..."
+        expiresIn: 300
+        refreshExpiresIn: 1800
+        realm: "tenant1"
+        client: "mi-app-plexus"
+
+    AuthResponseRefresh:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Token refreshed successfully"
+        access_token:
+          type: string
+        idToken:
+          type: string
+        refresh_token:
+          type: string
+        expiresIn:
+          type: integer
+        refreshExpiresIn:
+          type: integer
+        realm:
+          type: string
+        client:
+          type: string
+      example:
+        message: "Token refreshed successfully"
+        access_token: "eyJ..."
+        idToken: "eyJ..."
+        refresh_token: "eyJ..."
+        expiresIn: 300
+        refreshExpiresIn: 1800
+        realm: "tenant1"
+        client: "mi-app-plexus"
+
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          description: El refresh token para obtener un nuevo token de acceso.
+          example: "eyJhbGciOiJIUzUxMi..."
+
     RegisterRequest:
       type: object
-      description: Objeto de solicitud para el registro de un nuevo usuario.
+      required:
+        - username
+        - password
+        - confirmPassword
+        - email
+        - firstName
+        - lastName
       properties:
         username:
           type: string
           description: El nombre de usuario deseado.
-          minLength: 3
-          maxLength: 50
-          example: newuser123
-        email:
-          type: string
-          format: email
-          description: La dirección de correo electrónico del usuario.
-          example: new.user@example.com
+          example: "new.user"
         password:
           type: string
-          format: password
           description: La contraseña del usuario.
+          format: password
           minLength: 8
-          example: StrongP@ssw0rd
         confirmPassword:
           type: string
+          description: La confirmación de la contraseña.
           format: password
-          description: Confirmación de la contraseña (debe coincidir con 'password').
           minLength: 8
-          example: StrongP@ssw0rd
+        email:
+          type: string
+          description: La dirección de correo electrónico del usuario.
+          format: email
+          example: "new.user@example.com"
         firstName:
           type: string
           description: El primer nombre del usuario.
-          example: Jane
+          example: "Nuevo"
         lastName:
           type: string
           description: El apellido del usuario.
-          example: Doe
-      required:
-        - username
-        - email
-        - password
-        - confirmPassword
-        - firstName
-        - lastName
-
-    LoginSuccessResponse:
-      type: object
-      description: Objeto de respuesta para un login exitoso.
-      properties:
-        message:
-          type: string
-          description: Mensaje de éxito.
-          example: Login successful
-        username:
-          type: string
-          description: El nombre de usuario autenticado (preferred_username de Keycloak).
-          example: user@example.com
-        email:
-          type: string
-          format: email
-          description: La dirección de correo electrónico del usuario (claim 'email' de Keycloak).
-          nullable: true
-          example: user@example.com
-        fullName:
-          type: string
-          description: El nombre completo del usuario (claim 'name' de Keycloak).
-          nullable: true
-          example: John Doe
-        roles:
-          type: array
-          description: Lista de roles del usuario extraídos de Keycloak (ej. "ROLE_USER", "ROLE_MANAGEMENT_ACCESS").
-          items:
-            type: string
-          example: [ "ROLE_USER", "ROLE_MANAGEMENT_ACCESS" ]
-        accessToken:
-          type: string
-          description: El Access Token JWT emitido por Keycloak.
-          example: eyJhbGciOiJSUzI1NiI...
-        idToken:
-          type: string
-          description: El ID Token JWT emitido por Keycloak (si se solicitó).
-          nullable: true
-          example: eyJhbGciOiJSUzI1NiI...
-        refreshToken:
-          type: string
-          description: El Refresh Token JWT emitido por Keycloak.
-          example: eyJhbGciOiJSUzI1NiI...
-        expiresIn:
-          type: integer
-          format: int64
-          description: Tiempo de validez del Access Token en segundos.
-          example: 300
-        refreshExpiresIn:
-          type: integer
-          format: int64
-          description: Tiempo de validez del Refresh Token en segundos.
-          example: 1800
-        realm:
-          type: string
-          description: El nombre del tenant (realm) utilizado para el login.
-          example: mytenant
-        client:
-          type: string
-          description: El Client ID utilizado para el login.
-          example: my-app-client
+          example: "Usuario"
 
     CreateRoleRequest:
       type: object
-      description: Objeto de solicitud para la creación de un nuevo rol.
+      required:
+        - name
       properties:
         name:
           type: string
-          description: Nombre único del rol.
+          description: El nombre del rol a crear.
           minLength: 3
           maxLength: 50
-          example: MANAGER_ROLE
+          example: "admin_role"
         description:
           type: string
-          description: Descripción del rol.
+          description: La descripción del rol.
           maxLength: 255
-          nullable: true
-          example: Rol para usuarios con privilegios de gestión.
-      required:
-        - name
+          example: "Rol de administrador del sistema."
 
-    RoleRepresentation: #**Modificado: Nuevo esquema para la representación de un rol de Keycloak
+    RoleRepresentation:
       type: object
-      description: Representación de un rol de Keycloak.
       properties:
         id:
           type: string
-          description: ID único del rol en Keycloak.
-          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
         name:
           type: string
-          description: Nombre del rol.
-          example: "admin"
         description:
           type: string
-          description: Descripción del rol.
-          nullable: true
-          example: "Administrador del sistema"
         composite:
           type: boolean
-          description: Indica si el rol es compuesto (contiene otros roles).
-          example: false
         clientRole:
           type: boolean
-          description: Indica si el rol es un rol de cliente (true) o de realm (false).
-          example: false
-        containerId:
-          type: string
-          description: ID del contenedor (realm o cliente) al que pertenece el rol.
-          example: "mytenant-realm"
-        # Puedes añadir más propiedades si las necesitas y Keycloak las devuelve
-      required:
-        - id
-        - name
 
-    # Esquemas para respuestas de error (reutilizables)
     ErrorResponse:
       type: object
-      description: Estructura genérica de respuesta para errores, manejada por GlobalExceptionHandler.
       properties:
         timestamp:
           type: string
           format: date-time
-          description: Fecha y hora en que ocurrió el error.
-          example: '2025-07-16T10:21:52.000+00:00'
         status:
           type: integer
-          description: Código de estado HTTP del error.
-          example: 400
         error:
           type: string
-          description: La frase de razón del estado HTTP (ej. "Bad Request", "Not Found").
-          example: Bad Request
         message:
           type: string
-          description: Mensaje descriptivo del error.
-          example: Uno o mas campos tienen errores de validacion
         path:
           type: string
-          description: La ruta de la solicitud que causó el error. (No siempre presente en todos los manejadores de tu código, pero común en Spring Boot).
-          nullable: true
-          example: /mytenant/register
         details:
           type: object
-          additionalProperties:
-            type: string
-          description: Detalles adicionales del error, especialmente para errores de validación de campos (mensaje de error). Presente solo para MethodArgumentNotValidException.
-          nullable: true
-          example:
-            username: El nombre de usuario no puede estar vacio
-            email: El email debe tener un formato valido
-        responseBody:
-          type: string
-          description: Cuerpo de la respuesta original de un servicio externo si aplica (ej. de Keycloak). Presente solo para HttpClientErrorException, HttpServerErrorException, UnknownHttpStatusCodeException.
-          nullable: true
-          example: '{"error":"invalid_grant","error_description":"Invalid user credentials"}'
-      required:
-        - timestamp
-        - status
-        - error
-        - message
-
-  responses:
-    NotFoundTenant:
-      description: Tenant no reconocido.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            timestamp: '2025-07-16T10:21:52.000+00:00'
-            status: 404
-            error: Not Found
-            message: Tenant mytenant no reconocido.
-            path: /mytenant/login
-    InternalServerError:
-      description: Error interno del servidor.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            timestamp: '2025-07-16T10:21:52.000+00:00'
-            status: 500
-            error: Internal Server Error
-            message: Ocurrió un error inesperado. Por favor, intente de nuevo mas tarde.
-            path: /some-faulty-endpoint
-    Unauthorized:
-      description: No autenticado. La solicitud requiere autenticación.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            timestamp: '2025-07-30T10:00:00.000+00:00'
-            status: 401
-            error: Unauthorized
-            message: Se requiere autenticación para acceder a este recurso.
-            path: /mytenant/roles
-    Forbidden:
-      description: Prohibido. El usuario autenticado no tiene los permisos necesarios.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            timestamp: '2025-07-30T10:00:00.000+00:00'
-            status: 403
-            error: Forbidden
-            message: No tiene los permisos necesarios para realizar esta operación.
-            path: /mytenant/roles
-
-  securitySchemes:
-    keycloakOAuth2Password:
-      type: oauth2
-      description: Autenticación mediante Keycloak utilizando el flujo de "Password Credentials".
-        Los tokens se obtienen a través del endpoint do_login.
-      flows:
-        password:
-          tokenUrl: http://localhost:8080/realms/master/protocol/openid-connect/token
-          scopes:
-            openid: Permite solicitar un ID Token.
-            profile: Permite solicitar información básica del perfil del usuario.
-            email: Permite solicitar la dirección de correo electrónico del usuario.
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: JSESSIONID
-      description: Autenticación basada en la cookie de sesión JSESSIONID de Spring Security.
+          description: Detalles adicionales del error, como errores de validación.
+      example:
+        timestamp: "2025-08-06T06:54:30.468Z"
+        status: 400
+        error: "Bad Request"
+        message: "Uno o mas campos tienen errores de validacion"
+        details:
+          username: "El nombre de usuario no puede estar vacio"
