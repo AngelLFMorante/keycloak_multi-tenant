@@ -204,8 +204,8 @@ class RoleControllerTest {
         assertNotNull(String.valueOf(responseEntity), "La entidad de respuesta no debería ser nula");
         assertEquals("El estado HTTP debería ser OK", HttpStatus.OK, responseEntity.getStatusCode());
         assertNotNull(responseEntity.getBody().toString(), "El cuerpo de la respuesta no debería ser nulo");
-        assertEquals("Rol '" + TEST_ROLE_NAME + "' eliminado existosamente.",
-                responseEntity.getBody().get("message"), "Rol 'TEST_ROLE' eliminado existosamente.");
+        assertEquals("Rol '" + TEST_ROLE_NAME + "' eliminado exitosamente.",
+                responseEntity.getBody().get("message"), "Rol 'TEST_ROLE' eliminado exitosamente.");
 
         verify(keycloakProperties, times(1)).getRealmMapping();
         verify(keycloakService, times(1)).deleteRole(TEST_KEYCLOAK_REALM, TEST_ROLE_NAME);
