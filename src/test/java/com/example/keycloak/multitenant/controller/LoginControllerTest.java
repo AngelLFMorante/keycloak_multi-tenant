@@ -2,7 +2,9 @@ package com.example.keycloak.multitenant.controller;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.config.SecurityConfig;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.keycloak.multitenant.model.AuthResponse;
+import com.example.keycloak.multitenant.model.RefreshTokenRequest;
+import com.example.keycloak.multitenant.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -14,10 +16,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,7 +28,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,10 +37,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-/*
+
 @ExtendWith(MockitoExtension.class)
 class LoginControllerTest {
 
@@ -49,8 +51,8 @@ class LoginControllerTest {
     @Mock
     private SecurityContextRepository securityContextRepository;
     @Mock
-    private RestTemplate restTemplate;
-    @Mock
+    private AuthService authService;
+
     private KeycloakProperties keycloakProperties;
     @Mock
     private HttpServletRequest request;
@@ -61,64 +63,58 @@ class LoginControllerTest {
     @Mock
     private SecurityContext securityContext;
 
-    @InjectMocks
     private LoginController loginController;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private String realm;
+    private String keycloakRealm;
+    private String clientSecret;
+    private String client;
+    private String username;
+    private String password;
+    private Map<String, String> realmMapping;
+    private Map<String, String> clientSecrets;
+    private String authServerUrl;
+    private KeycloakProperties.Admin admin;
 
     @BeforeEach
     void setUp() {
+        MockitoAnnotations.openMocks(this);
         SecurityContextHolder.clearContext();
         SecurityContextHolder.setContext(securityContext);
-    }
+        keycloakProperties = new KeycloakProperties();
+        loginController = new LoginController(
+                authenticationManager,
+                securityContextRepository,
+                authService,
+                keycloakProperties
+        );
 
-    private String createMockJwt(String username, String email, String fullName, List<String> realmRoles, Map<String, List<String>> clientRoles, String issuer) {
-        try {
-            Map<String, Object> headerClaims = new HashMap<>();
-            headerClaims.put("alg", "HS256");
-            headerClaims.put("typ", "JWT");
+        realm = "plexus";
+        keycloakRealm = "plexus-realm";
+        clientSecret = "mock-client-secret";
+        client = "mi-app-plexus";
+        username = "testuser";
+        password = "testpassword";
+        realmMapping = new HashMap<>();
+        realmMapping.put(realm, keycloakRealm);
+        clientSecrets = new HashMap<>();
+        clientSecrets.put(client, clientSecret);
+        authServerUrl = "http://localhost:8080";
+        admin = new KeycloakProperties.Admin();
+        admin.setRealm(realm);
+        admin.setClientId(client);
+        admin.setUsername(username);
+        admin.setPassword(password);
 
-            Map<String, Object> payloadClaims = new HashMap<>();
-            payloadClaims.put("sub", "54321");
-            payloadClaims.put("name", fullName);
-            payloadClaims.put("preferred_username", username);
-            payloadClaims.put("email", email);
-            payloadClaims.put("iss", issuer);
-
-            Map<String, Object> realmAccessClaim = new HashMap<>();
-            realmAccessClaim.put("roles", realmRoles);
-            payloadClaims.put("realm_access", realmAccessClaim);
-
-            Map<String, Object> resourceAccessClaim = new HashMap<>();
-            clientRoles.forEach((clientId, rolesList) -> {
-                Map<String, Object> clientAccess = new HashMap<>();
-                clientAccess.put("roles", rolesList);
-                resourceAccessClaim.put(clientId, clientAccess);
-            });
-            payloadClaims.put("resource_access", resourceAccessClaim);
-
-            String header = objectMapper.writeValueAsString(headerClaims);
-            String payload = objectMapper.writeValueAsString(payloadClaims);
-
-            String encodedHeader = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(header.getBytes());
-            String encodedPayload = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes());
-
-            return encodedHeader + "." + encodedPayload + ".mocksignature";
-        } catch (Exception e) {
-            throw new RuntimeException("Error creating mock JWT", e);
-        }
+        keycloakProperties.setRealmMapping(realmMapping);
+        keycloakProperties.setClientSecrets(clientSecrets);
+        keycloakProperties.setAuthServerUrl(authServerUrl);
+        keycloakProperties.setAdmin(admin);
     }
 
     @Test
-    @DisplayName("Debería retornar el realm del tenant para GET /realm/login")
+    @DisplayName("Debería retornar el realm del tenant para GET /{realm}/login")
     void redirectToTenantLogin_shouldReturnTenantRealm() {
-        String realm = "plexus";
-        String keycloakRealm = "plexus-realm";
-        Map<String, String> realmMapping = new HashMap<>();
-        realmMapping.put(realm, keycloakRealm);
-
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-
         ResponseEntity<Map<String, Object>> responseEntity = loginController.redirectToTenantLogin(realm);
 
         assertNotNull(responseEntity);
@@ -128,156 +124,197 @@ class LoginControllerTest {
     }
 
     @Test
-    @DisplayName("Debería lanzar ResponseStatusException si el realm no está mapeado para GET /realm/login")
+    @DisplayName("Debería lanzar ResponseStatusException si el realm no está mapeado para GET /{realm}/login")
     void redirectToTenantLogin_shouldThrowExceptionForUnmappedRealm() {
-        String realm = "unknown";
-        when(keycloakProperties.getRealmMapping()).thenReturn(Collections.emptyMap());
+        keycloakProperties.setRealmMapping(Collections.emptyMap());
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
-            loginController.redirectToTenantLogin(realm);
+            loginController.redirectToTenantLogin("unknown");
         });
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
-        assertTrue(exception.getReason().contains("Tenant " + realm + " no reconocido."));
+        assertTrue(exception.getReason().contains("Tenant unknown no reconocido."));
     }
 
     @Test
     @DisplayName("Debería procesar el login exitosamente y retornar tokens y roles")
     void doLogin_shouldProcessLoginSuccessfully() throws Exception {
-        String realm = "plexus";
-        String client = "mi-app-plexus";
-        String username = "testuser";
-        String password = "testpassword";
-        String keycloakRealm = "plexus-realm";
-        String clientSecret = "mock-client-secret";
-        String refreshTokenValue = "some-refresh-token";
+        AuthResponse mockAuthResponse = new AuthResponse(
+                "mockAccessToken", "mockIdToken", "mockRefreshToken",
+                300L, 1800L, username, "test@example.com", "Test User",
+                List.of("ROLE_APP_USERS", "ROLE_OFFLINE_ACCESS", "ROLE_USER_APP"),
+                realm, client, username
+        );
+        when(authService.authenticate(eq(realm), eq(client), eq(username), eq(password))).thenReturn(mockAuthResponse);
 
-        Map<String, String> realmMapping = new HashMap<>();
-        realmMapping.put(realm, keycloakRealm);
-
-        Map<String, String> clientSecrets = new HashMap<>();
-        clientSecrets.put(client, clientSecret);
-
-        String authServerUrl = "http://localhost:8080";
-        String issuerUrl = authServerUrl + "/realms/" + keycloakRealm;
-
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-        when(keycloakProperties.getAuthServerUrl()).thenReturn(authServerUrl);
-
-        List<String> mockRealmRoles = List.of("app_users", "offline_access");
-        Map<String, List<String>> mockClientRoles = new HashMap<>();
-        mockClientRoles.put(client, List.of("user_app"));
-
-        String mockAccessToken = createMockJwt(username, "test@example.com", "Test User", mockRealmRoles, mockClientRoles, issuerUrl);
-        String mockIdToken = createMockJwt(username, "test@example.com", "Test User", Collections.emptyList(), Collections.emptyMap(), issuerUrl);
-
-        String keycloakTokenResponse = "{" +
-                "\"access_token\":\"" + mockAccessToken + "\"," +
-                "\"id_token\":\"" + mockIdToken + "\"," +
-                "\"refresh_token\":\"" + refreshTokenValue + "\"," +
-                "\"expires_in\":300," +
-                "\"refresh_expires_in\":1800" +
-                "}";
-
-        when(restTemplate.postForEntity(
-                any(String.class),
-                any(HttpEntity.class),
-                eq(String.class)
-        )).thenReturn(new ResponseEntity<>(keycloakTokenResponse, HttpStatus.OK));
-
-        List<SimpleGrantedAuthority> expectedAuthorities = new java.util.ArrayList<>();
-        mockRealmRoles.forEach(role -> expectedAuthorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())));
-        mockClientRoles.get(client).forEach(role -> expectedAuthorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase())));
-
+        List<SimpleGrantedAuthority> expectedAuthorities = List.of(
+                new SimpleGrantedAuthority("ROLE_APP_USERS"),
+                new SimpleGrantedAuthority("ROLE_OFFLINE_ACCESS"),
+                new SimpleGrantedAuthority("ROLE_USER_APP")
+        );
         Authentication auth = new UsernamePasswordAuthenticationToken(username, SecurityConfig.DUMMY_PASSWORD, expectedAuthorities);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
-
         doAnswer(invocation -> {
-            Authentication authentication = invocation.getArgument(0);
-            when(securityContext.getAuthentication()).thenReturn(authentication);
             return null;
         }).when(securityContext).setAuthentication(any(Authentication.class));
-
         when(request.getSession(true)).thenReturn(session);
 
         ResponseEntity<Map<String, Object>> responseEntity = loginController.doLogin(realm, client, username, password, request, response);
 
         assertNotNull(responseEntity);
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-
         Map<String, Object> responseBody = responseEntity.getBody();
         assertNotNull(responseBody);
         assertEquals("Login successful", responseBody.get("message"));
-        assertEquals("testuser", responseBody.get("username"));
-        assertEquals("test@example.com", responseBody.get("email"));
-        assertEquals("Test User", responseBody.get("fullName"));
 
         List<String> actualRoles = (List<String>) responseBody.get("roles");
         assertNotNull(actualRoles);
-        assertEquals(expectedAuthorities.size(), actualRoles.size());
         assertTrue(actualRoles.contains("ROLE_APP_USERS"));
-        assertTrue(actualRoles.contains("ROLE_OFFLINE_ACCESS"));
-        assertTrue(actualRoles.contains("ROLE_USER_APP"));
 
-        assertNotNull(responseBody.get("accessToken"));
-        assertNotNull(responseBody.get("idToken"));
-        assertNotNull(responseBody.get("refreshToken"));
-        assertEquals(300L, responseBody.get("expiresIn"));
-        assertEquals(1800L, responseBody.get("refreshExpiresIn"));
-        assertEquals(realm, responseBody.get("realm"));
-        assertEquals(client, responseBody.get("client"));
-
-        verify(keycloakProperties, times(1)).getRealmMapping();
-        verify(keycloakProperties, times(1)).getClientSecrets();
-        verify(keycloakProperties, times(1)).getAuthServerUrl();
-        verify(restTemplate, times(1)).postForEntity(any(String.class), any(HttpEntity.class), eq(String.class));
+        verify(authService, times(1)).authenticate(eq(realm), eq(client), eq(username), eq(password));
         verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(securityContextRepository, times(1)).saveContext(eq(securityContext), eq(request), eq(response));
-        verify(securityContext, times(1)).setAuthentication(any(Authentication.class));
-
-        verify(request, times(1)).getSession(true);
-        verify(session, times(1)).setAttribute("refreshToken", refreshTokenValue);
         verify(session, times(1)).setAttribute("realm", realm);
-        verify(session, times(1)).setAttribute("clientUsed", client);
+        verify(session, times(1)).setAttribute("client", client);
     }
 
     @Test
-    @DisplayName("Debería lanzar ResponseStatusException si el tenant no está mapeado durante el login")
-    void doLogin_shouldThrowExceptionForUnmappedRealm() {
-        String realm = "unknown";
-        String client = "mi-app-plexus";
-        String username = "user";
-        String password = "password";
+    @DisplayName("Debería lanzar ResponseStatusException si el login falla en el AuthService")
+    void doLogin_shouldThrowExceptionIfAuthServiceFails() {
+        when(authService.authenticate(any(), any(), any(), any()))
+                .thenThrow(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
 
-        when(keycloakProperties.getRealmMapping()).thenReturn(Collections.emptyMap());
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
+                loginController.doLogin(realm, client, username, password, request, response)
+        );
 
-        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
-            loginController.doLogin(realm, client, username, password, request, response);
-        });
-
-        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
-        assertTrue(exception.getReason().contains("Tenant " + realm + " no reconocido."));
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+        verify(authenticationManager, never()).authenticate(any());
+        verify(securityContextRepository, never()).saveContext(any(), any(), any());
     }
 
     @Test
-    @DisplayName("Debería lanzar IllegalArgumentException si el secreto del cliente no está configurado")
-    void doLogin_shouldThrowExceptionForMissingClientSecret() {
-        String realm = "plexus";
-        String client = "unknown-client";
-        String username = "user";
-        String password = "password";
+    @DisplayName("Debería renovar el token exitosamente")
+    void refreshToken_shouldSucceed() {
+        String refreshTokenValue = "mockRefreshToken";
+        when(request.getSession(false)).thenReturn(session);
+        when(session.getAttribute("realm")).thenReturn(realm);
+        when(session.getAttribute("client")).thenReturn(client);
 
-        Map<String, String> realmMapping = new HashMap<>();
-        realmMapping.put(realm, "plexus-realm");
+        AuthResponse mockAuthResponse = new AuthResponse(
+                "newAccessToken", "newIdToken", "newRefreshToken",
+                300L, 1800L, realm, client
+        );
+        when(authService.refreshToken(eq(refreshTokenValue), eq(realm), eq(client))).thenReturn(mockAuthResponse);
 
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(Collections.emptyMap());
+        RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest(refreshTokenValue);
+        ResponseEntity<Map<String, Object>> responseEntity = loginController.refreshToken(request, refreshTokenRequest);
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            loginController.doLogin(realm, client, username, password, request, response);
-        });
-
-        assertTrue(exception.getMessage().contains("Client ID configurado pero secreto no encontrado para: " + client));
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals("Token refreshed successfully", responseEntity.getBody().get("message"));
     }
-}*/
+
+    @Test
+    @DisplayName("Debería lanzar ResponseStatusException si es null refreshToken")
+    void refreshToken_shouldThrowExceptionForNoRefreshToken() {
+        RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest(null);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
+                loginController.refreshToken(request, refreshTokenRequest)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("Debería lanzar ResponseStatusException si no hay sesion activa en refreshToken")
+    void refreshToken_shouldThrowExceptionForNoActiveSession() {
+        when(request.getSession(false)).thenReturn(null);
+        RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest("token");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
+                loginController.refreshToken(request, refreshTokenRequest)
+        );
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("Debería lanzar ResponseStatusException si faltan datos en la sesion en refreshToken")
+    void refreshToken_shouldThrowExceptionForMissingSessionData() {
+        when(request.getSession(false)).thenReturn(session);
+        when(session.getAttribute("realm")).thenReturn(null);
+        when(session.getAttribute("client")).thenReturn(client);
+        RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest("token");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
+                loginController.refreshToken(request, refreshTokenRequest)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Faltan datos de sesion"));
+    }
+
+    @Test
+    @DisplayName("Debería realizar el logout exitosamente")
+    void logout_shouldSucceed() {
+        String refreshTokenValue = "mockRefreshToken";
+        when(request.getSession(false)).thenReturn(session);
+        when(session.getAttribute("realm")).thenReturn(realm);
+        when(session.getAttribute("client")).thenReturn(client);
+        doNothing().when(authService).revokeRefreshToken(any(), any(), any());
+
+        RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest(refreshTokenValue);
+        ResponseEntity<Map<String, Object>> responseEntity = loginController.logout(request, refreshTokenRequest);
+
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals("Logout exitoso. Token revocado.", responseEntity.getBody().get("message"));
+
+        verify(authService, times(1)).revokeRefreshToken(eq(refreshTokenValue), eq(realm), eq(client));
+        verify(session, times(1)).invalidate();
+    }
+
+    @Test
+    @DisplayName("Debería lanzar ResponseStatusException si el refresh token es nulo en logout")
+    void logout_shouldThrowExceptionForMissingToken() {
+        RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest(null);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
+                loginController.logout(request, refreshTokenRequest)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("refresh_token' es obligatorio."));
+    }
+
+    @Test
+    @DisplayName("Debería lanzar ResponseStatusException si no hay sesion activa en logout")
+    void logout_shouldThrowExceptionForNoActiveSession() {
+        when(request.getSession(false)).thenReturn(null);
+        RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest("token");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
+                loginController.logout(request, refreshTokenRequest)
+        );
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("Debería lanzar ResponseStatusException si faltan datos en la sesion en logout")
+    void logout_shouldThrowExceptionForMissingSessionData() {
+        when(request.getSession(false)).thenReturn(session);
+        when(session.getAttribute("realm")).thenReturn(null);
+        when(session.getAttribute("client")).thenReturn(client);
+        RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest("token");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
+                loginController.logout(request, refreshTokenRequest)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Faltan datos de sesion"));
+    }
+}

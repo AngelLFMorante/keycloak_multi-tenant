@@ -16,16 +16,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.test.context.ActiveProfiles;
@@ -37,16 +32,6 @@ import org.springframework.web.context.WebApplicationContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.logout;
-import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.unauthenticated;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -107,10 +92,10 @@ class SecurityConfigTest {
     }
 
     @Test
-    @DisplayName("Debería permitir acceso POST a /realm/register sin autenticación")
+    @DisplayName("Debería permitir acceso POST a /api/v1/{realm}/register sin autenticación")
     void securityFilterChain_shouldPermitPostRegister() throws Exception {
         String jsonBody = "{\"username\":\"test\",\"email\":\"test@example.com\",\"password\":\"password\",\"confirmPassword\":\"password\"}";
-        mockMvc.perform(post("/any-realm/register")
+        mockMvc.perform(post("/api/v1/realm/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody))
                 .andExpect(status().isBadRequest());
@@ -120,7 +105,7 @@ class SecurityConfigTest {
     @DisplayName("CSRF debería estar deshabilitado")
     void securityFilterChain_csrfShouldBeDisabled() throws Exception {
         String jsonBody = "{\"username\":\"test\",\"email\":\"test@example.com\",\"password\":\"password\",\"confirmPassword\":\"password\"}";
-        mockMvc.perform(post("/any-realm/register")
+        mockMvc.perform(post("/api/v1/realm/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody))
                 .andExpect(status().isBadRequest()); // Sigue siendo 400 del controlador, no 403 CSRF.
