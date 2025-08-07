@@ -177,8 +177,8 @@ public class LoginController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No existe session activa.");
         }
 
-        String realm = session.getAttribute("realm").toString();
-        String client = session.getAttribute("client").toString();
+        String realm = (String) session.getAttribute("realm");
+        String client = (String) session.getAttribute("client");
 
         if (realm == null || client == null) {
             log.warn("No se encontraron realm o client en la sesion");
@@ -201,6 +201,18 @@ public class LoginController {
         return ResponseEntity.ok(responseBody);
     }
 
+    /**
+     * Maneja la solicitud POST para cerrar la sesión de un usuario.
+     * Este metodo revoca el refresh token en Keycloak para invalidar la sesión
+     * y simultáneamente invalida la sesión HTTP local de Spring Security.
+     *
+     * @param request La solicitud HTTP, necesaria para obtener la sesión actual.
+     * @param token   El objeto {@link RefreshTokenRequest} que contiene el refresh token a revocar.
+     * @return Un {@link ResponseEntity} con un mensaje de éxito.
+     * @throws ResponseStatusException Si el refresh token es nulo o vacío (HTTP 400),
+     *                                 si no hay una sesión HTTP activa (HTTP 401),
+     *                                 o si faltan los datos del realm y client en la sesión (HTTP 400).
+     */
     @PostMapping("/logout")
     public ResponseEntity<Map<String, Object>> logout(HttpServletRequest request, @RequestBody RefreshTokenRequest token) {
         log.info("Intento de logout...");
@@ -215,8 +227,8 @@ public class LoginController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No existe sesion activa.");
         }
 
-        String realm = session.getAttribute("realm").toString();
-        String client = session.getAttribute("client").toString();
+        String realm = (String) session.getAttribute("realm");
+        String client = (String) session.getAttribute("client");
 
         if (realm == null || client == null) {
             log.warn("No se encontraron realm o client en la sesion");
