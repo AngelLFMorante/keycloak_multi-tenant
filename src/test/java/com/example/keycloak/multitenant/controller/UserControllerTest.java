@@ -1,7 +1,7 @@
 package com.example.keycloak.multitenant.controller;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
-import com.example.keycloak.multitenant.model.RegisterRequest;
+import com.example.keycloak.multitenant.model.UserRequest;
 import com.example.keycloak.multitenant.service.KeycloakService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class RegisterControllerTest {
+class UserControllerTest {
 
     @Mock
     private KeycloakService keycloakService;
@@ -40,7 +40,7 @@ class RegisterControllerTest {
     private KeycloakProperties keycloakProperties;
 
     @InjectMocks
-    private RegisterController registerController;
+    private UserController registerController;
 
     private String realm;
     private String keycloakRealm;
@@ -68,7 +68,7 @@ class RegisterControllerTest {
         assertNotNull(body);
         assertEquals(realm, body.get("realm"));
         assertEquals(keycloakRealm, body.get("keycloakRealm"));
-        assertTrue(body.get("registerRequest") instanceof RegisterRequest);
+        assertTrue(body.get("registerRequest") instanceof UserRequest);
     }
 
     @Test
@@ -88,16 +88,16 @@ class RegisterControllerTest {
     @Test
     @DisplayName("register debería crear un usuario exitosamente")
     void register_shouldCreateUserSuccessfully() {
-        RegisterRequest registerRequest = new RegisterRequest();
-        registerRequest.setUsername("testuser");
-        registerRequest.setEmail("test@example.com");
-        registerRequest.setPassword("Password123!");
-        registerRequest.setConfirmPassword("Password123!");
+        UserRequest userRequest = new UserRequest();
+        userRequest.setUsername("testuser");
+        userRequest.setEmail("test@example.com");
+        userRequest.setPassword("Password123!");
+        userRequest.setConfirmPassword("Password123!");
 
-        when(keycloakService.userExistsByEmail(keycloakRealm, registerRequest.getEmail())).thenReturn(false);
-        doNothing().when(keycloakService).createUser(anyString(), any(RegisterRequest.class));
+        when(keycloakService.userExistsByEmail(keycloakRealm, userRequest.getEmail())).thenReturn(false);
+        doNothing().when(keycloakService).createUser(anyString(), any(UserRequest.class));
 
-        ResponseEntity<Map<String, Object>> responseEntity = registerController.register(realm, registerRequest);
+        ResponseEntity<Map<String, Object>> responseEntity = registerController.register(realm, userRequest);
 
         assertNotNull(responseEntity);
         assertEquals(HttpStatus.CREATED, responseEntity.getStatusCode());
@@ -107,23 +107,23 @@ class RegisterControllerTest {
         assertEquals(realm, body.get("tenantId"));
         assertEquals(keycloakRealm, body.get("keycloakRealm"));
 
-        verify(keycloakService, times(1)).userExistsByEmail(keycloakRealm, registerRequest.getEmail());
-        verify(keycloakService, times(1)).createUser(keycloakRealm, registerRequest);
+        verify(keycloakService, times(1)).userExistsByEmail(keycloakRealm, userRequest.getEmail());
+        verify(keycloakService, times(1)).createUser(keycloakRealm, userRequest);
     }
 
     @Test
     @DisplayName("register debería lanzar IllegalArgumentException si las contraseñas no coinciden")
     void register_shouldThrowExceptionIfPasswordsMismatch() {
-        RegisterRequest registerRequest = new RegisterRequest();
-        registerRequest.setUsername("testuser");
-        registerRequest.setEmail("test@example.com");
-        registerRequest.setPassword("Password123!");
-        registerRequest.setConfirmPassword("MismatchPassword!");
+        UserRequest userRequest = new UserRequest();
+        userRequest.setUsername("testuser");
+        userRequest.setEmail("test@example.com");
+        userRequest.setPassword("Password123!");
+        userRequest.setConfirmPassword("MismatchPassword!");
 
         verifyNoInteractions(keycloakService);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            registerController.register(realm, registerRequest);
+            registerController.register(realm, userRequest);
         });
 
         assertEquals("Password no coinciden", exception.getMessage());
@@ -132,38 +132,38 @@ class RegisterControllerTest {
     @Test
     @DisplayName("register debería lanzar IllegalArgumentException si el email ya existe")
     void register_shouldThrowExceptionIfEmailExists() {
-        RegisterRequest registerRequest = new RegisterRequest();
-        registerRequest.setUsername("testuser");
-        registerRequest.setEmail("existing@example.com");
-        registerRequest.setPassword("Password123!");
-        registerRequest.setConfirmPassword("Password123!");
+        UserRequest userRequest = new UserRequest();
+        userRequest.setUsername("testuser");
+        userRequest.setEmail("existing@example.com");
+        userRequest.setPassword("Password123!");
+        userRequest.setConfirmPassword("Password123!");
 
-        when(keycloakService.userExistsByEmail(keycloakRealm, registerRequest.getEmail())).thenReturn(true);
+        when(keycloakService.userExistsByEmail(keycloakRealm, userRequest.getEmail())).thenReturn(true);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            registerController.register(realm, registerRequest);
+            registerController.register(realm, userRequest);
         });
 
         assertTrue(exception.getMessage().contains("El email 'existing@example.com' ya está registrado en Keycloak."));
 
-        verify(keycloakService, times(1)).userExistsByEmail(keycloakRealm, registerRequest.getEmail());
-        verify(keycloakService, never()).createUser(anyString(), any(RegisterRequest.class));
+        verify(keycloakService, times(1)).userExistsByEmail(keycloakRealm, userRequest.getEmail());
+        verify(keycloakService, never()).createUser(anyString(), any(UserRequest.class));
     }
 
     @Test
     @DisplayName("register debería lanzar ResponseStatusException si el realm no está mapeado")
     void register_shouldThrowExceptionForUnmappedRealm() {
         String unknownRealm = "unknown";
-        RegisterRequest registerRequest = new RegisterRequest();
-        registerRequest.setUsername("testuser");
-        registerRequest.setEmail("test@example.com");
-        registerRequest.setPassword("Password123!");
-        registerRequest.setConfirmPassword("Password123!");
+        UserRequest userRequest = new UserRequest();
+        userRequest.setUsername("testuser");
+        userRequest.setEmail("test@example.com");
+        userRequest.setPassword("Password123!");
+        userRequest.setConfirmPassword("Password123!");
 
         when(keycloakProperties.getRealmMapping()).thenReturn(Collections.emptyMap());
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
-            registerController.register(unknownRealm, registerRequest);
+            registerController.register(unknownRealm, userRequest);
         });
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());

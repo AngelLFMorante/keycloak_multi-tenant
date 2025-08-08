@@ -3,7 +3,7 @@ package com.example.keycloak.multitenant.service;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
-import com.example.keycloak.multitenant.model.RegisterRequest;
+import com.example.keycloak.multitenant.model.UserRequest;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -97,15 +97,15 @@ class KeycloakServiceTest {
 
         doNothing().when(userResource).resetPassword(any(CredentialRepresentation.class));
 
-        RegisterRequest registerRequest = new RegisterRequest();
-        registerRequest.setUsername(testUsername);
-        registerRequest.setEmail(testEmail);
-        registerRequest.setPassword(testPassword);
-        registerRequest.setConfirmPassword(testPassword);
-        registerRequest.setFirstName("Test");
-        registerRequest.setLastName("User");
+        UserRequest userRequest = new UserRequest();
+        userRequest.setUsername(testUsername);
+        userRequest.setEmail(testEmail);
+        userRequest.setPassword(testPassword);
+        userRequest.setConfirmPassword(testPassword);
+        userRequest.setFirstName("Test");
+        userRequest.setLastName("User");
 
-        assertDoesNotThrow(() -> keycloakService.createUser(testRealm, registerRequest));
+        assertDoesNotThrow(() -> keycloakService.createUser(testRealm, userRequest));
 
         verify(keycloak, times(1)).realm(testRealm);
         verify(usersResource, times(1)).create(any(UserRepresentation.class));
@@ -123,16 +123,16 @@ class KeycloakServiceTest {
         when(response.getStatus()).thenReturn(409);
         when(response.readEntity(String.class)).thenReturn("User with username already exists");
 
-        RegisterRequest registerRequest = new RegisterRequest();
-        registerRequest.setUsername(testUsername);
-        registerRequest.setEmail(testEmail);
-        registerRequest.setPassword(testPassword);
-        registerRequest.setConfirmPassword(testPassword);
-        registerRequest.setFirstName("Test");
-        registerRequest.setLastName("User");
+        UserRequest userRequest = new UserRequest();
+        userRequest.setUsername(testUsername);
+        userRequest.setEmail(testEmail);
+        userRequest.setPassword(testPassword);
+        userRequest.setConfirmPassword(testPassword);
+        userRequest.setFirstName("Test");
+        userRequest.setLastName("User");
 
         KeycloakUserCreationException exception = assertThrows(KeycloakUserCreationException.class, () ->
-                keycloakService.createUser(testRealm, registerRequest));
+                keycloakService.createUser(testRealm, userRequest));
 
         assertTrue(exception.getMessage().contains("Error al crear usuario en Keycloak. Estado HTTP: 409."));
         assertTrue(exception.getMessage().contains("User with username already exists"));
@@ -157,16 +157,16 @@ class KeycloakServiceTest {
         doThrow(new RuntimeException("Keycloak API error during password reset"))
                 .when(userResource).resetPassword(any(CredentialRepresentation.class));
 
-        RegisterRequest registerRequest = new RegisterRequest();
-        registerRequest.setUsername(testUsername);
-        registerRequest.setEmail(testEmail);
-        registerRequest.setPassword(testPassword);
-        registerRequest.setConfirmPassword(testPassword);
-        registerRequest.setFirstName("Test");
-        registerRequest.setLastName("User");
+        UserRequest userRequest = new UserRequest();
+        userRequest.setUsername(testUsername);
+        userRequest.setEmail(testEmail);
+        userRequest.setPassword(testPassword);
+        userRequest.setConfirmPassword(testPassword);
+        userRequest.setFirstName("Test");
+        userRequest.setLastName("User");
 
         KeycloakUserCreationException exception = assertThrows(KeycloakUserCreationException.class, () ->
-                keycloakService.createUser(testRealm, registerRequest));
+                keycloakService.createUser(testRealm, userRequest));
 
         assertTrue(exception.getMessage().contains("Error al establecer la contraseña para el usuario"));
         assertTrue(exception.getMessage().contains("Keycloak API error during password reset"));
