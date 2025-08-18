@@ -5,7 +5,6 @@ import com.example.keycloak.multitenant.model.UserRequest;
 import com.example.keycloak.multitenant.service.KeycloakService;
 import com.example.keycloak.multitenant.service.UserService;
 import jakarta.validation.Valid;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,7 +21,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Controlador REST para gestionar el proceso de registro de nuevos usuarios en Keycloak.
@@ -30,7 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
  * La creación de usuarios en Keycloak se delega a {@link KeycloakService}.
  */
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/{realm}/users")
 public class UserController {
 
     private static Logger log = LoggerFactory.getLogger(UserController.class);
@@ -54,31 +52,6 @@ public class UserController {
         log.info("UserController inicializado.");
     }
 
-    //TODO Hay que eliminar register get para obtener el form en front y login lo gestiona todo GO
-
-    /**
-     * Maneja las solicitudes GET para informar sobre el endpoint de registro de un tenant específico.
-     *
-     * @param realm El nombre del realm (tenant) para el cual se va a registrar el usuario.
-     * @return El nombre de la vista ("register") que contiene el formulario de registro.
-     */
-    @GetMapping("/{realm}/register")
-    public ResponseEntity<Map<String, Object>> showRegisterForm(@PathVariable String realm) {
-        log.info("Solicitud GET para información de registro del tenant: {}", realm);
-        Map<String, Object> response = new HashMap<>();
-        response.put("realm", realm);
-        response.put("registerRequest", new UserRequest());
-
-        String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
-        if (keycloakRealm == null) {
-            log.warn("Mapeo de realm no encontrado para el tenantPath: {}", realm);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realm + " no reconocido.");
-        }
-        response.put("keycloakRealm", keycloakRealm);
-
-        return ResponseEntity.ok(response);
-    }
-
     /**
      * Maneja las solicitudes POST para procesar el registro de un nuevo usuario.
      * Recibe los datos de registro como JSON en el cuerpo de la solicitud.
@@ -92,28 +65,10 @@ public class UserController {
      *                recibido del cuerpo de la solicitud JSON.
      * @return Un {@link ResponseEntity} con el estado de éxito o error del registro.
      */
-    @PostMapping("/{realm}/register")
+    @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> registerUser(@PathVariable String realm, @Valid @RequestBody UserRequest request) {
         log.info("Intento de registro de usuario para el tenant: {}", realm);
-        log.debug("Datos de registro recibidos: username={}, email={}", request.getUsername(), request.getEmail());
-
-        String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
-        if (keycloakRealm == null) {
-            log.warn("Mapeo de realm no encontrado para el tenant: {}", realm);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realm + " no reconocido.");
-        }
-
-        if (keycloakService.userExistsByEmail(keycloakRealm, request.getEmail())) {
-            log.warn("El email '{}' ya esta registrado en el realm '{}'.", request.getEmail(), keycloakRealm);
-            throw new IllegalArgumentException("El email '" + request.getEmail() + "' ya está registrado.");
-        }
-
-        userService.registerUser(realm, request);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "User registered. Waiting for admin approval.");
-        response.put("tenantId", realm);
-        response.put("keycloakRealm", keycloakRealm);
+        Map<String, Object> response = userService.registerUser(realm, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -126,13 +81,7 @@ public class UserController {
     @GetMapping
     public ResponseEntity<List<UserRepresentation>> getAllUsers(@PathVariable String realm) {
         log.info("Solicitud para obtener todos los usuarios del tenant: {}", realm);
-
-        String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
-        if (keycloakRealm == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realm + " no reconocido.");
-        }
-
-        List<UserRepresentation> users = keycloakService.getAllUsers(keycloakRealm);
+        List<UserRepresentation> users = userService.getAllUsers(realm);
         return ResponseEntity.ok(users);
     }
 
@@ -147,13 +96,7 @@ public class UserController {
     @PutMapping("/{userId}")
     public ResponseEntity<Void> updateUser(@PathVariable String realm, @PathVariable UUID userId, @RequestBody UserRequest updatedUser) {
         log.info("Solicitud para actualizar el usuario con ID '{}' del tenant: {}", userId, realm);
-
-        String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
-        if (keycloakRealm == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realm + " no reconocido.");
-        }
-
-        keycloakService.updateUser(keycloakRealm, userId.toString(), updatedUser);
+        userService.updateUser(realm, userId.toString(), updatedUser);
         return ResponseEntity.ok().build();
     }
 
@@ -167,13 +110,7 @@ public class UserController {
     @DeleteMapping("/{userId}")
     public ResponseEntity<Void> deleteUser(@PathVariable String realm, @PathVariable UUID userId) {
         log.info("Solicitud para eliminar el usuario con ID '{}' del tenant: {}", userId, realm);
-
-        String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
-        if (keycloakRealm == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realm + " no reconocido.");
-        }
-
-        keycloakService.deleteUser(keycloakRealm, userId.toString());
+        userService.deleteUser(realm, userId.toString());
         return ResponseEntity.noContent().build();
     }
 }

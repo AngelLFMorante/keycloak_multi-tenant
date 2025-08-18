@@ -8,6 +8,7 @@ import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +18,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.RoleMappingResource;
+import org.keycloak.admin.client.resource.RoleResource;
+import org.keycloak.admin.client.resource.RoleScopeResource;
 import org.keycloak.admin.client.resource.RolesResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
@@ -48,6 +52,7 @@ import static org.mockito.Mockito.when;
  * Se enfoca en probar la lógica de negocio de KeycloakService aislando las llamadas
  * a la API de Keycloak mediante mocks.
  */
+
 @ExtendWith(MockitoExtension.class)
 class KeycloakServiceTest {
 
@@ -69,15 +74,29 @@ class KeycloakServiceTest {
     @Mock
     private RolesResource rolesResource;
 
+    @Mock
+    private RoleResource roleResource;
+
+    @Mock
+    private RoleRepresentation roleRepresentation;
+
+    @Mock
+    private RoleMappingResource roleMappingResource;
+
+    @Mock
+    private RoleScopeResource roleScopeResource;
+
+    @Mock
+    private UserRepresentation userRepresentation;
+
     @InjectMocks
     private KeycloakService keycloakService;
 
     private String testRealm = "test-realm";
     private String testEmail = "test@example.com";
     private String testUsername = "testuser";
-    private String testPassword = "password123";
     private String testUserId = "some-user-id";
-
+    private String tempPassword = "12345678";
     private String testRoleName = "TEST_ROLE";
     private String testRoleDescription = "Descripción del rol de prueba";
 
@@ -93,25 +112,31 @@ class KeycloakServiceTest {
         when(usersResource.create(any(UserRepresentation.class))).thenReturn(response);
         when(response.getStatus()).thenReturn(201);
         when(response.getLocation()).thenReturn(URI.create("http://localhost/users/" + testUserId));
-        when(realmResource.users().get(testUserId)).thenReturn(userResource);
 
         doNothing().when(userResource).resetPassword(any(CredentialRepresentation.class));
 
         UserRequest userRequest = new UserRequest();
         userRequest.setUsername(testUsername);
         userRequest.setEmail(testEmail);
-        userRequest.setPassword(testPassword);
-        userRequest.setConfirmPassword(testPassword);
         userRequest.setFirstName("Test");
         userRequest.setLastName("User");
+        userRequest.setRole("ROLE");
 
-        assertDoesNotThrow(() -> keycloakService.createUser(testRealm, userRequest));
+        when(realmResource.roles()).thenReturn(rolesResource);
+        when(rolesResource.get("ROLE")).thenReturn(roleResource);
+        when(roleResource.toRepresentation()).thenReturn(roleRepresentation);
 
-        verify(keycloak, times(1)).realm(testRealm);
+        when(realmResource.users().get(testUserId)).thenReturn(userResource);
+        when(realmResource.users().get(testUserId).roles()).thenReturn(roleMappingResource);
+        when(realmResource.users().get(testUserId).roles().realmLevel()).thenReturn(roleScopeResource);
+
+        assertDoesNotThrow(() -> keycloakService.createUserWithRole(testRealm, userRequest, tempPassword));
+
+        verify(keycloak, times(1)).realm("test-realm");
         verify(usersResource, times(1)).create(any(UserRepresentation.class));
         verify(response, times(1)).getStatus();
         verify(response, times(1)).getLocation();
-        verify(realmResource.users(), times(1)).get(testUserId);
+        verify(realmResource.users(), times(4)).get(testUserId);
         verify(userResource, times(1)).resetPassword(any(CredentialRepresentation.class));
     }
 
@@ -126,18 +151,17 @@ class KeycloakServiceTest {
         UserRequest userRequest = new UserRequest();
         userRequest.setUsername(testUsername);
         userRequest.setEmail(testEmail);
-        userRequest.setPassword(testPassword);
-        userRequest.setConfirmPassword(testPassword);
         userRequest.setFirstName("Test");
         userRequest.setLastName("User");
 
-        KeycloakUserCreationException exception = assertThrows(KeycloakUserCreationException.class, () ->
-                keycloakService.createUser(testRealm, userRequest));
+        KeycloakUserCreationException exception = assertThrows(
+                KeycloakUserCreationException.class, () ->
+                        keycloakService.createUserWithRole(testRealm, userRequest, tempPassword));
 
-        assertTrue(exception.getMessage().contains("Error al crear usuario en Keycloak. Estado HTTP: 409."));
+        assertTrue(exception.getMessage().contains("Error inesperado al crear usuario: Error al crear usuario. Estado HTTP: 409. Detalles: User with username already exists"));
         assertTrue(exception.getMessage().contains("User with username already exists"));
 
-        verify(keycloak, times(1)).realm(testRealm);
+        verify(keycloak, times(1)).realm("test-realm");
         verify(usersResource, times(1)).create(any(UserRepresentation.class));
         verify(response, times(3)).getStatus();
         verify(response, times(1)).readEntity(String.class);
@@ -160,18 +184,15 @@ class KeycloakServiceTest {
         UserRequest userRequest = new UserRequest();
         userRequest.setUsername(testUsername);
         userRequest.setEmail(testEmail);
-        userRequest.setPassword(testPassword);
-        userRequest.setConfirmPassword(testPassword);
         userRequest.setFirstName("Test");
         userRequest.setLastName("User");
 
         KeycloakUserCreationException exception = assertThrows(KeycloakUserCreationException.class, () ->
-                keycloakService.createUser(testRealm, userRequest));
+                keycloakService.createUserWithRole(testRealm, userRequest, tempPassword));
 
-        assertTrue(exception.getMessage().contains("Error al establecer la contraseña para el usuario"));
-        assertTrue(exception.getMessage().contains("Keycloak API error during password reset"));
+        assertTrue(exception.getMessage().contains("Error al establecer la contraseña: Keycloak API error during password reset"));
 
-        verify(keycloak, times(1)).realm(testRealm);
+        verify(keycloak, times(1)).realm("test-realm");
         verify(usersResource, times(1)).create(any(UserRepresentation.class));
         verify(response, times(1)).getStatus();
         verify(response, times(1)).getLocation();
@@ -206,6 +227,70 @@ class KeycloakServiceTest {
         verify(keycloak, times(1)).realm(testRealm);
         verify(realmResource, times(1)).users();
         verify(usersResource, times(1)).searchByEmail(testEmail, true);
+    }
+
+    @Test
+    @DisplayName("Debería obtener todos los usuarios de un realm exitosamente")
+    void getAllUsers_Success() {
+        List<UserRepresentation> mockUsers = new ArrayList<>();
+        UserRepresentation user1 = new UserRepresentation();
+        user1.setUsername("user1");
+        UserRepresentation user2 = new UserRepresentation();
+        user2.setUsername("user2");
+        mockUsers.add(user1);
+        mockUsers.add(user2);
+
+        when(keycloak.realm(testRealm)).thenReturn(realmResource);
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.list()).thenReturn(mockUsers);
+
+        List<UserRepresentation> result = keycloakService.getAllUsers(testRealm);
+
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals("user1", result.get(0).getUsername());
+        assertEquals("user2", result.get(1).getUsername());
+
+        verify(keycloak, times(1)).realm(testRealm);
+        verify(realmResource, times(1)).users();
+        verify(usersResource, times(1)).list();
+    }
+
+    @Test
+    @DisplayName("Debería actualizar un usuario exitosamente en Keycloak")
+    void updateUser_Success() {
+        when(realmResource.users()).thenReturn(usersResource);
+        when(realmResource.users().get(testUserId)).thenReturn(userResource);
+        when(userResource.toRepresentation()).thenReturn(userRepresentation);
+
+        UserRequest userRequest = new UserRequest();
+        userRequest.setUsername(testUsername);
+        userRequest.setEmail(testEmail);
+        userRequest.setFirstName("Test");
+        userRequest.setLastName("User");
+        userRequest.setRole("ROLE");
+
+        assertDoesNotThrow(() -> keycloakService.updateUser(testRealm, testUserId, userRequest));
+
+        verify(keycloak, times(1)).realm("test-realm");
+        verify(realmResource.users(), times(1)).get(testUserId);
+    }
+
+    @Test
+    @DisplayName("Debería eliminar un usuario exitosamente en Keycloak")
+    void deleteUser_Success() {
+        when(keycloak.realm(testRealm)).thenReturn(realmResource);
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.get(testUserId)).thenReturn(userResource);
+
+        doNothing().when(userResource).remove();
+
+        assertDoesNotThrow(() -> keycloakService.deleteUser(testRealm, testUserId));
+
+        verify(keycloak, times(1)).realm(testRealm);
+        verify(realmResource, times(1)).users();
+        verify(usersResource, times(1)).get(testUserId);
+        verify(userResource, times(1)).remove();
     }
 
     @Test

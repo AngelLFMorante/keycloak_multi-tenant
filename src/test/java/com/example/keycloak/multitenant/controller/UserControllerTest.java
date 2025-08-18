@@ -1,174 +1,119 @@
 package com.example.keycloak.multitenant.controller;
 
-import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.UserRequest;
-import com.example.keycloak.multitenant.service.KeycloakService;
+import com.example.keycloak.multitenant.service.UserService;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class UserControllerTest {
 
     @Mock
-    private KeycloakService keycloakService;
-    @Mock
-    private KeycloakProperties keycloakProperties;
+    private UserService userService;
 
     @InjectMocks
-    private UserController registerController;
+    private UserController userController;
 
     private String realm;
-    private String keycloakRealm;
-    private Map<String, String> realmMapping;
+    private UserRequest userRequest;
 
     @BeforeEach
     void setUp() {
         realm = "plexus";
-        keycloakRealm = "plexus-realm";
-
-        realmMapping = new HashMap<>();
-        realmMapping.put(realm, keycloakRealm);
-
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
+        userRequest = new UserRequest();
+        userRequest.setUsername("user");
+        userRequest.setEmail("user@gmail.com");
+        userRequest.setFirstName("Test");
+        userRequest.setLastName("User");
+        userRequest.setRole("USER");
     }
 
     @Test
-    @DisplayName("showRegisterForm debería retornar el realm y registerRequest")
-    void showRegisterForm_shouldReturnRealmInfo() {
-        ResponseEntity<Map<String, Object>> responseEntity = registerController.showRegisterForm(realm);
+    @DisplayName("registerUser debería retornar CREATED con el response del service")
+    void registerUser_shouldReturnCreated() {
+        Map<String, Object> serviceResponse = new HashMap<>();
+        serviceResponse.put("message", "Usuario registrado correctamente");
+        serviceResponse.put("tenantId", realm);
 
-        assertNotNull(responseEntity);
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        Map<String, Object> body = responseEntity.getBody();
-        assertNotNull(body);
-        assertEquals(realm, body.get("realm"));
-        assertEquals(keycloakRealm, body.get("keycloakRealm"));
-        assertTrue(body.get("registerRequest") instanceof UserRequest);
-    }
+        when(userService.registerUser(eq(realm), any(UserRequest.class))).thenReturn(serviceResponse);
 
-    @Test
-    @DisplayName("showRegisterForm debería lanzar ResponseStatusException si el realm no está mapeado")
-    void showRegisterForm_shouldThrowExceptionForUnmappedRealm() {
-        String unknownRealm = "unknown";
-        when(keycloakProperties.getRealmMapping()).thenReturn(Collections.emptyMap());
-
-        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
-            registerController.showRegisterForm(unknownRealm);
-        });
-
-        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
-        assertTrue(exception.getReason().contains("Tenant " + unknownRealm + " no reconocido."));
-    }
-
-    @Test
-    @DisplayName("register debería crear un usuario exitosamente")
-    void register_shouldCreateUserSuccessfully() {
-        UserRequest userRequest = new UserRequest();
-        userRequest.setUsername("testuser");
-        userRequest.setEmail("test@example.com");
-        userRequest.setPassword("Password123!");
-        userRequest.setConfirmPassword("Password123!");
-
-        when(keycloakService.userExistsByEmail(keycloakRealm, userRequest.getEmail())).thenReturn(false);
-        doNothing().when(keycloakService).createUser(anyString(), any(UserRequest.class));
-
-        ResponseEntity<Map<String, Object>> responseEntity = registerController.register(realm, userRequest);
+        ResponseEntity<Map<String, Object>> responseEntity = userController.registerUser(realm, userRequest);
 
         assertNotNull(responseEntity);
         assertEquals(HttpStatus.CREATED, responseEntity.getStatusCode());
-        Map<String, Object> body = responseEntity.getBody();
-        assertNotNull(body);
-        assertEquals("User registered. Waiting for admin approval.", body.get("message"));
-        assertEquals(realm, body.get("tenantId"));
-        assertEquals(keycloakRealm, body.get("keycloakRealm"));
+        assertEquals(serviceResponse, responseEntity.getBody());
 
-        verify(keycloakService, times(1)).userExistsByEmail(keycloakRealm, userRequest.getEmail());
-        verify(keycloakService, times(1)).createUser(keycloakRealm, userRequest);
+        verify(userService, times(1)).registerUser(eq(realm), any(UserRequest.class));
     }
 
     @Test
-    @DisplayName("register debería lanzar IllegalArgumentException si las contraseñas no coinciden")
-    void register_shouldThrowExceptionIfPasswordsMismatch() {
-        UserRequest userRequest = new UserRequest();
-        userRequest.setUsername("testuser");
-        userRequest.setEmail("test@example.com");
-        userRequest.setPassword("Password123!");
-        userRequest.setConfirmPassword("MismatchPassword!");
+    @DisplayName("getAllUsers debería retornar la lista de usuarios del service")
+    void getAllUsers_shouldReturnListOfUsers() {
+        List<UserRepresentation> users = new ArrayList<>();
+        UserRepresentation user = new UserRepresentation();
+        user.setUsername("testuser");
+        users.add(user);
 
-        verifyNoInteractions(keycloakService);
+        when(userService.getAllUsers(realm)).thenReturn(users);
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            registerController.register(realm, userRequest);
-        });
+        ResponseEntity<List<UserRepresentation>> responseEntity = userController.getAllUsers(realm);
 
-        assertEquals("Password no coinciden", exception.getMessage());
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(users, responseEntity.getBody());
+
+        verify(userService, times(1)).getAllUsers(realm);
     }
 
     @Test
-    @DisplayName("register debería lanzar IllegalArgumentException si el email ya existe")
-    void register_shouldThrowExceptionIfEmailExists() {
-        UserRequest userRequest = new UserRequest();
-        userRequest.setUsername("testuser");
-        userRequest.setEmail("existing@example.com");
-        userRequest.setPassword("Password123!");
-        userRequest.setConfirmPassword("Password123!");
+    @DisplayName("updateUser debería llamar al service y retornar OK")
+    void updateUser_shouldReturnOk() {
+        UUID userId = UUID.randomUUID();
 
-        when(keycloakService.userExistsByEmail(keycloakRealm, userRequest.getEmail())).thenReturn(true);
+        doNothing().when(userService).updateUser(eq(realm), eq(userId.toString()), any(UserRequest.class));
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            registerController.register(realm, userRequest);
-        });
+        ResponseEntity<Void> responseEntity = userController.updateUser(realm, userId, userRequest);
 
-        assertTrue(exception.getMessage().contains("El email 'existing@example.com' ya está registrado en Keycloak."));
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
 
-        verify(keycloakService, times(1)).userExistsByEmail(keycloakRealm, userRequest.getEmail());
-        verify(keycloakService, never()).createUser(anyString(), any(UserRequest.class));
+        verify(userService, times(1)).updateUser(eq(realm), eq(userId.toString()), any(UserRequest.class));
     }
 
     @Test
-    @DisplayName("register debería lanzar ResponseStatusException si el realm no está mapeado")
-    void register_shouldThrowExceptionForUnmappedRealm() {
-        String unknownRealm = "unknown";
-        UserRequest userRequest = new UserRequest();
-        userRequest.setUsername("testuser");
-        userRequest.setEmail("test@example.com");
-        userRequest.setPassword("Password123!");
-        userRequest.setConfirmPassword("Password123!");
+    @DisplayName("deleteUser debería llamar al service y retornar NO_CONTENT")
+    void deleteUser_shouldReturnNoContent() {
+        UUID userId = UUID.randomUUID();
 
-        when(keycloakProperties.getRealmMapping()).thenReturn(Collections.emptyMap());
+        doNothing().when(userService).deleteUser(eq(realm), eq(userId.toString()));
 
-        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
-            registerController.register(unknownRealm, userRequest);
-        });
+        ResponseEntity<Void> responseEntity = userController.deleteUser(realm, userId);
 
-        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
-        assertTrue(exception.getReason().contains("Tenant " + unknownRealm + " no reconocido."));
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.NO_CONTENT, responseEntity.getStatusCode());
 
-        verifyNoInteractions(keycloakService);
+        verify(userService, times(1)).deleteUser(eq(realm), eq(userId.toString()));
     }
 }

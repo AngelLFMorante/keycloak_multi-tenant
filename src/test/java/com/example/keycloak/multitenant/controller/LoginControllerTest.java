@@ -8,7 +8,6 @@ import com.example.keycloak.multitenant.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,30 +109,6 @@ class LoginControllerTest {
         keycloakProperties.setClientSecrets(clientSecrets);
         keycloakProperties.setAuthServerUrl(authServerUrl);
         keycloakProperties.setAdmin(admin);
-    }
-
-    @Test
-    @DisplayName("Debería retornar el realm del tenant para GET /{realm}/login")
-    void redirectToTenantLogin_shouldReturnTenantRealm() {
-        ResponseEntity<Map<String, Object>> responseEntity = loginController.redirectToTenantLogin(realm);
-
-        assertNotNull(responseEntity);
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(realm, responseEntity.getBody().get("realm"));
-        assertEquals(keycloakRealm, responseEntity.getBody().get("keycloakRealm"));
-    }
-
-    @Test
-    @DisplayName("Debería lanzar ResponseStatusException si el realm no está mapeado para GET /{realm}/login")
-    void redirectToTenantLogin_shouldThrowExceptionForUnmappedRealm() {
-        keycloakProperties.setRealmMapping(Collections.emptyMap());
-
-        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
-            loginController.redirectToTenantLogin("unknown");
-        });
-
-        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
-        assertTrue(exception.getReason().contains("Tenant unknown no reconocido."));
     }
 
     @Test

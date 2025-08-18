@@ -21,7 +21,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -68,30 +67,6 @@ public class LoginController {
     }
 
     /**
-     * Maneja la solicitud GET para la página de login específica de un tenant.
-     * Añade el ID del tenant al modelo.
-     *
-     * @param realm El nombre del realm (tenant)
-     * @return El nombre de la vista
-     */
-    @GetMapping("/{realm}/login")
-    public ResponseEntity<Map<String, Object>> redirectToTenantLogin(@PathVariable String realm) {
-        log.info("Solicitud GET para información de registro del tenant: {}", realm);
-        Map<String, Object> response = new HashMap<>();
-        response.put("realm", realm);
-
-        String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
-        if (keycloakRealm == null) {
-            log.warn("Mapeo de realm no encontrado para el tenantPath: {}", realm);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realm + " no reconocido.");
-        }
-
-        response.put("keycloakRealm", keycloakRealm);
-
-        return ResponseEntity.ok(response);
-    }
-
-    /**
      * Maneja la solicitud POST de login de un usuario para un tenant específico.
      * Este método delega la autenticación a {@link AuthService} y, si es exitosa,
      * integra la autenticación con Spring Security para establecer la sesión.
@@ -113,7 +88,7 @@ public class LoginController {
             @RequestParam String password,
             HttpServletRequest request,
             HttpServletResponse response
-    ) throws Exception {
+    ) {
         log.info("Intento de login para usuario '{}' en tenant '{}' con cliente keycloak '{}'", username, realm, client);
 
         AuthResponse authResponse = authService.authenticate(realm, client, username, password);
