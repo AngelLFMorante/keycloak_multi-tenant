@@ -96,7 +96,10 @@ O usando Docker:
 |--------|-------------------------------------|---------------------------------|
 | GET    | `/api/v1/{realm}/login`             | Página de login                 |
 | POST   | `/api/v1/{realm}/{client}/do_login` | Login con usuario/password      |
-| POST   | `/api/v1/{realm}/register`          | Registro de usuario en Keycloak |
+| GET    | `/api/v1/{realm}/users`             | Obtener todos los usuarios      |
+| POST   | `/api/v1/{realm}/users/register`    | Registro de usuario en Keycloak |
+| PUT    | `/api/v1/{realm}/users/{userId}`    | Actualizar un usuario           |
+| DELETE | `/api/v1/{realm}/users/{userId}`    | Eliminar un usuario             |
 | GET    | `/api/v1/logout`                    | Logout y cierre de sesión       |
 | GET    | `/api/v1/{realm}/roles`             | Obtener todos los roles         |
 | POST   | `/api/v1/{realm}/roles`             | Crear un nuevo rol              |
@@ -135,20 +138,43 @@ http://localhost:8081/api/v1/logout \
     }'
 ```
 
-### 🧝 Registro
+### 🧝 Registro usuario
 
 ```bash
   curl -X POST \
-http://localhost:8081/api/v1/{REALM_PATH}/register \
+http://localhost:8081/api/v1/{REALM_PATH}/users/register \
 -H 'Content-Type: application/json' \
 -d '{
       "username": "newuser",
       "email": "newuser@example.com",
-      "password": "password123",
-      "confirmPassword": "password123",
       "firstName": "New",
-      "lastName": "User"
+      "lastName": "User",
+      "role": "user"
     }'
+```
+
+### 🧝 Obtener todos los usuarios
+
+```bash
+  curl -X GET http://localhost:8081/api/v1/{REALM_PATH}/users
+```
+
+### 🧝 Actualizar usuario
+
+```bash
+  curl -X PUT http://localhost:8081/api/v1/{REALM_PATH}/users/{USER_ID} \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "email": "updated.user@example.com",
+    "firstName": "Updated",
+    "lastName": "User"
+  }'
+```
+
+### 🧝 Eliminar usuario
+
+```bash
+  curl -X DELETE http://localhost:8081/api/v1/{REALM_PATH}/users/{USER_ID}
 ```
 
 ### 🧾 Obtener Roles

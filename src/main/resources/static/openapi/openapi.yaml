@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Keycloak Multi-Tenant API
-  description: API REST para la gestión de autenticación en un entorno multi-tenant con Keycloak. Utiliza un flujo de Password Grant Type para el login.
+  description: API REST para la gestión de autenticación y usuarios en un entorno multi-tenant con Keycloak. Utiliza un flujo de Password Grant Type para el login.
   version: 1.0.0
 servers:
   - url: 'http://localhost:8081/api/v1'
@@ -162,39 +162,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /{realm}/register:
-    get:
-      summary: Obtiene información del tenant para el registro
-      operationId: getRegisterInfo
-      tags:
-        - User Management
-      parameters:
-        - name: realm
-          in: path
-          description: El identificador del tenant (realm)
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Información del tenant para el registro
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  realm:
-                    type: string
-                  registerRequest:
-                    $ref: '#/components/schemas/RegisterRequest'
-                  keycloakRealm:
-                    type: string
-        '404':
-          description: Tenant no reconocido
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+  /{realm}/users/register:
     post:
       summary: Registra un nuevo usuario en un tenant
       operationId: registerUser
@@ -213,7 +181,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterRequest'
+              $ref: '#/components/schemas/UserRequest'
       responses:
         '201':
           description: Usuario registrado exitosamente
@@ -224,13 +192,13 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: "User registered. Waiting for admin approval."
+                    example: "Usuario registrado. Esperando aprobacion de administrador."
                   tenantId:
                     type: string
                   keycloakRealm:
                     type: string
         '400':
-          description: Error de validación, contraseñas no coincidentes o email ya registrado
+          description: Error de validación o datos de sesión faltantes
           content:
             application/json:
               schema:
@@ -242,13 +210,132 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: El usuario ya existe o hay un conflicto con la creación en Keycloak
+          description: El email ya está registrado o hay un conflicto en Keycloak
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Error interno del servidor al interactuar con Keycloak
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /{realm}/users:
+    get:
+      summary: Obtiene una lista de todos los usuarios en un tenant
+      operationId: getAllUsers
+      tags:
+        - User Management
+      parameters:
+        - name: realm
+          in: path
+          description: El identificador del tenant (realm)
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de usuarios obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserRepresentation'
+        '404':
+          description: Tenant no reconocido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno del servidor al obtener usuarios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /{realm}/users/{userId}:
+    put:
+      summary: Actualiza la información de un usuario
+      operationId: updateUser
+      tags:
+        - User Management
+      parameters:
+        - name: realm
+          in: path
+          description: El identificador del tenant (realm)
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          description: El ID del usuario a actualizar
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        description: Datos del usuario a actualizar
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+      responses:
+        '200':
+          description: Usuario actualizado exitosamente
+        '400':
+          description: Error de validación o formato de ID inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant o usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno del servidor al actualizar el usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Elimina un usuario por su ID
+      operationId: deleteUser
+      tags:
+        - User Management
+      parameters:
+        - name: realm
+          in: path
+          description: El identificador del tenant (realm)
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          description: El ID del usuario a eliminar
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Usuario eliminado exitosamente
+        '404':
+          description: Tenant o usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno del servidor al eliminar el usuario
           content:
             application/json:
               schema:
@@ -477,30 +564,19 @@ components:
           description: El refresh token para obtener un nuevo token de acceso.
           example: "eyJhbGciOiJIUzUxMi..."
 
-    RegisterRequest:
+    UserRequest:
       type: object
       required:
         - username
-        - password
-        - confirmPassword
         - email
         - firstName
         - lastName
+        - role
       properties:
         username:
           type: string
           description: El nombre de usuario deseado.
           example: "new.user"
-        password:
-          type: string
-          description: La contraseña del usuario.
-          format: password
-          minLength: 8
-        confirmPassword:
-          type: string
-          description: La confirmación de la contraseña.
-          format: password
-          minLength: 8
         email:
           type: string
           description: La dirección de correo electrónico del usuario.
@@ -514,6 +590,35 @@ components:
           type: string
           description: El apellido del usuario.
           example: "Usuario"
+        role:
+          type: string
+          description: Rol que se le asignará en Keycloak.
+          example: "user"
+
+    UserRepresentation:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+        username:
+          type: string
+          example: "john.doe"
+        email:
+          type: string
+          example: "john.doe@example.com"
+        firstName:
+          type: string
+          example: "John"
+        lastName:
+          type: string
+          example: "Doe"
+        enabled:
+          type: boolean
+          example: true
+        createdTimestamp:
+          type: integer
+          example: 1678886400
 
     CreateRoleRequest:
       type: object
