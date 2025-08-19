@@ -111,9 +111,10 @@ public class KeycloakService {
         if (updatedUserRequest.getEmail() != null && !updatedUserRequest.getEmail().isBlank()) {
             userRepresentation.setEmail(updatedUserRequest.getEmail());
         }
-        if (updatedUserRequest.getUsername() != null && !updatedUserRequest.getUsername().isBlank()) {
+        //Actualmente no se puede cambiar el username si no esta habilitado el switch en realmSetting -> login -> email as username
+        /*if (updatedUserRequest.getUsername() != null && !updatedUserRequest.getUsername().isBlank()) {
             userRepresentation.setUsername(updatedUserRequest.getUsername());
-        }
+        }*/
 
         userResource.update(userRepresentation);
 
