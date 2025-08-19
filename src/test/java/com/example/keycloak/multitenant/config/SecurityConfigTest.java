@@ -95,7 +95,7 @@ class SecurityConfigTest {
     @DisplayName("Debería permitir acceso POST a /api/v1/{realm}/register sin autenticación")
     void securityFilterChain_shouldPermitPostRegister() throws Exception {
         String jsonBody = "{\"username\":\"test\",\"email\":\"test@example.com\",\"password\":\"password\",\"confirmPassword\":\"password\"}";
-        mockMvc.perform(post("/api/v1/realm/register")
+        mockMvc.perform(post("/api/v1/realm/users/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody))
                 .andExpect(status().isBadRequest());
@@ -105,7 +105,7 @@ class SecurityConfigTest {
     @DisplayName("CSRF debería estar deshabilitado")
     void securityFilterChain_csrfShouldBeDisabled() throws Exception {
         String jsonBody = "{\"username\":\"test\",\"email\":\"test@example.com\",\"password\":\"password\",\"confirmPassword\":\"password\"}";
-        mockMvc.perform(post("/api/v1/realm/register")
+        mockMvc.perform(post("/api/v1/realm/users/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody))
                 .andExpect(status().isBadRequest()); // Sigue siendo 400 del controlador, no 403 CSRF.

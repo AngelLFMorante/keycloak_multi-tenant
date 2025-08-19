@@ -3,14 +3,14 @@ package com.example.keycloak.multitenant.service;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
-import com.example.keycloak.multitenant.model.RegisterRequest;
+import com.example.keycloak.multitenant.model.UserRequest;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
-import org.keycloak.admin.client.resource.UsersResource;
+import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -45,86 +45,146 @@ public class KeycloakService {
     }
 
     /**
-     * Crea un nuevo usuario en un realm específico de Keycloak.
-     * Después de la creación, se establece la contraseña del usuario.
-     * Por defecto, el usuario se crea como deshabilitado, requiriendo aprobación del administrador.
+     * Crea un nuevo usuario en un realm de Keycloak, asigna una contraseña temporal y un rol.
      *
-     * @param realm   El nombre del realm de Keycloak donde se creará el usuario (ej. "plexus-realm").
-     * @param request Un objeto {@link RegisterRequest} que contiene los detalles del usuario a registrar.
-     * @throws RuntimeException Si la creación del usuario o el establecimiento de la contraseña fallan en Keycloak.
+     * @param realm        El nombre del realm de Keycloak.
+     * @param request      Los datos del usuario a registrar.
+     * @param tempPassword La contraseña temporal generada.
      */
-    public void createUser(String realm, RegisterRequest request) {
-        log.info("Intentando crear usuario '{}' en el realm '{}'.", request.getUsername(), realm);
-        log.debug("Datos de usuario para creación: username={}, email={}, firstName={}, lastName={}",
-                request.getUsername(), request.getEmail(), request.getFirstName(), request.getLastName());
+    public void createUserWithRole(String realm, UserRequest request, String tempPassword) {
+        log.info("Iniciando el proceso de registro para el usuario '{}' en el realm '{}'.", request.getUsername(), realm);
 
-        // Crea una representación del usuario a partir de los datos de la solicitud de registro.
+        RealmResource realmResource = keycloak.realm(realm);
+
+        String userId = createUser(realmResource, request);
+        setTemporaryPassword(realmResource, userId, tempPassword);
+        assignRoleToUser(realmResource, userId, request.getRole());
+
+        log.info("Usuario '{}' registrado exitosamente con el rol '{}'.", request.getUsername(), request.getRole());
+    }
+
+    /**
+     * Comprueba si un usuario con el email dado ya existe en Keycloak.
+     *
+     * @param realm El nombre del realm de Keycloak a consultar.
+     * @param email El email a buscar.
+     * @return {@code true} si el email ya está en uso, de lo contrario {@code false}.
+     */
+    public boolean userExistsByEmail(String realm, String email) {
+        log.debug("Comprobando si el email '{}' ya existe en el realm '{}'.", email, realm);
+        List<UserRepresentation> users = keycloak.realm(realm).users().searchByEmail(email, true);
+        return users != null && !users.isEmpty();
+    }
+
+    /**
+     * Obtiene una lista de todos los usuarios en un realm específico.
+     *
+     * @param realm El nombre del realm de Keycloak.
+     * @return Una lista de {@link UserRepresentation} de todos los usuarios.
+     */
+    public List<UserRepresentation> getAllUsers(String realm) {
+        log.info("Obteniendo todos los usuarios del realm '{}'.", realm);
+        return keycloak.realm(realm).users().list();
+    }
+
+    /**
+     * Actualiza la información de un usuario existente en un realm, modificando solo los campos proporcionados.
+     *
+     * @param realm              El nombre del realm de Keycloak.
+     * @param userId             El ID del usuario a actualizar.
+     * @param updatedUserRequest Los datos de usuario actualizados, recibidos del controlador.
+     */
+    public void updateUser(String realm, String userId, UserRequest updatedUserRequest) {
+        log.info("Actualizando usuario con ID '{}' en el realm '{}'.", userId, realm);
+
+        RealmResource realmResource = keycloak.realm(realm);
+        UserResource userResource = realmResource.users().get(userId);
+
+        UserRepresentation userRepresentation = userResource.toRepresentation();
+
+        if (updatedUserRequest.getFirstName() != null && !updatedUserRequest.getFirstName().isBlank()) {
+            userRepresentation.setFirstName(updatedUserRequest.getFirstName());
+        }
+        if (updatedUserRequest.getLastName() != null && !updatedUserRequest.getLastName().isBlank()) {
+            userRepresentation.setLastName(updatedUserRequest.getLastName());
+        }
+        if (updatedUserRequest.getEmail() != null && !updatedUserRequest.getEmail().isBlank()) {
+            userRepresentation.setEmail(updatedUserRequest.getEmail());
+        }
+        //Actualmente no se puede cambiar el username si no esta habilitado el switch en realmSetting -> login -> email as username
+        /*if (updatedUserRequest.getUsername() != null && !updatedUserRequest.getUsername().isBlank()) {
+            userRepresentation.setUsername(updatedUserRequest.getUsername());
+        }*/
+
+        userResource.update(userRepresentation);
+
+        log.info("Usuario con ID '{}' actualizado exitosamente.", userId);
+    }
+
+    /**
+     * Elimina un usuario por su ID en un realm específico.
+     *
+     * @param realm  El nombre del realm de Keycloak.
+     * @param userId El ID del usuario a eliminar.
+     */
+    public void deleteUser(String realm, String userId) {
+        log.info("Eliminando usuario con ID '{}' del realm '{}'.", userId, realm);
+        keycloak.realm(realm).users().get(userId).remove();
+        log.info("Usuario con ID '{}' eliminado exitosamente.", userId);
+    }
+
+    private String createUser(RealmResource realmResource, UserRequest request) {
+        log.debug("Creando usuario '{}' en Keycloak.", request.getUsername());
         UserRepresentation user = new UserRepresentation();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
-        user.setEnabled(false); // Esto requiere que un administrador lo habilite manualmente en Keycloak.
+        user.setEnabled(false);
 
-        RealmResource realmResource = keycloak.realm(realm);
-        UsersResource usersResource = realmResource.users();
-
-        // Se obtiene una instancia del realm y luego se accede al recurso de usuarios para crear uno nuevo.
-        try (Response response = usersResource.create(user)) {
-            if (response.getStatus() == 201) {
-                log.info("Usuario '{}' creado exitosamente en Keycloak. Status: 201 Created.", request.getUsername());
-
-                // La cabecera Location contiene la URL del recurso del nuevo usuario (ej. /auth/admin/realms/{realm}/users/{userId}).
-                // Se utiliza una expresión regular para extraer el 'userId' de esa URL.
-                String userId = response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
-                log.debug("ID de usuario creado: {}", userId);
-
-                CredentialRepresentation credential = new CredentialRepresentation();
-                credential.setType(CredentialRepresentation.PASSWORD);
-                credential.setValue(request.getPassword());
-                credential.setTemporary(false);
-
-                try {
-                    // Se accede al recurso del usuario por su ID y se llama al metodo resetPassword.
-                    realmResource.users().get(userId).resetPassword(credential);
-                    log.info("Contraseña establecida exitosamente para el usuario '{}'.", request.getUsername());
-                } catch (Exception e) {
-                    log.error("Fallo al establecer la contraseña para el usuario '{}' (ID: {}). Error: {}", request.getUsername(), userId, e.getMessage(), e);
-                    throw new KeycloakUserCreationException("Error al establecer la contraseña para el usuario '" + request.getUsername() + "': " + e.getMessage(), e);
-                }
-            } else {
+        try (Response response = realmResource.users().create(user)) {
+            if (response.getStatus() != 201) {
                 String errorDetails = response.readEntity(String.class);
-                log.error("Fallo al crear usuario '{}' en Keycloak. Status: {}, Detalles: {}", request.getUsername(), response.getStatus(), errorDetails);
-                throw new KeycloakUserCreationException("Error al crear usuario en Keycloak. Estado HTTP: " + response.getStatus() + ". Detalles: " + errorDetails);
+                log.error("Fallo al crear usuario '{}'. Estado: {}, Detalles: {}", request.getUsername(), response.getStatus(), errorDetails);
+                throw new KeycloakUserCreationException("Error al crear usuario. Estado HTTP: " + response.getStatus() + ". Detalles: " + errorDetails);
             }
-        } catch (KeycloakUserCreationException e) {
-            throw e;
+            String userId = response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
+            log.info("Usuario '{}' creado exitosamente con ID: {}.", request.getUsername(), userId);
+            return userId;
         } catch (Exception e) {
-            log.error("Excepción inesperada al intentar crear usuario '{}'  en Keycloak : {}", request.getUsername(), realm);
+            log.error("Excepción inesperada al crear usuario: {}", e.getMessage());
             throw new KeycloakUserCreationException("Error inesperado al crear usuario: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * Comprueba si un usuario con el email dado ya existe en Keycloak
-     *
-     * @param realm El nombre del realm de Keycloak a consultar
-     * @param email El email a buscar
-     * @return true si el email existe en Keycloak
-     */
-    public boolean userExistsByEmail(String realm, String email) {
-        log.debug("Comprobando si el email '{}' ya existe en el realm '{}'.", email, realm);
-        RealmResource realmResource = keycloak.realm(realm);
-        UsersResource userResource = realmResource.users();
+    private void setTemporaryPassword(RealmResource realmResource, String userId, String tempPassword) {
+        log.debug("Estableciendo contraseña temporal para el usuario ID '{}'.", userId);
+        CredentialRepresentation credential = new CredentialRepresentation();
+        credential.setType(CredentialRepresentation.PASSWORD);
+        credential.setValue(tempPassword);
+        credential.setTemporary(true);
 
-        List<UserRepresentation> users = userResource.searchByEmail(email, true);
+        try {
+            realmResource.users().get(userId).resetPassword(credential);
+            log.info("Contraseña temporal establecida para el usuario ID '{}'.", userId);
+        } catch (Exception e) {
+            log.error("Fallo al establecer la contraseña para el usuario ID '{}'. Error: {}", userId, e.getMessage(), e);
+            throw new KeycloakUserCreationException("Error al establecer la contraseña: " + e.getMessage(), e);
+        }
+    }
 
-        if (users != null && !users.isEmpty()) {
-            log.info("Email '{}' ya existe en el realm '{}'.", email, realm);
-            return true;
-        } else {
-            log.debug("Email '{}' no encontrado en el realm '{}'.", email, realm);
-            return false;
+    private void assignRoleToUser(RealmResource realmResource, String userId, String roleName) {
+        log.debug("Asignando el rol '{}' al usuario ID '{}'.", roleName, userId);
+        try {
+            RoleRepresentation roleRepresentation = realmResource.roles().get(roleName).toRepresentation();
+            realmResource.users().get(userId).roles().realmLevel().add(List.of(roleRepresentation));
+            log.info("Rol '{}' asignado exitosamente al usuario ID '{}'.", roleName, userId);
+        } catch (NotFoundException e) {
+            log.error("Fallo al asignar el rol: el rol '{}' no fue encontrado.", roleName);
+            throw new KeycloakRoleCreationException("El rol '" + roleName + "' no existe en el realm.");
+        } catch (Exception e) {
+            log.error("Fallo al asignar el rol '{}' al usuario ID '{}'. Error: {}", roleName, userId, e.getMessage(), e);
+            throw new KeycloakRoleCreationException("Error al asignar el rol '" + roleName + "'.");
         }
     }
 
