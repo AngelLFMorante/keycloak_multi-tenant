@@ -37,6 +37,5 @@ public class UserRequest {
     /**
      * Rol que se le asignará en Keycloak.
      */
-    @NotBlank(message = "El rol no puede estar vacío")
     private String role;
 }
