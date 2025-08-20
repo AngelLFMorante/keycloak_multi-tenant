@@ -47,8 +47,6 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realmPath + " no reconocido.");
         }
 
-        Assert.hasText(request.getRole(), "El rol no puede estar vacio");
-
         if (keycloakService.userExistsByEmail(keycloakRealm, request.getEmail())) {
             log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.getEmail(), realmPath);
             throw new IllegalArgumentException("El email '" + request.getEmail() + "' ya está registrado.");

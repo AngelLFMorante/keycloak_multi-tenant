@@ -174,6 +174,11 @@ public class KeycloakService {
     }
 
     private void assignRoleToUser(RealmResource realmResource, String userId, String roleName) {
+        if (roleName == null || roleName.isBlank()) {
+            log.info("No se asignó ningún rol porque el rol está vacío o no especificado.");
+            return;
+        }
+        
         log.debug("Asignando el rol '{}' al usuario ID '{}'.", roleName, userId);
         try {
             RoleRepresentation roleRepresentation = realmResource.roles().get(roleName).toRepresentation();
