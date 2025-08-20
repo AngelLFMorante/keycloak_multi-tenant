@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
@@ -51,6 +52,18 @@ public class UserService {
         if (keycloakService.userExistsByEmail(keycloakRealm, request.getEmail())) {
             log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.getEmail(), realmPath);
             throw new IllegalArgumentException("El email '" + request.getEmail() + "' ya está registrado.");
+        }
+
+        List<RoleRepresentation> roles = keycloakService.getRoles(realmPath);
+
+        String roleName = request.getRole();
+
+        boolean roleExists = roleName == null || roleName.isBlank() ||
+                roles.stream().anyMatch(r -> roleName.equals(r.getName()));
+
+        if (!roleExists) {
+            log.warn("Error de registro: El role '{}' no existe para el realm '{}'.", roleName, realmPath);
+            throw new IllegalArgumentException("El role '" + roleName + "' no existe.");
         }
 
         String tempPassword = generateTemporaryPassword();
