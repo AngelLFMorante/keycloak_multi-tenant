@@ -54,7 +54,7 @@ public class UserService {
             throw new IllegalArgumentException("El email '" + request.getEmail() + "' ya está registrado.");
         }
 
-        List<RoleRepresentation> roles = keycloakService.getRoles(realmPath);
+        List<RoleRepresentation> roles = keycloakService.getRoles(keycloakRealm);
 
         String roleName = request.getRole();
 
