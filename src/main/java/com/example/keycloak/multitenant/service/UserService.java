@@ -52,18 +52,6 @@ public class UserService {
             throw new IllegalArgumentException("El email '" + request.getEmail() + "' ya está registrado.");
         }
 
-        List<RoleRepresentation> roles = keycloakService.getRoles(keycloakRealm);
-
-        String roleName = request.getRole();
-
-        boolean roleExists = roleName == null || roleName.isBlank() ||
-                roles.stream().anyMatch(r -> roleName.equals(r.getName()));
-
-        if (!roleExists) {
-            log.warn("Error de registro: El role '{}' no existe para el realm '{}'.", roleName, realmPath);
-            throw new IllegalArgumentException("El role '" + roleName + "' no existe.");
-        }
-
         String tempPassword = generateTemporaryPassword();
         keycloakService.createUserWithRole(keycloakRealm, request, tempPassword);
 

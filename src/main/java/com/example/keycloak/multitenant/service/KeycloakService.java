@@ -58,9 +58,24 @@ public class KeycloakService {
 
         String userId = createUser(realmResource, request);
         setTemporaryPassword(realmResource, userId, tempPassword);
+        checkRole(realm, request);
         assignRoleToUser(realmResource, userId, request.getRole());
 
         log.info("Usuario '{}' registrado exitosamente con el rol '{}'.", request.getUsername(), request.getRole());
+    }
+
+    private void checkRole(String realm, UserRequest request) {
+        List<RoleRepresentation> roles = getRoles(realm);
+
+        String roleName = request.getRole();
+
+        boolean roleExists = roleName == null || roleName.isBlank() ||
+                roles.stream().anyMatch(r -> roleName.equals(r.getName()));
+
+        if (!roleExists) {
+            log.warn("Error de registro: El role '{}' no existe para el realm '{}'.", roleName, realm);
+            throw new IllegalArgumentException("El role '" + roleName + "' no existe.");
+        }
     }
 
     /**
@@ -178,7 +193,7 @@ public class KeycloakService {
             log.info("No se asignó ningún rol porque el rol está vacío o no especificado.");
             return;
         }
-        
+
         log.debug("Asignando el rol '{}' al usuario ID '{}'.", roleName, userId);
         try {
             RoleRepresentation roleRepresentation = realmResource.roles().get(roleName).toRepresentation();
