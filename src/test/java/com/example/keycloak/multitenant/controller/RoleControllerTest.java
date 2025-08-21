@@ -2,7 +2,7 @@ package com.example.keycloak.multitenant.controller;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
-import com.example.keycloak.multitenant.service.KeycloakService;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakService;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;

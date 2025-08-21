@@ -2,6 +2,7 @@ package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakService;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

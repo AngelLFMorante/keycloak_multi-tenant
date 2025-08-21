@@ -2,7 +2,7 @@ package com.example.keycloak.multitenant.controller;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.UserRequest;
-import com.example.keycloak.multitenant.service.KeycloakService;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakService;
 import com.example.keycloak.multitenant.service.UserService;
 import jakarta.validation.Valid;
 import java.util.List;

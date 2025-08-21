@@ -4,6 +4,7 @@ import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakService;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;

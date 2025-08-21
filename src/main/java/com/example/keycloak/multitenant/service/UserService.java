@@ -2,29 +2,28 @@ package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
-import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.util.Assert;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
-    private final KeycloakService keycloakService;
+    private final KeycloakUserService keycloakUserService;
     private final KeycloakProperties keycloakProperties;
 
-    public UserService(KeycloakService keycloakService, KeycloakProperties keycloakProperties) {
-        this.keycloakService = keycloakService;
+    public UserService(KeycloakUserService keycloakUserService, KeycloakProperties keycloakProperties) {
+        this.keycloakUserService = keycloakUserService;
         this.keycloakProperties = keycloakProperties;
     }
 
@@ -47,13 +46,13 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realmPath + " no reconocido.");
         }
 
-        if (keycloakService.userExistsByEmail(keycloakRealm, request.getEmail())) {
+        if (keycloakUserService.userExistsByEmail(keycloakRealm, request.getEmail())) {
             log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.getEmail(), realmPath);
             throw new IllegalArgumentException("El email '" + request.getEmail() + "' ya está registrado.");
         }
 
         String tempPassword = generateTemporaryPassword();
-        keycloakService.createUserWithRole(keycloakRealm, request, tempPassword);
+        keycloakUserService.createUserWithRole(keycloakRealm, request, tempPassword);
 
         log.info("Usuario '{}' registrado exitosamente en el realm Keycloak '{}' para el tenant '{}'.", request.getUsername(), keycloakRealm, realmPath);
 
@@ -66,7 +65,7 @@ public class UserService {
     }
 
     /**
-     * @return
+     * @return generateTemporaryPassword
      */
     private String generateTemporaryPassword() {
         final String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_";
@@ -86,7 +85,7 @@ public class UserService {
      */
     public List<UserRepresentation> getAllUsers(String realm) {
         String keycloakRealm = getKeycloakRealm(realm);
-        return keycloakService.getAllUsers(keycloakRealm);
+        return keycloakUserService.getAllUsers(keycloakRealm);
     }
 
     private String getKeycloakRealm(String realmPath) {
@@ -107,7 +106,7 @@ public class UserService {
      */
     public void updateUser(String realm, String userId, UserRequest updatedUser) {
         String keycloakRealm = getKeycloakRealm(realm);
-        keycloakService.updateUser(keycloakRealm, userId, updatedUser);
+        keycloakUserService.updateUser(keycloakRealm, userId, updatedUser);
     }
 
     /**
@@ -118,6 +117,6 @@ public class UserService {
      */
     public void deleteUser(String realm, String userId) {
         String keycloakRealm = getKeycloakRealm(realm);
-        keycloakService.deleteUser(keycloakRealm, userId);
+        keycloakUserService.deleteUser(keycloakRealm, userId);
     }
 }
