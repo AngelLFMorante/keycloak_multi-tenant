@@ -106,7 +106,7 @@ public class RoleController {
      * @param roleAttributes Mapa de atributos a añadir o actualizar.
      * @return ResponseEntity sin contenido en caso de éxito.
      */
-    @PutMapping("/{roleName}/attributes")
+    @PutMapping("/{realm}/roles/{roleName}/attributes")
     public ResponseEntity<Void> addOrUpdateRoleAttributes(@PathVariable String realm, @PathVariable String roleName, @RequestBody Map<String, List<String>> roleAttributes) {
         log.info("Solicitud para añadir/actualizar atributos del rol '{}' en el realm '{}'.", roleName, realm);
 

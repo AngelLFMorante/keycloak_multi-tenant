@@ -38,7 +38,7 @@ public class KeycloakRoleService {
     public List<RoleRepresentation> getRoles(String realm) {
         log.info("Intentando obtener todos los roles del realm '{}'.", realm);
 
-        RealmResource realmResource = getRealmResource(realm)
+        RealmResource realmResource = getRealmResource(realm);
 
         try {
             List<RoleRepresentation> roles = realmResource.roles().list();
@@ -150,8 +150,8 @@ public class KeycloakRoleService {
     /**
      * Obtiene los atributos de un rol en un realm de Keycloak.
      *
-     * @param realm El nombre del realm de Keycloak.
-     * @param roleName      El nombre del rol a consultar.
+     * @param realm    El nombre del realm de Keycloak.
+     * @param roleName El nombre del rol a consultar.
      * @return Mapa de atributos y sus valores asociados.
      * @throws RuntimeException Si el rol no tiene atributos.
      */
@@ -169,6 +169,11 @@ public class KeycloakRoleService {
         return role.getAttributes();
     }
 
+    /**
+     * @param realm
+     * @param roleName
+     * @param roleAttributes
+     */
     public void addOrUpdateRoleAttributes(String realm, String roleName, Map<String, List<String>> roleAttributes) {
         log.info("Actualizando atributos para el rol '{}' en el realm '{}'.", roleName, realm);
 
