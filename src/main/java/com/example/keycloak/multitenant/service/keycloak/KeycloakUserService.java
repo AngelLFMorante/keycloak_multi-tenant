@@ -20,12 +20,12 @@ import org.springframework.stereotype.Service;
 public class KeycloakUserService {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakUserService.class);
-    private final Keycloak keycloak;
     private final KeycloakRoleService keycloakRoleService;
+    private final KeycloakUtilsService utilsService;
 
-    public KeycloakUserService(Keycloak keycloak, KeycloakRoleService keycloakRoleService) {
-        this.keycloak = keycloak;
+    public KeycloakUserService(KeycloakRoleService keycloakRoleService, KeycloakUtilsService utilsService) {
         this.keycloakRoleService = keycloakRoleService;
+        this.utilsService = utilsService;
         log.info("KeycloakUserService inicializado.");
     }
 
@@ -37,7 +37,7 @@ public class KeycloakUserService {
      */
     public List<UserRepresentation> getAllUsers(String realm) {
         log.info("Obteniendo todos los usuarios del realm '{}'.", realm);
-        return keycloak.realm(realm).users().list();
+        return utilsService.getRealmResource(realm).users().list();
     }
 
     /**
@@ -50,7 +50,7 @@ public class KeycloakUserService {
     public void createUserWithRole(String realm, UserRequest request, String tempPassword) {
         log.info("Iniciando el proceso de registro para el usuario '{}' en el realm '{}'.", request.getUsername(), realm);
 
-        RealmResource realmResource = keycloak.realm(realm);
+        RealmResource realmResource = utilsService.getRealmResource(realm);
 
         String userId = createUser(realmResource, request);
         setTemporaryPassword(realmResource, userId, tempPassword);
@@ -69,7 +69,7 @@ public class KeycloakUserService {
      */
     public boolean userExistsByEmail(String realm, String email) {
         log.debug("Comprobando si el email '{}' ya existe en el realm '{}'.", email, realm);
-        List<UserRepresentation> users = keycloak.realm(realm).users().searchByEmail(email, true);
+        List<UserRepresentation> users = utilsService.getRealmResource(realm).users().searchByEmail(email, true);
         return users != null && !users.isEmpty();
     }
 
@@ -83,7 +83,7 @@ public class KeycloakUserService {
     public void updateUser(String realm, String userId, UserRequest updatedUserRequest) {
         log.info("Actualizando usuario con ID '{}' en el realm '{}'.", userId, realm);
 
-        RealmResource realmResource = keycloak.realm(realm);
+        RealmResource realmResource = utilsService.getRealmResource(realm);
         UserResource userResource = realmResource.users().get(userId);
 
         UserRepresentation userRepresentation = userResource.toRepresentation();
@@ -115,7 +115,7 @@ public class KeycloakUserService {
      */
     public void deleteUser(String realm, String userId) {
         log.info("Eliminando usuario con ID '{}' del realm '{}'.", userId, realm);
-        keycloak.realm(realm).users().get(userId).remove();
+        utilsService.getRealmResource(realm).users().get(userId).remove();
         log.info("Usuario con ID '{}' eliminado exitosamente.", userId);
     }
 

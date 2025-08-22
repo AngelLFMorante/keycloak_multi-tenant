@@ -1,6 +1,7 @@
 package com.example.keycloak.multitenant.service.keycloak;
 
 import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.resource.RealmResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -11,9 +12,9 @@ import org.springframework.stereotype.Service;
  * en un realm específico de Keycloak.
  */
 @Service
-public class KeycloakService {
+public class KeycloakUtilsService {
 
-    private static final Logger log = LoggerFactory.getLogger(KeycloakService.class);
+    private static final Logger log = LoggerFactory.getLogger(KeycloakUtilsService.class);
 
     /**
      * Cliente de administración de Keycloak, inyectado automáticamente.
@@ -26,9 +27,17 @@ public class KeycloakService {
      *
      * @param keycloak Instancia del cliente de administración de Keycloak.
      */
-    public KeycloakService(Keycloak keycloak) {
+    public KeycloakUtilsService(Keycloak keycloak) {
         this.keycloak = keycloak;
-        log.info("KeycloakService inicializado.");
+        log.info("KeycloakUtilsService inicializado.");
+    }
+
+    /**
+     * @param realm
+     * @return
+     */
+    public RealmResource getRealmResource(String realm) {
+        return keycloak.realm(realm);
     }
 
 

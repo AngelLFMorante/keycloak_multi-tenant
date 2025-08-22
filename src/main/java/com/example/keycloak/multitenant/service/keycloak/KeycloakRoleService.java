@@ -21,10 +21,10 @@ import org.springframework.stereotype.Service;
 public class KeycloakRoleService {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakRoleService.class);
-    private final Keycloak keycloak;
+    private final KeycloakUtilsService utilsService;
 
-    public KeycloakRoleService(Keycloak keycloak) {
-        this.keycloak = keycloak;
+    public KeycloakRoleService(KeycloakUtilsService utilsService) {
+        this.utilsService = utilsService;
         log.info("KeycloakRoleService inicializado.");
     }
 
@@ -38,7 +38,7 @@ public class KeycloakRoleService {
     public List<RoleRepresentation> getRoles(String realm) {
         log.info("Intentando obtener todos los roles del realm '{}'.", realm);
 
-        RealmResource realmResource = getRealmResource(realm);
+        RealmResource realmResource = utilsService.getRealmResource(realm);
 
         try {
             List<RoleRepresentation> roles = realmResource.roles().list();
@@ -65,7 +65,7 @@ public class KeycloakRoleService {
         role.setDescription(request.getDescription());
         role.setClientRole(false); //rol de realm no de cliente
 
-        RealmResource realmResource = getRealmResource(realm);
+        RealmResource realmResource = utilsService.getRealmResource(realm);
 
         boolean rolExist = realmResource.roles().list().stream().anyMatch(
                 r -> r.getName().equals((role.getName())));
@@ -110,7 +110,7 @@ public class KeycloakRoleService {
     public void deleteRole(String realm, String roleName) {
         log.info("Intentando eliminar el rol '{}' del realm '{}'.", roleName, realm);
 
-        RealmResource realmResource = getRealmResource(realm);
+        RealmResource realmResource = utilsService.getRealmResource(realm);
         boolean rolExist = realmResource.roles().list().stream().anyMatch(
                 r -> r.getName().equals(roleName));
 
@@ -209,18 +209,14 @@ public class KeycloakRoleService {
         }
 
         role.setAttributes(existingAttributes);
-        getRealmResource(realm).roles().get(roleName).update(role);
+        utilsService.getRealmResource(realm).roles().get(roleName).update(role);
 
         log.info("Atributos actualizados correctamente para el rol '{}' en el realm '{}'.", roleName, realm);
     }
 
-    private RealmResource getRealmResource(String realm) {
-        return keycloak.realm(realm);
-    }
-
     private RoleRepresentation getRoleRepresentation(String realm, String roleName) {
         log.debug("Obteniendo RoleRepresentation para '{}' en el realm '{}'", roleName, realm);
-        return keycloak.realm(realm)
+        return utilsService.getRealmResource(realm)
                 .roles()
                 .get(roleName)
                 .toRepresentation();
