@@ -19,6 +19,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -59,7 +60,8 @@ class KeycloakAuthenticationProviderTest {
     @Test
     @DisplayName("Debería lanzar AuthenticationException si UserDetailsService falla")
     void authenticate_shouldThrowAuthenticationExceptionIfUserDetailsServiceFails() {
-        when(userDetailsService.loadUserByUsername(testUsername)).thenThrow(new AuthenticationException("Usuario no encontrado") {});
+        when(userDetailsService.loadUserByUsername(testUsername)).thenThrow(new AuthenticationException("Usuario no encontrado") {
+        });
 
         Authentication preAuthenticatedToken = new UsernamePasswordAuthenticationToken(
                 testUsername,
@@ -89,4 +91,27 @@ class KeycloakAuthenticationProviderTest {
         assertFalse(keycloakAuthenticationProvider.supports(org.springframework.security.authentication.AnonymousAuthenticationToken.class),
                 "supports() debería retornar false para AnonymousAuthenticationToken.");
     }
+
+    @Test
+    @DisplayName("authenticate() debería devolver un token autenticado con UserDetails y autoridades correctas")
+    void authenticate_shouldReturnAuthenticatedTokenWithAuthorities() throws AuthenticationException {
+        Authentication preAuthenticatedToken = new UsernamePasswordAuthenticationToken(
+                testUsername,
+                testPassword,
+                testAuthorities
+        );
+
+        when(userDetailsService.loadUserByUsername(testUsername)).thenReturn(testUserDetails);
+
+        Authentication result = keycloakAuthenticationProvider.authenticate(preAuthenticatedToken);
+
+        verify(userDetailsService, times(1)).loadUserByUsername(testUsername);
+
+        assertTrue(result.isAuthenticated(), "El token final debería estar autenticado");
+        assertEquals(testUserDetails, result.getPrincipal(), "El principal debería ser el UserDetails cargado");
+        assertEquals(testPassword, result.getCredentials(), "Las credenciales deben mantenerse iguales");
+
+        assertEquals(testAuthorities, result.getAuthorities(), "Las authorities deben coincidir con el token original");
+    }
+
 }
