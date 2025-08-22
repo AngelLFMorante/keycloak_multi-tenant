@@ -1,8 +1,8 @@
 package com.example.keycloak.multitenant.service;
 
-import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.UserRequest;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakUtilsService;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
@@ -20,11 +20,11 @@ public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
     private final KeycloakUserService keycloakUserService;
-    private final KeycloakProperties keycloakProperties;
+    private final KeycloakUtilsService utilsService;
 
-    public UserService(KeycloakUserService keycloakUserService, KeycloakProperties keycloakProperties) {
+    public UserService(KeycloakUserService keycloakUserService, KeycloakUtilsService utilsService) {
         this.keycloakUserService = keycloakUserService;
-        this.keycloakProperties = keycloakProperties;
+        this.utilsService = utilsService;
     }
 
     /**
@@ -39,7 +39,7 @@ public class UserService {
         log.info("Procesando registro para el realm: {}", realmPath);
         log.debug("Datos de registro recibidos: username={}, email={}", request.getUsername(), request.getEmail());
 
-        String keycloakRealm = keycloakProperties.getRealmMapping().get(realmPath);
+        String keycloakRealm = utilsService.resolveRealm(realmPath);
 
         if (keycloakRealm == null) {
             log.warn("Mapeo de realm no encontrado para el tenantPath: {}", realmPath);
@@ -84,17 +84,8 @@ public class UserService {
      * @return Una lista de representaciones de usuario.
      */
     public List<UserRepresentation> getAllUsers(String realm) {
-        String keycloakRealm = getKeycloakRealm(realm);
+        String keycloakRealm = utilsService.resolveRealm(realm);
         return keycloakUserService.getAllUsers(keycloakRealm);
-    }
-
-    private String getKeycloakRealm(String realmPath) {
-        String keycloakRealm = keycloakProperties.getRealmMapping().get(realmPath);
-        if (keycloakRealm == null) {
-            log.warn("Mapeo de realm no encontrado para el tenant: {}", realmPath);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realmPath + " no reconocido.");
-        }
-        return keycloakRealm;
     }
 
     /**
@@ -105,7 +96,7 @@ public class UserService {
      * @param updatedUser Los datos de usuario a actualizar.
      */
     public void updateUser(String realm, String userId, UserRequest updatedUser) {
-        String keycloakRealm = getKeycloakRealm(realm);
+        String keycloakRealm = utilsService.resolveRealm(realm);
         keycloakUserService.updateUser(keycloakRealm, userId, updatedUser);
     }
 
@@ -116,7 +107,7 @@ public class UserService {
      * @param userId El ID del usuario.
      */
     public void deleteUser(String realm, String userId) {
-        String keycloakRealm = getKeycloakRealm(realm);
+        String keycloakRealm = utilsService.resolveRealm(realm);
         keycloakUserService.deleteUser(keycloakRealm, userId);
     }
 }

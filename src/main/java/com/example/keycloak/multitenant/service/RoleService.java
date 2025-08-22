@@ -1,18 +1,15 @@
 package com.example.keycloak.multitenant.service;
 
-import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakRoleService;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakUtilsService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-
 
 @Service
 public class RoleService {
@@ -20,11 +17,11 @@ public class RoleService {
     private static final Logger log = LoggerFactory.getLogger(RoleService.class);
 
     private final KeycloakRoleService keycloakRoleService;
-    private final KeycloakProperties keycloakProperties;
+    private final KeycloakUtilsService utilsService;
 
-    public RoleService(KeycloakRoleService keycloakRoleService, KeycloakProperties keycloakProperties) {
+    public RoleService(KeycloakRoleService keycloakRoleService, KeycloakUtilsService utilsService) {
         this.keycloakRoleService = keycloakRoleService;
-        this.keycloakProperties = keycloakProperties;
+        this.utilsService = utilsService;
     }
 
     /**
@@ -34,7 +31,7 @@ public class RoleService {
      * @return Lista de roles.
      */
     public List<RoleRepresentation> getRolesByRealm(String realm) {
-        String keycloakRealm = resolveRealm(realm);
+        String keycloakRealm = utilsService.resolveRealm(realm);
         return keycloakRoleService.getRoles(keycloakRealm);
     }
 
@@ -46,7 +43,7 @@ public class RoleService {
      * @return Respuesta con mensaje y detalles.
      */
     public Map<String, Object> createRoleInRealm(String realm, CreateRoleRequest request) {
-        String keycloakRealm = resolveRealm(realm);
+        String keycloakRealm = utilsService.resolveRealm(realm);
         keycloakRoleService.createRole(keycloakRealm, request);
 
         Map<String, Object> response = new HashMap<>();
@@ -65,7 +62,7 @@ public class RoleService {
      * @return Respuesta con mensaje.
      */
     public Map<String, Object> deleteRoleFromRealm(String realm, String roleName) {
-        String keycloakRealm = resolveRealm(realm);
+        String keycloakRealm = utilsService.resolveRealm(realm);
         keycloakRoleService.deleteRole(keycloakRealm, roleName);
 
         Map<String, Object> response = new HashMap<>();
@@ -84,10 +81,9 @@ public class RoleService {
      * @return Atributos del rol.
      */
     public Map<String, List<String>> getRoleAttributes(String realm, String roleName) {
-        String keycloakRealm = resolveRealm(realm);
+        String keycloakRealm = utilsService.resolveRealm(realm);
         return keycloakRoleService.getRoleAttributes(keycloakRealm, roleName);
     }
-
 
     /**
      * Añadir o actualizar los atributos de un rol en un realm
@@ -97,25 +93,8 @@ public class RoleService {
      * @param roleAttributes atributos del role
      */
     public void addOrUpdateRoleAttributes(String realm, String roleName, Map<String, List<String>> roleAttributes) {
-        String keycloakRealm = resolveRealm(realm);
+        String keycloakRealm = utilsService.resolveRealm(realm);
         log.info("Añadiendo/actualizando atributos en el rol '{}' del realm '{}'.", roleName, keycloakRealm);
         keycloakRoleService.addOrUpdateRoleAttributes(keycloakRealm, roleName, roleAttributes);
-    }
-
-    /**
-     * Valida y resuelve el realm interno de Keycloak a partir del nombre público del tenant.
-     *
-     * @param realm Nombre del tenant.
-     * @return Realm de Keycloak.
-     * @throws ResponseStatusException Si no se encuentra el mapeo.
-     */
-    private String resolveRealm(String realm) {
-        String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
-        if (keycloakRealm == null) {
-            log.warn("Mapeo no encontrado para realm '{}'", realm);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Realm " + realm + " no reconocido");
-        }
-        log.debug("Realm '{}' mapeado a '{}'", realm, keycloakRealm);
-        return keycloakRealm;
     }
 }

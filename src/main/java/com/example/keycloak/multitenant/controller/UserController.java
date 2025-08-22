@@ -1,8 +1,6 @@
 package com.example.keycloak.multitenant.controller;
 
-import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.UserRequest;
-import com.example.keycloak.multitenant.service.keycloak.KeycloakService;
 import com.example.keycloak.multitenant.service.UserService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -25,29 +23,20 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Controlador REST para gestionar el proceso de registro de nuevos usuarios en Keycloak.
  * Maneja la visualización del formulario de registro y el procesamiento de la solicitud de registro.
- * La creación de usuarios en Keycloak se delega a {@link KeycloakService}.
+ * La creación de usuarios en Keycloak se delega a {@link UserService}.
  */
 @RestController
 @RequestMapping("/api/v1/{realm}/users")
 public class UserController {
 
     private static Logger log = LoggerFactory.getLogger(UserController.class);
-    /**
-     * Servicio que interactúa con la API de administración de Keycloak para operaciones relacionadas con usuarios.
-     */
-    private final KeycloakService keycloakService;
 
-    private final KeycloakProperties keycloakProperties;
     private final UserService userService;
 
     /**
      * Constructor para la inyección de dependencias.
-     *
-     * @param keycloakService El servicio {@link KeycloakService} para interactuar con Keycloak.
-     */
-    public UserController(KeycloakService keycloakService, KeycloakProperties keycloakProperties, UserService userService) {
-        this.keycloakService = keycloakService;
-        this.keycloakProperties = keycloakProperties;
+     **/
+    public UserController(UserService userService) {
         this.userService = userService;
         log.info("UserController inicializado.");
     }
@@ -56,7 +45,7 @@ public class UserController {
      * Maneja las solicitudes POST para procesar el registro de un nuevo usuario.
      * Recibe los datos de registro como JSON en el cuerpo de la solicitud.
      * Realiza una validación básica de contraseñas y luego delega la creación del usuario
-     * a {@link KeycloakService}. Devuelve JSON con el estado de la operación.
+     * a {@link UserService}. Devuelve JSON con el estado de la operación.
      *
      * @param realm   El nombre del tenant extraído de la URL. Este `realm`
      *                se usará para cualquier lógica específica del cliente si fuera necesario,
