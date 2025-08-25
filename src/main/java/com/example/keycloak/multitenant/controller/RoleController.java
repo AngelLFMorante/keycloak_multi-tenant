@@ -204,4 +204,42 @@ public class RoleController {
 
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Elimina un atributo específico de un rol dentro de un realm.
+     *
+     * @param realm         Nombre del tenant.
+     * @param roleName      Nombre del rol en Keycloak.
+     * @param attributeName Nombre del atributo a eliminar.
+     * @return ResponseEntity sin contenido si la operación es exitosa.
+     */
+    @Operation(
+            summary = "Elimina un atributo de un rol.",
+            description = "Elimina un atributo específico del rol indicado dentro del tenant."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Atributo eliminado exitosamente."),
+            @ApiResponse(responseCode = "404", description = "Tenant, rol o atributo no encontrado.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @DeleteMapping("/{realm}/roles/{roleName}/attributes/{attributeName}")
+    public ResponseEntity<Void> removeRoleAttribute(
+            @Parameter(description = "El identificador del tenant (realm).")
+            @PathVariable String realm,
+            @Parameter(description = "El nombre del rol.")
+            @PathVariable String roleName,
+            @Parameter(description = "El nombre del atributo a eliminar.")
+            @PathVariable String attributeName) {
+
+        log.info("Solicitud DELETE para eliminar atributo '{}' del rol '{}' en el realm '{}'.",
+                attributeName, roleName, realm);
+
+        roleService.removeRoleAttribute(realm, roleName, attributeName);
+        log.info("Atributo '{}' eliminado correctamente del rol '{}' en el realm '{}'.",
+                attributeName, roleName, realm);
+
+        return ResponseEntity.noContent().build();
+    }
 }

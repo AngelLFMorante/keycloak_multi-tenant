@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.RoleResource;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -230,6 +231,28 @@ public class KeycloakRoleService {
     }
 
     /**
+     * Elimina un atributo específico de un rol dentro de un realm.
+     *
+     * @param realm         Nombre del tenant (realm).
+     * @param roleName      Nombre del rol en Keycloak.
+     * @param attributeName Nombre del atributo a eliminar.
+     * @throws IllegalArgumentException si el atributo especificado no existe en el rol.
+     */
+    public void removeRoleAttribute(String realm, String roleName, String attributeName) {
+        RoleRepresentation role = utilsService.getRealmResource(realm).roles().get(roleName).toRepresentation();
+
+        Map<String, List<String>> attributes = role.getAttributes();
+        if (attributes == null || !attributes.containsKey(attributeName)) {
+            throw new IllegalArgumentException("El atributo '" + attributeName + "' no existe en el rol '" + roleName + "' del realm '" + realm + "'.");
+        }
+
+        role.getAttributes().remove(attributeName);
+        utilsService.getRealmResource(realm).roles().get(roleName).update(role);
+
+        log.debug("Atributo '{}' eliminado del rol '{}' en realm '{}'.", attributeName, roleName, realm);
+    }
+
+    /**
      * Metodo privado para obtener una representacion de un rol de Keycloak.
      *
      * @param realm    El nombre del realm.
@@ -243,5 +266,4 @@ public class KeycloakRoleService {
                 .get(roleName)
                 .toRepresentation();
     }
-
 }
