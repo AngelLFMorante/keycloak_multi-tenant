@@ -16,12 +16,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+/**
+ * Servicio de bajo nivel para interactuar directamente con la API de administracion de Keycloak
+ * y gestionar las operaciones relacionadas con los roles.
+ */
 @Service
 public class KeycloakRoleService {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakRoleService.class);
     private final KeycloakUtilsService utilsService;
 
+    /**
+     * Constructor que inyecta las dependencias necesarias.
+     *
+     * @param utilsService El servicio de utilidad para obtener recursos de Keycloak.
+     */
     public KeycloakRoleService(KeycloakUtilsService utilsService) {
         this.utilsService = utilsService;
         log.info("KeycloakRoleService inicializado.");
@@ -50,10 +59,12 @@ public class KeycloakRoleService {
     }
 
     /**
-     * Crea un nuevo rol en un realm especifico de Keycloak
+     * Crea un nuevo rol en un realm especifico de Keycloak.
      *
-     * @param realm   realm keycloak
-     * @param request datos del crear role
+     * @param realm   El nombre del realm de Keycloak.
+     * @param request El objeto {@link CreateRoleRequest} con los datos del rol a crear.
+     * @throws KeycloakRoleCreationException Si el rol ya existe o si hay un error al comunicarse con Keycloak.
+     * @throws RuntimeException              Si ocurre un error inesperado.
      */
     public void createRole(String realm, CreateRoleRequest request) {
         log.info("Intentando crear el rol '{}' en el realm '{}'.", request.getName(), realm);
@@ -99,11 +110,11 @@ public class KeycloakRoleService {
     }
 
     /**
-     * Elimina un rol por su nombre en un realm especifico de keycloak
+     * Elimina un rol por su nombre en un realm especifico de keycloak.
      *
-     * @param realm    El nombre del realm de Keycloak donde se eliminará el rol.
+     * @param realm    El nombre del realm de Keycloak donde se eliminara el rol.
      * @param roleName El nombre del rol a eliminar.
-     * @throws RuntimeException  Si la eliminación del rol falla en Keycloak.
+     * @throws RuntimeException  Si la eliminacion del rol falla en Keycloak.
      * @throws NotFoundException Si el rol no se encuentra.
      */
     public void deleteRole(String realm, String roleName) {
@@ -127,10 +138,11 @@ public class KeycloakRoleService {
     }
 
     /**
-     * Comprobar si el role existe en el realm
+     * Comprueba si un rol especificado en una solicitud de usuario existe en el realm.
      *
-     * @param realm   nombre del realm
-     * @param request datos de usuario donde esta el role
+     * @param realm   El nombre del realm.
+     * @param request El objeto {@link UserRequest} que contiene el nombre del rol a verificar.
+     * @throws IllegalArgumentException Si el rol no existe en el realm.
      */
     public void checkRole(String realm, UserRequest request) {
         List<RoleRepresentation> roles = getRoles(realm);
@@ -151,8 +163,8 @@ public class KeycloakRoleService {
      *
      * @param realm    El nombre del realm de Keycloak.
      * @param roleName El nombre del rol a consultar.
-     * @return Mapa de atributos y sus valores asociados.
-     * @throws RuntimeException Si el rol no tiene atributos.
+     * @return Un mapa de atributos y sus valores asociados.
+     * @throws RuntimeException Si el rol no tiene atributos o no se encuentra.
      */
     public Map<String, List<String>> getRoleAttributes(String realm, String roleName) {
         log.info("Obteniendo atributos del rol '{}' en el realm '{}'.", roleName, realm);
@@ -169,9 +181,13 @@ public class KeycloakRoleService {
     }
 
     /**
-     * @param realm
-     * @param roleName
-     * @param roleAttributes
+     * Añade o actualiza los atributos de un rol en un realm.
+     *
+     * @param realm          El nombre del realm.
+     * @param roleName       El nombre del rol.
+     * @param roleAttributes Un mapa con los atributos a añadir o actualizar.
+     * @throws IllegalArgumentException Si el mapa de atributos es nulo o esta vacio.
+     * @throws RuntimeException         Si el rol no se encuentra.
      */
     public void addOrUpdateRoleAttributes(String realm, String roleName, Map<String, List<String>> roleAttributes) {
         log.info("Actualizando atributos para el rol '{}' en el realm '{}'.", roleName, realm);
@@ -213,6 +229,13 @@ public class KeycloakRoleService {
         log.info("Atributos actualizados correctamente para el rol '{}' en el realm '{}'.", roleName, realm);
     }
 
+    /**
+     * Metodo privado para obtener una representacion de un rol de Keycloak.
+     *
+     * @param realm    El nombre del realm.
+     * @param roleName El nombre del rol.
+     * @return Un objeto {@link RoleRepresentation}.
+     */
     private RoleRepresentation getRoleRepresentation(String realm, String roleName) {
         log.debug("Obteniendo RoleRepresentation para '{}' en el realm '{}'", roleName, realm);
         return utilsService.getRealmResource(realm)

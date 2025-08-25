@@ -5,6 +5,13 @@ import com.example.keycloak.multitenant.config.SecurityConfig;
 import com.example.keycloak.multitenant.model.AuthResponse;
 import com.example.keycloak.multitenant.model.RefreshTokenRequest;
 import com.example.keycloak.multitenant.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -21,6 +28,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +46,7 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @RestController
 @RequestMapping("/api/v1")
+@Tag(name = "Authentication", description = "Operaciones de autenticacion y gestion de sesion")
 public class LoginController {
 
     private static final Logger log = LoggerFactory.getLogger(LoginController.class);
@@ -48,12 +57,12 @@ public class LoginController {
     private final AuthService authService;
 
     /**
-     * Constructor para la inyección de dependencias de Spring.
+     * Constructor para la inyeccion de dependencias de Spring.
      *
-     * @param authenticationManager
-     * @param securityContextRepository
-     * @param authService
-     * @param keycloakProperties
+     * @param authenticationManager     Gestor de autenticacion de Spring Security.
+     * @param securityContextRepository Repositorio para guardar el contexto de seguridad en la sesion.
+     * @param authService               Servicio para manejar la logica de autenticacion con Keycloak.
+     * @param keycloakProperties        Propiedades de configuracion de Keycloak.
      */
     public LoginController(AuthenticationManager authenticationManager,
                            SecurityContextRepository securityContextRepository,
@@ -80,11 +89,27 @@ public class LoginController {
      * @param response La respuesta HTTP.
      * @return Un {@link ResponseEntity} con los tokens de acceso, refresh y la información del usuario.
      */
+    @Operation(
+            summary = "Autentica un usuario y crea una sesion.",
+            description = "Delega la autenticacion a Keycloak y, si es exitosa, establece una sesion de Spring Security."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Login exitoso, se devuelven los tokens y la informacion del usuario.",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Credenciales invalidas o datos de sesion faltantes.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Tenant o cliente no reconocido.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
     @PostMapping("/{realm}/{client}/do_login")
     public ResponseEntity<Map<String, Object>> doLogin(
+            @Parameter(description = "El identificador del tenant (realm).", required = true)
             @PathVariable String realm,
+            @Parameter(description = "El ID del cliente de Keycloak.", required = true)
             @PathVariable String client,
+            @Parameter(description = "El nombre de usuario para el login.", required = true)
             @RequestParam String username,
+            @Parameter(description = "La contraseña del usuario.", required = true)
             @RequestParam String password,
             HttpServletRequest request,
             HttpServletResponse response
@@ -138,6 +163,18 @@ public class LoginController {
      * @param token Objeto que contiene el refresh token.
      * @return Un {@link ResponseEntity} con el nuevo access token, id token y refresh token.
      */
+    @Operation(
+            summary = "Renueva el token de acceso usando un refresh token.",
+            description = "Delega la renovacion del token a Keycloak. Espera un refresh token en el cuerpo de la peticion."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Renovacion de token exitosa.",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Refresh token no valido o datos de sesion faltantes.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Sesion no activa.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
     @PostMapping("/refresh")
     public ResponseEntity<Map<String, Object>> refreshToken(HttpServletRequest request, @RequestBody RefreshTokenRequest token) {
         log.info("Intento de refresh token");
@@ -188,6 +225,18 @@ public class LoginController {
      *                                 si no hay una sesión HTTP activa (HTTP 401),
      *                                 o si faltan los datos del realm y client en la sesión (HTTP 400).
      */
+    @Operation(
+            summary = "Revoca el refresh token y cierra la sesion del usuario.",
+            description = "Invalida el refresh token en Keycloak y la sesion de Spring Security."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Logout exitoso, token revocado.",
+                    content = @Content(schema = @Schema(implementation = Map.class))),
+            @ApiResponse(responseCode = "400", description = "Refresh token no valido o datos de sesion faltantes.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Sesion no activa.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
     @PostMapping("/logout")
     public ResponseEntity<Map<String, Object>> logout(HttpServletRequest request, @RequestBody RefreshTokenRequest token) {
         log.info("Intento de logout...");

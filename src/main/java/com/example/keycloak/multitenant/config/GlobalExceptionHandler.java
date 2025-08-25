@@ -2,6 +2,7 @@ package com.example.keycloak.multitenant.config;
 
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
+import com.example.keycloak.multitenant.model.ErrorResponse;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,7 +21,10 @@ import org.springframework.web.client.UnknownHttpStatusCodeException;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Clase global para el manejo de excepciones en la aplicacion REST
+ * Clase global para el manejo de excepciones en la aplicación REST.
+ * Utiliza {@link ControllerAdvice} para centralizar el manejo de excepciones
+ * de la aplicación en una sola clase, proporcionando respuestas HTTP consistentes
+ * y útiles para el cliente.
  */
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -38,18 +42,19 @@ public class GlobalExceptionHandler {
      * y el código de estado HTTP 4xx correspondiente.
      */
     @ExceptionHandler(HttpClientErrorException.class)
-    public ResponseEntity<Map<String, Object>> handleHttpClientErrorException(HttpClientErrorException ex) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", new Date());
-        errorDetails.put("status", ex.getStatusCode().value());
-        errorDetails.put("error", ex.getStatusText());
-        errorDetails.put("message", "Error del cliente al comunicarse con el servicio externo: " + ex.getMessage());
-        errorDetails.put("responseBody", ex.getResponseBodyAsString());
+    public ResponseEntity<ErrorResponse> handleHttpClientErrorException(HttpClientErrorException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                ex.getStatusCode().value(),
+                ex.getStatusText(),
+                "Error del cliente al comunicarse con el servicio externo: " + ex.getMessage(),
+                null
+        );
 
         log.error("HttpClientErrorException capturado: Status={}, Message={}, ResponseBody={}",
                 ex.getStatusCode(), ex.getMessage(), ex.getResponseBodyAsString(), ex);
 
-        return new ResponseEntity<>(errorDetails, ex.getStatusCode());
+        return new ResponseEntity<>(errorResponse, ex.getStatusCode());
     }
 
     /**
@@ -62,18 +67,19 @@ public class GlobalExceptionHandler {
      * y el código de estado HTTP 5xx correspondiente.
      */
     @ExceptionHandler(HttpServerErrorException.class)
-    public ResponseEntity<Map<String, Object>> handleHttpServerErrorException(HttpServerErrorException ex) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", new Date());
-        errorDetails.put("status", ex.getStatusCode().value());
-        errorDetails.put("error", ex.getStatusText());
-        errorDetails.put("message", "Error del servidor externo: " + ex.getMessage());
-        errorDetails.put("responseBody", ex.getResponseBodyAsString());
+    public ResponseEntity<ErrorResponse> handleHttpServerErrorException(HttpServerErrorException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                ex.getStatusCode().value(),
+                ex.getStatusText(),
+                "Error del servidor externo: " + ex.getMessage(),
+                null
+        );
 
         log.error("HttpServerErrorException capturado: Status={}, Message={}, ResponseBody={}",
                 ex.getStatusCode(), ex.getMessage(), ex.getResponseBodyAsString(), ex);
 
-        return new ResponseEntity<>(errorDetails, ex.getStatusCode());
+        return new ResponseEntity<>(errorResponse, ex.getStatusCode());
     }
 
     /**
@@ -87,21 +93,23 @@ public class GlobalExceptionHandler {
      * dependiendo de la causa subyacente.
      */
     @ExceptionHandler(ResourceAccessException.class)
-    public ResponseEntity<Map<String, Object>> handleResourceAccessException(ResourceAccessException ex) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", new Date());
-        errorDetails.put("status", HttpStatus.SERVICE_UNAVAILABLE.value());
-        errorDetails.put("error", HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase());
-        errorDetails.put("message", "Problema de comunicación con el servicio externo: " + ex.getMessage());
-
+    public ResponseEntity<ErrorResponse> handleResourceAccessException(ResourceAccessException ex) {
+        HttpStatus status = HttpStatus.SERVICE_UNAVAILABLE;
         if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("timeout")) {
-            errorDetails.put("status", HttpStatus.GATEWAY_TIMEOUT.value());
-            errorDetails.put("error", HttpStatus.GATEWAY_TIMEOUT.getReasonPhrase());
+            status = HttpStatus.GATEWAY_TIMEOUT;
         }
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                status.value(),
+                status.getReasonPhrase(),
+                "Problema de comunicacion con el servicio externo: " + ex.getMessage(),
+                null
+        );
 
         log.error("ResourceAccessException capturado: Message={}", ex.getMessage(), ex);
 
-        return new ResponseEntity<>(errorDetails, HttpStatus.valueOf((Integer) errorDetails.get("status")));
+        return new ResponseEntity<>(errorResponse, status);
     }
 
     /**
@@ -114,19 +122,19 @@ public class GlobalExceptionHandler {
      * y un código de estado HTTP 500 (Internal Server Error).
      */
     @ExceptionHandler(UnknownHttpStatusCodeException.class)
-    public ResponseEntity<Map<String, Object>> handleUnknownHttpStatusCodeException(UnknownHttpStatusCodeException ex) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", new Date());
-        errorDetails.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        errorDetails.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
-        errorDetails.put("message", "Servicio externo respondió con código de estado desconocido: " + ex.getRawStatusCode());
-        errorDetails.put("rawStatusCode", ex.getRawStatusCode());
-        errorDetails.put("responseBody", ex.getResponseBodyAsString());
+    public ResponseEntity<ErrorResponse> handleUnknownHttpStatusCodeException(UnknownHttpStatusCodeException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                "Servicio externo respondio con codigo de estado desconocido: " + ex.getRawStatusCode(),
+                null
+        );
 
         log.error("UnknownHttpStatusCodeException capturado: RawStatus={}, Message={}, ResponseBody={}",
                 ex.getRawStatusCode(), ex.getMessage(), ex.getResponseBodyAsString(), ex);
 
-        return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     /**
@@ -137,16 +145,18 @@ public class GlobalExceptionHandler {
      * @return un {@link ResponseEntity} con un mapa JSon que describe el error
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", new Date());
-        errorDetails.put("status", HttpStatus.BAD_REQUEST.value());
-        errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
-        errorDetails.put("message", ex.getMessage());
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                ex.getMessage(),
+                null
+        );
 
         log.warn("IllegalArgumentException capturada: {}", ex.getMessage(), ex);
 
-        return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
 
     /**
@@ -159,7 +169,7 @@ public class GlobalExceptionHandler {
      * y un código de estado HTTP 400 (Bad Request).
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, Object> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
             String fieldName = ((FieldError) error).getField();
@@ -167,16 +177,17 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMenssage);
         });
 
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", new Date());
-        errorDetails.put("status", HttpStatus.BAD_REQUEST.value());
-        errorDetails.put("error", "Validation Failed");
-        errorDetails.put("message", "Uno o mas campos tienen errores de validacion");
-        errorDetails.put("details", errors);
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                HttpStatus.BAD_REQUEST.value(),
+                "Validation Failed",
+                "Uno o mas campos tienen errores de validacion",
+                errors
+        );
 
         log.warn("MethodArgumentNotValidException capturada: {}", errors, ex);
 
-        return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
 
     /**
@@ -187,16 +198,18 @@ public class GlobalExceptionHandler {
      * @return Un {@link ResponseEntity} describe el rror y codigo de estado Http 500
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleAllUncaughtException(Exception ex) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", new Date());
-        errorDetails.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        errorDetails.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
-        errorDetails.put("message", "Ocurrió un error inesperado. Por favor, intente de nuevo mas tarde.");
+    public ResponseEntity<ErrorResponse> handleAllUncaughtException(Exception ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                "Ocurrio un error inesperado. Por favor, intente de nuevo mas tarde.",
+                null
+        );
 
         log.error("Excepcion no capturada: {}", ex.getMessage(), ex);
 
-        return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     /**
@@ -210,33 +223,30 @@ public class GlobalExceptionHandler {
      * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
      */
     @ExceptionHandler(KeycloakUserCreationException.class)
-    public ResponseEntity<Map<String, Object>> handleKeycloakUserCreationException(KeycloakUserCreationException ex) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", new Date());
-
-        HttpStatus status = HttpStatus.BAD_REQUEST;
+    public ResponseEntity<ErrorResponse> handleKeycloakUserCreationException(KeycloakUserCreationException ex) {
         String errorMessage = ex.getMessage();
+        HttpStatus status = HttpStatus.BAD_REQUEST;
 
         if (errorMessage != null) {
             if (errorMessage.contains("409 Conflict") || errorMessage.contains("User exists with same username") || errorMessage.contains("User exists with same email")) {
                 status = HttpStatus.CONFLICT;
-                errorDetails.put("error", HttpStatus.CONFLICT.getReasonPhrase());
             } else if (errorMessage.contains("Error interno") || errorMessage.contains("500 Internal Server Error")) {
                 status = HttpStatus.INTERNAL_SERVER_ERROR;
-                errorDetails.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
-            } else {
-                errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
             }
-        } else {
-            errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
         }
+        log.error("KeycloakUserCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
 
-        errorDetails.put("status", status.value());
-        errorDetails.put("message", errorMessage);
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                status.value(),
+                status.getReasonPhrase(),
+                errorMessage,
+                null
+        );
 
         log.error("KeycloakUserCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
 
-        return new ResponseEntity<>(errorDetails, status);
+        return new ResponseEntity<>(errorResponse, status);
     }
 
     /**
@@ -250,33 +260,29 @@ public class GlobalExceptionHandler {
      * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
      */
     @ExceptionHandler(KeycloakRoleCreationException.class)
-    public ResponseEntity<Map<String, Object>> handleKeycloakRoleCreationException(KeycloakRoleCreationException ex) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", new Date());
-
-        HttpStatus status = HttpStatus.BAD_REQUEST;
+    public ResponseEntity<ErrorResponse> handleKeycloakRoleCreationException(KeycloakRoleCreationException ex) {
         String errorMessage = ex.getMessage();
+        HttpStatus status = HttpStatus.BAD_REQUEST;
 
         if (errorMessage != null) {
             if (errorMessage.contains("409 Conflict") || errorMessage.contains("Role exists with same name")) {
                 status = HttpStatus.CONFLICT;
-                errorDetails.put("error", HttpStatus.CONFLICT.getReasonPhrase());
             } else if (errorMessage.contains("Error interno") || errorMessage.contains("500 Internal Server Error")) {
                 status = HttpStatus.INTERNAL_SERVER_ERROR;
-                errorDetails.put("error", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
-            } else {
-                errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
             }
-        } else {
-            errorDetails.put("error", HttpStatus.BAD_REQUEST.getReasonPhrase());
         }
-
-        errorDetails.put("status", status.value());
-        errorDetails.put("message", errorMessage);
-
         log.error("KeycloakRoleCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
 
-        return new ResponseEntity<>(errorDetails, status);
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                status.value(),
+                status.getReasonPhrase(),
+                errorMessage,
+                null
+        );
+        log.error("KeycloakRoleCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
+
+        return new ResponseEntity<>(errorResponse, status);
     }
 
     /**
@@ -289,20 +295,21 @@ public class GlobalExceptionHandler {
      * y el código de estado HTTP especificado en la excepción.
      */
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Map<String, Object>> handleResponseStatusException(ResponseStatusException ex) {
-        Map<String, Object> errorDetails = new HashMap<>();
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
         int statusCode = ex.getStatusCode().value();
-
         HttpStatus httpStatus = HttpStatus.resolve(statusCode);
         String reasonPhrase = httpStatus != null ? httpStatus.getReasonPhrase() : "Unknown Status";
 
-        errorDetails.put("timestamp", new Date());
-        errorDetails.put("status", statusCode);
-        errorDetails.put("error", reasonPhrase);
-        errorDetails.put("message", ex.getReason() != null ? ex.getReason() : "No message available");
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                statusCode,
+                reasonPhrase,
+                ex.getReason() != null ? ex.getReason() : "No message available",
+                null
+        );
 
         log.warn("ResponseStatusException capturada: Status={}, Reason={}", ex.getStatusCode(), ex.getReason(), ex);
 
-        return new ResponseEntity<>(errorDetails, ex.getStatusCode());
+        return new ResponseEntity<>(errorResponse, ex.getStatusCode());
     }
 }

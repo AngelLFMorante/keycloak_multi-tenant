@@ -25,10 +25,23 @@ public class KeycloakAuthenticationProvider implements AuthenticationProvider {
 
     private final UserDetailsService userDetailsService;
 
+    /**
+     * Constructor para la inyeccion de dependencias.
+     *
+     * @param userDetailsService El servicio para cargar los detalles del usuario.
+     */
     public KeycloakAuthenticationProvider(UserDetailsService userDetailsService) {
         this.userDetailsService = userDetailsService;
     }
 
+    /**
+     * Procesa una solicitud de autenticacion.
+     * Este metodo es llamado por Spring Security para autenticar a un usuario.
+     *
+     * @param authentication El token de autenticacion de entrada.
+     * @return Un token de autenticacion completamente poblado y autenticado.
+     * @throws AuthenticationException Si la autenticacion falla.
+     */
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         String username = authentication.getName();
@@ -53,6 +66,12 @@ public class KeycloakAuthenticationProvider implements AuthenticationProvider {
         return finalAuth;
     }
 
+    /**
+     * Indica si este proveedor de autenticacion soporta el tipo de token de autenticacion dado.
+     *
+     * @param authentication La clase de token de autenticacion a verificar.
+     * @return {@code true} si soporta el token, de lo contrario {@code false}.
+     */
     @Override
     public boolean supports(Class<?> authentication) {
         return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);

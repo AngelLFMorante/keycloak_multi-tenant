@@ -39,8 +39,10 @@ public class KeycloakUtilsService {
     }
 
     /**
-     * @param realm
-     * @return
+     * Obtiene el recurso de realm de Keycloak para el realm especificado.
+     *
+     * @param realm El nombre del realm de Keycloak.
+     * @return Una instancia de {@link RealmResource} para el realm.
      */
     public RealmResource getRealmResource(String realm) {
         return keycloak.realm(realm);

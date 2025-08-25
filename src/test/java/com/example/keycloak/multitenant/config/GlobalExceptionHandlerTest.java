@@ -2,12 +2,7 @@ package com.example.keycloak.multitenant.config;
 
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
-import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import com.example.keycloak.multitenant.model.ErrorResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +20,13 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.UnknownHttpStatusCodeException;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -58,14 +60,14 @@ class GlobalExceptionHandlerTest {
                 StandardCharsets.UTF_8
         );
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleHttpClientErrorException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleHttpClientErrorException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.UNAUTHORIZED, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.UNAUTHORIZED.value(), responseEntity.getBody().get("status"));
-        assertEquals("Unauthorized", responseEntity.getBody().get("error"));
-        assertTrue(responseEntity.getBody().get("message").toString().contains("Error del cliente al comunicarse con el servicio externo"));
-        assertEquals(responseBody, responseEntity.getBody().get("responseBody"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.UNAUTHORIZED.value(), errorResponse.getStatus());
+        assertEquals("Unauthorized", errorResponse.getError());
+        assertTrue(errorResponse.getMessage().contains("Error del cliente al comunicarse con el servicio externo"));
     }
 
     @Test
@@ -80,14 +82,14 @@ class GlobalExceptionHandlerTest {
                 StandardCharsets.UTF_8
         );
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleHttpServerErrorException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleHttpServerErrorException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), responseEntity.getBody().get("status"));
-        assertEquals("Internal Server Error", responseEntity.getBody().get("error"));
-        assertTrue(responseEntity.getBody().get("message").toString().contains("Error del servidor externo"));
-        assertEquals(responseBody, responseEntity.getBody().get("responseBody"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
+        assertEquals("Internal Server Error", errorResponse.getError());
+        assertTrue(errorResponse.getMessage().contains("Error del servidor externo"));
     }
 
     @Test
@@ -95,13 +97,14 @@ class GlobalExceptionHandlerTest {
     void handleResourceAccessException_ServiceUnavailable() {
         ResourceAccessException ex = new ResourceAccessException("I/O error on POST request for \"http://keycloak.example.com\": Connection refused (Connection refused)");
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleResourceAccessException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleResourceAccessException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), responseEntity.getBody().get("status"));
-        assertEquals("Service Unavailable", responseEntity.getBody().get("error"));
-        assertTrue(responseEntity.getBody().get("message").toString().contains("Problema de comunicación con el servicio externo"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), errorResponse.getStatus());
+        assertEquals("Service Unavailable", errorResponse.getError());
+        assertTrue(errorResponse.getMessage().contains("Problema de comunicacion con el servicio externo"));
     }
 
     @Test
@@ -109,13 +112,14 @@ class GlobalExceptionHandlerTest {
     void handleResourceAccessException_GatewayTimeout() {
         ResourceAccessException ex = new ResourceAccessException("Conexión expiró: timeout");
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleResourceAccessException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleResourceAccessException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.GATEWAY_TIMEOUT, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.GATEWAY_TIMEOUT.value(), responseEntity.getBody().get("status"));
-        assertEquals("Gateway Timeout", responseEntity.getBody().get("error"));
-        assertTrue(responseEntity.getBody().get("message").toString().contains("Problema de comunicación con el servicio externo"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.GATEWAY_TIMEOUT.value(), errorResponse.getStatus());
+        assertEquals("Gateway Timeout", errorResponse.getError());
+        assertTrue(errorResponse.getMessage().contains("Problema de comunicacion con el servicio externo"));
     }
 
     @Test
@@ -129,15 +133,14 @@ class GlobalExceptionHandlerTest {
                 StandardCharsets.UTF_8
         );
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleUnknownHttpStatusCodeException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleUnknownHttpStatusCodeException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), responseEntity.getBody().get("status"));
-        assertEquals("Internal Server Error", responseEntity.getBody().get("error"));
-        assertTrue(responseEntity.getBody().get("message").toString().contains("Servicio externo respondió con código de estado desconocido: 999"));
-        assertEquals(999, responseEntity.getBody().get("rawStatusCode"));
-        assertEquals("Unexpected response", responseEntity.getBody().get("responseBody"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
+        assertEquals("Internal Server Error", errorResponse.getError());
+        assertTrue(errorResponse.getMessage().contains("Servicio externo respondio con codigo de estado desconocido: 999"));
     }
 
     @Test
@@ -146,13 +149,14 @@ class GlobalExceptionHandlerTest {
         String errorMessage = "Las contraseñas no coinciden.";
         IllegalArgumentException ex = new IllegalArgumentException(errorMessage);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleIllegalArgumentException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleIllegalArgumentException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.BAD_REQUEST.value(), responseEntity.getBody().get("status"));
-        assertEquals("Bad Request", responseEntity.getBody().get("error"));
-        assertEquals(errorMessage, responseEntity.getBody().get("message"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
+        assertEquals("Bad Request", errorResponse.getError());
+        assertEquals(errorMessage, errorResponse.getMessage());
     }
 
     @Test
@@ -161,13 +165,14 @@ class GlobalExceptionHandlerTest {
         String errorMessage = "Error interno al crear usuario: 500 Internal Server Error.";
         KeycloakUserCreationException ex = new KeycloakUserCreationException(errorMessage);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakUserCreationException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleKeycloakUserCreationException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), responseEntity.getBody().get("status"));
-        assertEquals("Internal Server Error", responseEntity.getBody().get("error"));
-        assertEquals(errorMessage, responseEntity.getBody().get("message"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
+        assertEquals("Internal Server Error", errorResponse.getError());
+        assertEquals(errorMessage, errorResponse.getMessage());
     }
 
     @Test
@@ -176,13 +181,14 @@ class GlobalExceptionHandlerTest {
         String errorMessage = "Error al crear usuario en Keycloak. Estado HTTP: 409. Detalles: User exists with same username.";
         KeycloakUserCreationException ex = new KeycloakUserCreationException(errorMessage);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakUserCreationException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleKeycloakUserCreationException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.CONFLICT, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.CONFLICT.value(), responseEntity.getBody().get("status"));
-        assertEquals("Conflict", responseEntity.getBody().get("error"));
-        assertEquals(errorMessage, responseEntity.getBody().get("message"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.CONFLICT.value(), errorResponse.getStatus());
+        assertEquals("Conflict", errorResponse.getError());
+        assertEquals(errorMessage, errorResponse.getMessage());
     }
 
     @Test
@@ -191,15 +197,15 @@ class GlobalExceptionHandlerTest {
         String errorMessage = "Datos de usuario inválidos enviados a Keycloak.";
         KeycloakUserCreationException ex = new KeycloakUserCreationException(errorMessage);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakUserCreationException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleKeycloakUserCreationException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.BAD_REQUEST.value(), responseEntity.getBody().get("status"));
-        assertEquals("Bad Request", responseEntity.getBody().get("error"));
-        assertEquals(errorMessage, responseEntity.getBody().get("message"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
+        assertEquals("Bad Request", errorResponse.getError());
+        assertEquals(errorMessage, errorResponse.getMessage());
     }
-
 
     @Test
     @DisplayName("Debería manejar MethodArgumentNotValidException")
@@ -219,21 +225,20 @@ class GlobalExceptionHandlerTest {
 
         when(bindingResult.getAllErrors()).thenReturn(Collections.unmodifiableList(fieldErrors));
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleValidationExceptions(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleValidationExceptions(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.BAD_REQUEST.value(), responseEntity.getBody().get("status"));
-        assertEquals("Validation Failed", responseEntity.getBody().get("error"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
+        assertEquals("Validation Failed", errorResponse.getError());
+        assertTrue(errorResponse.getMessage().contains("Uno o mas campos tienen errores de validacion"));
 
-        assertTrue(responseEntity.getBody().get("message").toString().contains("Uno o mas campos tienen errores de validacion"));
-
-        Map<String, String> details = (Map<String, String>) responseEntity.getBody().get("details");
+        Map<String, String> details = (Map<String, String>) errorResponse.getDetails();
         assertNotNull(details);
         assertEquals("El nombre de usuario no puede estar vacio", details.get("username"));
         assertEquals("El email debe tener un formato valido", details.get("email"));
     }
-
 
     @Test
     @DisplayName("Debería manejar ResponseStatusException")
@@ -242,13 +247,14 @@ class GlobalExceptionHandlerTest {
         HttpStatus status = HttpStatus.NOT_FOUND;
         ResponseStatusException ex = new ResponseStatusException(status, reason);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleResponseStatusException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleResponseStatusException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(status, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(status.value(), responseEntity.getBody().get("status"));
-        assertEquals(status.getReasonPhrase(), responseEntity.getBody().get("error"));
-        assertEquals(reason, responseEntity.getBody().get("message"));
+        assertNotNull(errorResponse);
+        assertEquals(status.value(), errorResponse.getStatus());
+        assertEquals(status.getReasonPhrase(), errorResponse.getError());
+        assertEquals(reason, errorResponse.getMessage());
     }
 
     @Test
@@ -257,13 +263,14 @@ class GlobalExceptionHandlerTest {
         String errorMessage = "Algo salió muy mal.";
         Exception ex = new RuntimeException(errorMessage);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleAllUncaughtException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleAllUncaughtException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), responseEntity.getBody().get("status"));
-        assertEquals("Internal Server Error", responseEntity.getBody().get("error"));
-        assertEquals("Ocurrió un error inesperado. Por favor, intente de nuevo mas tarde.", responseEntity.getBody().get("message"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
+        assertEquals("Internal Server Error", errorResponse.getError());
+        assertEquals("Ocurrio un error inesperado. Por favor, intente de nuevo mas tarde.", errorResponse.getMessage());
     }
 
     @Test
@@ -272,14 +279,15 @@ class GlobalExceptionHandlerTest {
         String errorMessage = "Error al crear rol en Keycloak. Estado HTTP: 409 Conflict. Detalles: Role exists with same name.";
         KeycloakRoleCreationException ex = new KeycloakRoleCreationException(errorMessage);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.CONFLICT, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.CONFLICT.value(), responseEntity.getBody().get("status"));
-        assertEquals("Conflict", responseEntity.getBody().get("error"));
-        assertEquals(errorMessage, responseEntity.getBody().get("message"));
-        assertNotNull(responseEntity.getBody().get("timestamp"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.CONFLICT.value(), errorResponse.getStatus());
+        assertEquals("Conflict", errorResponse.getError());
+        assertEquals(errorMessage, errorResponse.getMessage());
+        assertNotNull(errorResponse.getTimestamp());
     }
 
     @Test
@@ -288,30 +296,32 @@ class GlobalExceptionHandlerTest {
         String errorMessage = "Error interno al crear rol: 500 Internal Server Error.";
         KeycloakRoleCreationException ex = new KeycloakRoleCreationException(errorMessage);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), responseEntity.getBody().get("status"));
-        assertEquals("Internal Server Error", responseEntity.getBody().get("error"));
-        assertEquals(errorMessage, responseEntity.getBody().get("message"));
-        assertNotNull(responseEntity.getBody().get("timestamp"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
+        assertEquals("Internal Server Error", errorResponse.getError());
+        assertEquals(errorMessage, errorResponse.getMessage());
+        assertNotNull(errorResponse.getTimestamp());
     }
 
     @Test
     @DisplayName("Debería manejar KeycloakRoleCreationException (Bad Request 400 por defecto)")
     void handleKeycloakRoleCreationException_BadRequestDefault() {
-        String errorMessage = "Datos de rol inválidos enviados a Keycloak.";
+        String errorMessage = "Datos de rol invalidos enviados a Keycloak.";
         KeycloakRoleCreationException ex = new KeycloakRoleCreationException(errorMessage);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.BAD_REQUEST.value(), responseEntity.getBody().get("status"));
-        assertEquals("Bad Request", responseEntity.getBody().get("error"));
-        assertEquals(errorMessage, responseEntity.getBody().get("message"));
-        assertNotNull(responseEntity.getBody().get("timestamp"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
+        assertEquals("Bad Request", errorResponse.getError());
+        assertEquals(errorMessage, errorResponse.getMessage());
+        assertNotNull(errorResponse.getTimestamp());
     }
 
     @Test
@@ -319,13 +329,14 @@ class GlobalExceptionHandlerTest {
     void handleKeycloakRoleCreationException_NullMessage() {
         KeycloakRoleCreationException ex = new KeycloakRoleCreationException(null);
 
-        ResponseEntity<Map<String, Object>> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleKeycloakRoleCreationException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
-        assertNotNull(responseEntity.getBody());
-        assertEquals(HttpStatus.BAD_REQUEST.value(), responseEntity.getBody().get("status"));
-        assertEquals("Bad Request", responseEntity.getBody().get("error"));
-        assertEquals(null, responseEntity.getBody().get("message"));
-        assertNotNull(responseEntity.getBody().get("timestamp"));
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
+        assertEquals("Bad Request", errorResponse.getError());
+        assertEquals(null, errorResponse.getMessage());
+        assertNotNull(errorResponse.getTimestamp());
     }
 }

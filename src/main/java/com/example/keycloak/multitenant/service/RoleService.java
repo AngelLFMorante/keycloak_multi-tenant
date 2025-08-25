@@ -11,6 +11,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+/**
+ * Servicio para gestionar las operaciones de roles de Keycloak a nivel de negocio.
+ * Actua como una capa de abstraccion entre el controlador y el servicio de bajo nivel
+ * de Keycloak, manejando la logica especifica del dominio de roles.
+ */
 @Service
 public class RoleService {
 
@@ -19,6 +24,12 @@ public class RoleService {
     private final KeycloakRoleService keycloakRoleService;
     private final KeycloakUtilsService utilsService;
 
+    /**
+     * Constructor para inyeccion de dependencias.
+     *
+     * @param keycloakRoleService El servicio de bajo nivel para interactuar con la API de Keycloak.
+     * @param utilsService        El servicio de utilidad para resolver nombres de realms.
+     */
     public RoleService(KeycloakRoleService keycloakRoleService, KeycloakUtilsService utilsService) {
         this.keycloakRoleService = keycloakRoleService;
         this.utilsService = utilsService;
@@ -36,11 +47,12 @@ public class RoleService {
     }
 
     /**
-     * Crea un rol en el realm correspondiente al tenant.
+     * Crea un nuevo rol de realm en el tenant especificado.
      *
-     * @param realm   Nombre del tenant.
-     * @param request Datos del rol.
-     * @return Respuesta con mensaje y detalles.
+     * @param realm   El nombre del tenant publico.
+     * @param request El objeto {@link CreateRoleRequest} que contiene los datos del rol a crear.
+     * @return Un mapa que confirma la creacion exitosa y proporciona detalles del rol.
+     * @throws com.example.keycloak.multitenant.exception.KeycloakRoleCreationException Si el rol ya existe o hay un error al crearlo.
      */
     public Map<String, Object> createRoleInRealm(String realm, CreateRoleRequest request) {
         String keycloakRealm = utilsService.resolveRealm(realm);
@@ -55,11 +67,13 @@ public class RoleService {
     }
 
     /**
-     * Elimina un rol del realm correspondiente.
+     * Elimina un rol de realm por su nombre en el tenant especificado.
      *
-     * @param realm    Nombre del tenant.
-     * @param roleName Nombre del rol.
-     * @return Respuesta con mensaje.
+     * @param realm    El nombre del tenant publico.
+     * @param roleName El nombre del rol a eliminar.
+     * @return Un mapa que confirma la eliminacion exitosa.
+     * @throws jakarta.ws.rs.NotFoundException Si el rol no se encuentra en el realm.
+     * @throws RuntimeException                Si ocurre un error inesperado al eliminar el rol.
      */
     public Map<String, Object> deleteRoleFromRealm(String realm, String roleName) {
         String keycloakRealm = utilsService.resolveRealm(realm);
@@ -74,11 +88,12 @@ public class RoleService {
     }
 
     /**
-     * Obtiene los atributos de un rol en un realm.
+     * Obtiene los atributos de un rol de realm en un tenant.
      *
-     * @param realm    Nombre del tenant.
-     * @param roleName Nombre del role.
-     * @return Atributos del rol.
+     * @param realm    El nombre del tenant publico.
+     * @param roleName El nombre del rol.
+     * @return Un mapa de atributos y sus valores.
+     * @throws RuntimeException Si el rol no tiene atributos o si el rol no se encuentra.
      */
     public Map<String, List<String>> getRoleAttributes(String realm, String roleName) {
         String keycloakRealm = utilsService.resolveRealm(realm);
@@ -86,11 +101,13 @@ public class RoleService {
     }
 
     /**
-     * Añadir o actualizar los atributos de un rol en un realm
+     * Anade o actualiza atributos en un rol de realm en un tenant.
      *
-     * @param realm          Nombre del tenant
-     * @param roleName       Nombre del role.
-     * @param roleAttributes atributos del role
+     * @param realm          El nombre del tenant publico.
+     * @param roleName       El nombre del rol.
+     * @param roleAttributes Un mapa de atributos a anadir o actualizar.
+     * @throws IllegalArgumentException Si el mapa de atributos esta vacio.
+     * @throws RuntimeException         Si el rol no se encuentra o hay un error al actualizar.
      */
     public void addOrUpdateRoleAttributes(String realm, String roleName, Map<String, List<String>> roleAttributes) {
         String keycloakRealm = utilsService.resolveRealm(realm);

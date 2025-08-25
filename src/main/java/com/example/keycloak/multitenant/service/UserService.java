@@ -15,6 +15,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Servicio de alto nivel para la gestion de usuarios, interactuando con la capa de Keycloak.
+ * Encapsula la logica de negocio, como la validacion y la generacion de contrasenas temporales.
+ */
 @Service
 public class UserService {
 
@@ -22,6 +26,12 @@ public class UserService {
     private final KeycloakUserService keycloakUserService;
     private final KeycloakUtilsService utilsService;
 
+    /**
+     * Constructor para la inyeccion de dependencias.
+     *
+     * @param keycloakUserService Servicio de bajo nivel para operaciones CRUD en Keycloak.
+     * @param utilsService        Servicio de utilidades para interactuar con Keycloak.
+     */
     public UserService(KeycloakUserService keycloakUserService, KeycloakUtilsService utilsService) {
         this.keycloakUserService = keycloakUserService;
         this.utilsService = utilsService;
@@ -65,7 +75,9 @@ public class UserService {
     }
 
     /**
-     * @return generateTemporaryPassword
+     * Genera una contrasena temporal segura de 12 caracteres.
+     *
+     * @return La contrasena temporal generada.
      */
     private String generateTemporaryPassword() {
         final String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_";

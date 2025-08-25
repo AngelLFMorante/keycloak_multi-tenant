@@ -15,6 +15,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+/**
+ * Servicio de bajo nivel para interactuar directamente con la API de administracion de Keycloak
+ * y gestionar las operaciones relacionadas con los usuarios.
+ */
 @Service
 public class KeycloakUserService {
 
@@ -22,6 +26,12 @@ public class KeycloakUserService {
     private final KeycloakRoleService keycloakRoleService;
     private final KeycloakUtilsService utilsService;
 
+    /**
+     * Constructor para la inyeccion de dependencias.
+     *
+     * @param keycloakRoleService Servicio para operaciones relacionadas con roles.
+     * @param utilsService        Servicio de utilidades para obtener recursos de Keycloak.
+     */
     public KeycloakUserService(KeycloakRoleService keycloakRoleService, KeycloakUtilsService utilsService) {
         this.keycloakRoleService = keycloakRoleService;
         this.utilsService = utilsService;
@@ -120,6 +130,14 @@ public class KeycloakUserService {
 
     // ---------------------- Private Helpers ----------------------
 
+    /**
+     * Crea un nuevo usuario en Keycloak y maneja la respuesta HTTP.
+     *
+     * @param realmResource El recurso del realm de Keycloak.
+     * @param request       Los datos del usuario a crear.
+     * @return El ID del usuario creado.
+     * @throws KeycloakUserCreationException Si la creacion del usuario falla.
+     */
     private String createUser(RealmResource realmResource, UserRequest request) {
         log.debug("Creando usuario '{}' en Keycloak.", request.getUsername());
         UserRepresentation user = new UserRepresentation();
@@ -144,6 +162,14 @@ public class KeycloakUserService {
         }
     }
 
+    /**
+     * Establece una contrasena temporal para un usuario.
+     *
+     * @param realmResource El recurso del realm.
+     * @param userId        El ID del usuario.
+     * @param tempPassword  La contrasena temporal.
+     * @throws KeycloakUserCreationException Si falla el establecimiento de la contrasena.
+     */
     private void setTemporaryPassword(RealmResource realmResource, String userId, String tempPassword) {
         log.debug("Estableciendo contraseña temporal para el usuario ID '{}'.", userId);
         CredentialRepresentation credential = new CredentialRepresentation();
@@ -160,6 +186,14 @@ public class KeycloakUserService {
         }
     }
 
+    /**
+     * Asigna un rol de nivel de realm a un usuario.
+     *
+     * @param realmResource El recurso del realm.
+     * @param userId        El ID del usuario.
+     * @param roleName      El nombre del rol a asignar.
+     * @throws KeycloakRoleCreationException Si el rol no existe o si la asignacion falla.
+     */
     private void assignRoleToUser(RealmResource realmResource, String userId, String roleName) {
         if (roleName == null || roleName.isBlank()) {
             log.info("No se asignó ningún rol porque el rol está vacío o no especificado.");
