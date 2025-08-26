@@ -111,4 +111,14 @@ class RoleControllerTest {
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(roleService).addOrUpdateRoleAttributes(realm, roleName, attributes);
     }
+
+    @Test
+    @DisplayName("Debería eliminar atributo de un rol")
+    void removeRoleAttribute_ShouldReturnNoContent() {
+        String attribute = "attributeName";
+        ResponseEntity<Void> response = roleController.removeRoleAttribute(realm, roleName, attribute);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(roleService).removeRoleAttribute(realm, roleName, attribute);
+    }
 }

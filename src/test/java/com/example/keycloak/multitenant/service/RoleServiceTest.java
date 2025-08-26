@@ -104,4 +104,14 @@ class RoleServiceTest {
 
         verify(keycloakRoleService).addOrUpdateRoleAttributes(keycloakRealm, roleName, attributes);
     }
+
+    @Test
+    @DisplayName("Debería eliminar atributo de un rol")
+    void removeRoleAttributes_ShouldCallKeycloakRoleService() {
+        String attribute = "attributeName";
+
+        roleService.removeRoleAttribute(realm, roleName, attribute);
+
+        verify(keycloakRoleService).removeRoleAttribute(keycloakRealm, roleName, attribute);
+    }
 }

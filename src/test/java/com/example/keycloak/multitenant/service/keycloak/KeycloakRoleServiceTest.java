@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -377,6 +378,64 @@ class KeycloakRoleServiceTest {
         assertEquals(List.of("WRITE"), roleRep.getAttributes().get("scope"));
 
         verify(roleResource, times(1)).update(roleRep);
+    }
+
+    @Test
+    @DisplayName("Debería eliminar atributo exitosamente cuando existe")
+    void removeRoleAttribute_Success() {
+        RoleRepresentation roleRep = new RoleRepresentation();
+        roleRep.setName(testRole);
+        Map<String, List<String>> attrs = new HashMap<>();
+        attrs.put("scope", List.of("READ", "WRITE"));
+        roleRep.setAttributes(attrs);
+
+        when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
+        when(realmResource.roles()).thenReturn(rolesResource);
+        when(rolesResource.get(testRole)).thenReturn(roleResource);
+        when(roleResource.toRepresentation()).thenReturn(roleRep);
+
+        assertDoesNotThrow(() -> roleService.removeRoleAttribute(realm, testRole, "scope"));
+
+        assertFalse(roleRep.getAttributes().containsKey("scope"));
+        verify(roleResource, times(1)).update(roleRep);
+    }
+
+    @Test
+    @DisplayName("Debería lanzar excepción cuando atributos es null")
+    void removeRoleAttribute_ShouldThrow_WhenAttributesNull() {
+        RoleRepresentation roleRep = new RoleRepresentation();
+        roleRep.setName(testRole);
+        roleRep.setAttributes(null);
+
+        when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
+        when(realmResource.roles()).thenReturn(rolesResource);
+        when(rolesResource.get(testRole)).thenReturn(roleResource);
+        when(roleResource.toRepresentation()).thenReturn(roleRep);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> roleService.removeRoleAttribute(realm, testRole, "scope"));
+
+        assertEquals("El atributo 'scope' no existe en el rol 'ADMIN_ROLE' del realm 'plexus'.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Debería lanzar excepción cuando el atributo no existe en el mapa")
+    void removeRoleAttribute_ShouldThrow_WhenAttributeNotPresent() {
+        RoleRepresentation roleRep = new RoleRepresentation();
+        roleRep.setName(testRole);
+        Map<String, List<String>> attrs = new HashMap<>();
+        attrs.put("owner", List.of("platform"));
+        roleRep.setAttributes(attrs);
+
+        when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
+        when(realmResource.roles()).thenReturn(rolesResource);
+        when(rolesResource.get(testRole)).thenReturn(roleResource);
+        when(roleResource.toRepresentation()).thenReturn(roleRep);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> roleService.removeRoleAttribute(realm, testRole, "scope"));
+
+        assertEquals("El atributo 'scope' no existe en el rol 'ADMIN_ROLE' del realm 'plexus'.", ex.getMessage());
     }
 
 }
