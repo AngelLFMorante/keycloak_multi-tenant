@@ -2,7 +2,7 @@ package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.model.UserRequest;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
-import com.example.keycloak.multitenant.service.keycloak.KeycloakUtilsService;
+import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
@@ -24,17 +24,17 @@ public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
     private final KeycloakUserService keycloakUserService;
-    private final KeycloakUtilsService utilsService;
+    private final KeycloakConfigService utilsConfigService;
 
     /**
      * Constructor para la inyeccion de dependencias.
      *
      * @param keycloakUserService Servicio de bajo nivel para operaciones CRUD en Keycloak.
-     * @param utilsService        Servicio de utilidades para interactuar con Keycloak.
+     * @param utilsConfigService  Servicio de utilidades para interactuar con Keycloak.
      */
-    public UserService(KeycloakUserService keycloakUserService, KeycloakUtilsService utilsService) {
+    public UserService(KeycloakUserService keycloakUserService, KeycloakConfigService utilsConfigService) {
         this.keycloakUserService = keycloakUserService;
-        this.utilsService = utilsService;
+        this.utilsConfigService = utilsConfigService;
     }
 
     /**
@@ -49,7 +49,7 @@ public class UserService {
         log.info("Procesando registro para el realm: {}", realmPath);
         log.debug("Datos de registro recibidos: username={}, email={}", request.getUsername(), request.getEmail());
 
-        String keycloakRealm = utilsService.resolveRealm(realmPath);
+        String keycloakRealm = utilsConfigService.resolveRealm(realmPath);
 
         if (keycloakRealm == null) {
             log.warn("Mapeo de realm no encontrado para el tenantPath: {}", realmPath);
@@ -96,7 +96,7 @@ public class UserService {
      * @return Una lista de representaciones de usuario.
      */
     public List<UserRepresentation> getAllUsers(String realm) {
-        String keycloakRealm = utilsService.resolveRealm(realm);
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
         return keycloakUserService.getAllUsers(keycloakRealm);
     }
 
@@ -108,7 +108,7 @@ public class UserService {
      * @param updatedUser Los datos de usuario a actualizar.
      */
     public void updateUser(String realm, String userId, UserRequest updatedUser) {
-        String keycloakRealm = utilsService.resolveRealm(realm);
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
         keycloakUserService.updateUser(keycloakRealm, userId, updatedUser);
     }
 
@@ -119,7 +119,7 @@ public class UserService {
      * @param userId El ID del usuario.
      */
     public void deleteUser(String realm, String userId) {
-        String keycloakRealm = utilsService.resolveRealm(realm);
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
         keycloakUserService.deleteUser(keycloakRealm, userId);
     }
 }

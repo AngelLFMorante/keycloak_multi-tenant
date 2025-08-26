@@ -3,6 +3,7 @@ package com.example.keycloak.multitenant.service.keycloak;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
@@ -24,17 +25,17 @@ public class KeycloakUserService {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakUserService.class);
     private final KeycloakRoleService keycloakRoleService;
-    private final KeycloakUtilsService utilsService;
+    private final KeycloakAdminService utilsAdminService;
 
     /**
      * Constructor para la inyeccion de dependencias.
      *
      * @param keycloakRoleService Servicio para operaciones relacionadas con roles.
-     * @param utilsService        Servicio de utilidades para obtener recursos de Keycloak.
+     * @param utilsAdminService   Servicio de utilidades para obtener recursos de Keycloak.
      */
-    public KeycloakUserService(KeycloakRoleService keycloakRoleService, KeycloakUtilsService utilsService) {
+    public KeycloakUserService(KeycloakRoleService keycloakRoleService, KeycloakAdminService utilsAdminService) {
         this.keycloakRoleService = keycloakRoleService;
-        this.utilsService = utilsService;
+        this.utilsAdminService = utilsAdminService;
         log.info("KeycloakUserService inicializado.");
     }
 
@@ -46,7 +47,7 @@ public class KeycloakUserService {
      */
     public List<UserRepresentation> getAllUsers(String realm) {
         log.info("Obteniendo todos los usuarios del realm '{}'.", realm);
-        return utilsService.getRealmResource(realm).users().list();
+        return utilsAdminService.getRealmResource(realm).users().list();
     }
 
     /**
@@ -59,7 +60,7 @@ public class KeycloakUserService {
     public void createUserWithRole(String realm, UserRequest request, String tempPassword) {
         log.info("Iniciando el proceso de registro para el usuario '{}' en el realm '{}'.", request.getUsername(), realm);
 
-        RealmResource realmResource = utilsService.getRealmResource(realm);
+        RealmResource realmResource = utilsAdminService.getRealmResource(realm);
 
         String userId = createUser(realmResource, request);
         setTemporaryPassword(realmResource, userId, tempPassword);
@@ -78,7 +79,7 @@ public class KeycloakUserService {
      */
     public boolean userExistsByEmail(String realm, String email) {
         log.debug("Comprobando si el email '{}' ya existe en el realm '{}'.", email, realm);
-        List<UserRepresentation> users = utilsService.getRealmResource(realm).users().searchByEmail(email, true);
+        List<UserRepresentation> users = utilsAdminService.getRealmResource(realm).users().searchByEmail(email, true);
         return users != null && !users.isEmpty();
     }
 
@@ -92,7 +93,7 @@ public class KeycloakUserService {
     public void updateUser(String realm, String userId, UserRequest updatedUserRequest) {
         log.info("Actualizando usuario con ID '{}' en el realm '{}'.", userId, realm);
 
-        RealmResource realmResource = utilsService.getRealmResource(realm);
+        RealmResource realmResource = utilsAdminService.getRealmResource(realm);
         UserResource userResource = realmResource.users().get(userId);
 
         UserRepresentation userRepresentation = userResource.toRepresentation();
@@ -124,7 +125,7 @@ public class KeycloakUserService {
      */
     public void deleteUser(String realm, String userId) {
         log.info("Eliminando usuario con ID '{}' del realm '{}'.", userId, realm);
-        utilsService.getRealmResource(realm).users().get(userId).remove();
+        utilsAdminService.getRealmResource(realm).users().get(userId).remove();
         log.info("Usuario con ID '{}' eliminado exitosamente.", userId);
     }
 

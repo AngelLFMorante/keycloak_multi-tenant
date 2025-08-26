@@ -3,6 +3,7 @@ package com.example.keycloak.multitenant.service.keycloak;
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.exception.KeycloakCommunicationException;
 import com.example.keycloak.multitenant.model.RefreshTokenRequest;
+import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
@@ -21,14 +22,14 @@ public class KeycloakIntrospectionService {
     private static final Logger log = LoggerFactory.getLogger(KeycloakIntrospectionService.class);
 
     private final KeycloakProperties keycloakProperties;
-    private final KeycloakUtilsService keycloakUtilsService;
+    private final KeycloakConfigService utilsConfigService;
     private final RestTemplate restTemplate;
 
     public KeycloakIntrospectionService(KeycloakProperties keycloakProperties,
-                                        KeycloakUtilsService keycloakUtilsService,
+                                        KeycloakConfigService utilsConfigService,
                                         RestTemplate restTemplate) {
         this.keycloakProperties = keycloakProperties;
-        this.keycloakUtilsService = keycloakUtilsService;
+        this.utilsConfigService = utilsConfigService;
         this.restTemplate = restTemplate;
     }
 
@@ -43,7 +44,7 @@ public class KeycloakIntrospectionService {
      * @throws IllegalArgumentException       Si el client secret no se encuentra.
      */
     public Map<String, Object> introspectToken(String realm, RefreshTokenRequest token, String clientId) {
-        String keycloakRealm = keycloakUtilsService.resolveRealm(realm);
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
 
         String clientSecret = keycloakProperties.getClientSecrets().get(clientId);
         if (clientSecret == null) {

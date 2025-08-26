@@ -2,7 +2,6 @@ package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakRoleService;
-import com.example.keycloak.multitenant.service.keycloak.KeycloakUtilsService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,9 +26,8 @@ public class RoleService {
      * Constructor para inyeccion de dependencias.
      *
      * @param keycloakRoleService El servicio de bajo nivel para interactuar con la API de Keycloak.
-     * @param utilsService        El servicio de utilidad para resolver nombres de realms.
      */
-    public RoleService(KeycloakRoleService keycloakRoleService, KeycloakUtilsService utilsService) {
+    public RoleService(KeycloakRoleService keycloakRoleService) {
         this.keycloakRoleService = keycloakRoleService;
     }
 
