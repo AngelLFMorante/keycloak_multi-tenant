@@ -1,5 +1,6 @@
 package com.example.keycloak.multitenant.config;
 
+import com.example.keycloak.multitenant.exception.KeycloakCommunicationException;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.ErrorResponse;
@@ -31,6 +32,102 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    // --- Manejo de Excepciones Específicas de Keycloak ---
+
+    /**
+     * Maneja las excepciones de tipo {@link KeycloakCommunicationException}.
+     * Estas excepciones son lanzadas cuando hay un error de comunicación con Keycloak,
+     * como un error de red o un error inesperado del servidor.
+     *
+     * @param ex La excepción {@link KeycloakCommunicationException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y el código de estado HTTP 500 (Internal Server Error).
+     */
+    @ExceptionHandler(KeycloakCommunicationException.class)
+    public ResponseEntity<ErrorResponse> handleKeycloakCommunicationException(KeycloakCommunicationException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                "Error de comunicación con el servicio Keycloak: " + ex.getMessage(),
+                null
+        );
+
+        log.error("KeycloakCommunicationException capturada: {}", ex.getMessage(), ex);
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link KeycloakUserCreationException}.
+     * Estas excepciones son lanzadas específicamente por KeycloakService
+     * cuando hay un problema al interactuar con la API de administración de Keycloak para la creación de usuarios.
+     * Se mapea a un 400 Bad Request si el problema es de datos o conflicto, o 500 si es un error interno.
+     *
+     * @param ex La excepción {@link KeycloakUserCreationException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
+     */
+    @ExceptionHandler(KeycloakUserCreationException.class)
+    public ResponseEntity<ErrorResponse> handleKeycloakUserCreationException(KeycloakUserCreationException ex) {
+        String errorMessage = ex.getMessage();
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        if (errorMessage != null) {
+            if (errorMessage.contains("409 Conflict") || errorMessage.contains("User exists with same username") || errorMessage.contains("User exists with same email")) {
+                status = HttpStatus.CONFLICT;
+            } else if (errorMessage.contains("Error interno") || errorMessage.contains("500 Internal Server Error")) {
+                status = HttpStatus.INTERNAL_SERVER_ERROR;
+            }
+        }
+        log.error("KeycloakUserCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                status.value(),
+                status.getReasonPhrase(),
+                errorMessage,
+                null
+        );
+
+        return new ResponseEntity<>(errorResponse, status);
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link KeycloakRoleCreationException}.
+     * Estas excepciones son lanzadas específicamente por KeycloakService
+     * cuando hay un problema al interactuar con la API de administración de Keycloak para la creación de roles.
+     * Se mapea a un 400 Bad Request si el problema es de datos o conflicto, o 500 si es un error interno.
+     *
+     * @param ex La excepción {@link KeycloakRoleCreationException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
+     */
+    @ExceptionHandler(KeycloakRoleCreationException.class)
+    public ResponseEntity<ErrorResponse> handleKeycloakRoleCreationException(KeycloakRoleCreationException ex) {
+        String errorMessage = ex.getMessage();
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        if (errorMessage != null) {
+            if (errorMessage.contains("409 Conflict") || errorMessage.contains("Role exists with same name")) {
+                status = HttpStatus.CONFLICT;
+            } else if (errorMessage.contains("Error interno") || errorMessage.contains("500 Internal Server Error")) {
+                status = HttpStatus.INTERNAL_SERVER_ERROR;
+            }
+        }
+        log.error("KeycloakRoleCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                status.value(),
+                status.getReasonPhrase(),
+                errorMessage,
+                null
+        );
+
+        return new ResponseEntity<>(errorResponse, status);
+    }
+
+    // --- Manejo de Excepciones de Spring y RestTemplate ---
 
     /**
      * Maneja las excepciones de tipo {@link HttpClientErrorException} (errores 4xx).
@@ -138,6 +235,36 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Maneja las excepciones de tipo {@link ResponseStatusException}.
+     * Estas excepciones son lanzadas explícitamente en los controladores
+     * para indicar un estado HTTP y un mensaje de error específicos.
+     *
+     * @param ex La excepción {@link ResponseStatusException} capturada.
+     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
+     * y el código de estado HTTP especificado en la excepción.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
+        int statusCode = ex.getStatusCode().value();
+        HttpStatus httpStatus = HttpStatus.resolve(statusCode);
+        String reasonPhrase = httpStatus != null ? httpStatus.getReasonPhrase() : "Unknown Status";
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                statusCode,
+                reasonPhrase,
+                ex.getReason() != null ? ex.getReason() : "No message available",
+                null
+        );
+
+        log.warn("ResponseStatusException capturada: Status={}, Reason={}", ex.getStatusCode(), ex.getReason(), ex);
+
+        return new ResponseEntity<>(errorResponse, ex.getStatusCode());
+    }
+
+    // --- Manejo de Excepciones de Validación y Genéricas ---
+
+    /**
      * Maneja las excepciones de tipo {@link IllegalArgumentException}
      * Argumentos de entrada no validas
      *
@@ -212,104 +339,4 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    /**
-     * Maneja las excepciones de tipo {@link KeycloakUserCreationException}.
-     * Estas excepciones son lanzadas específicamente por KeycloakService
-     * cuando hay un problema al interactuar con la API de administración de Keycloak para la creación de usuarios.
-     * Se mapea a un 400 Bad Request si el problema es de datos o conflicto, o 500 si es un error interno.
-     *
-     * @param ex La excepción {@link KeycloakUserCreationException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
-     */
-    @ExceptionHandler(KeycloakUserCreationException.class)
-    public ResponseEntity<ErrorResponse> handleKeycloakUserCreationException(KeycloakUserCreationException ex) {
-        String errorMessage = ex.getMessage();
-        HttpStatus status = HttpStatus.BAD_REQUEST;
-
-        if (errorMessage != null) {
-            if (errorMessage.contains("409 Conflict") || errorMessage.contains("User exists with same username") || errorMessage.contains("User exists with same email")) {
-                status = HttpStatus.CONFLICT;
-            } else if (errorMessage.contains("Error interno") || errorMessage.contains("500 Internal Server Error")) {
-                status = HttpStatus.INTERNAL_SERVER_ERROR;
-            }
-        }
-        log.error("KeycloakUserCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
-
-        ErrorResponse errorResponse = new ErrorResponse(
-                new Date(),
-                status.value(),
-                status.getReasonPhrase(),
-                errorMessage,
-                null
-        );
-
-        log.error("KeycloakUserCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
-
-        return new ResponseEntity<>(errorResponse, status);
-    }
-
-    /**
-     * Maneja las excepciones de tipo {@link KeycloakRoleCreationException}.
-     * Estas excepciones son lanzadas específicamente por KeycloakService
-     * cuando hay un problema al interactuar con la API de administración de Keycloak para la creación de roles.
-     * Se mapea a un 400 Bad Request si el problema es de datos o conflicto, o 500 si es un error interno.
-     *
-     * @param ex La excepción {@link KeycloakRoleCreationException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
-     */
-    @ExceptionHandler(KeycloakRoleCreationException.class)
-    public ResponseEntity<ErrorResponse> handleKeycloakRoleCreationException(KeycloakRoleCreationException ex) {
-        String errorMessage = ex.getMessage();
-        HttpStatus status = HttpStatus.BAD_REQUEST;
-
-        if (errorMessage != null) {
-            if (errorMessage.contains("409 Conflict") || errorMessage.contains("Role exists with same name")) {
-                status = HttpStatus.CONFLICT;
-            } else if (errorMessage.contains("Error interno") || errorMessage.contains("500 Internal Server Error")) {
-                status = HttpStatus.INTERNAL_SERVER_ERROR;
-            }
-        }
-        log.error("KeycloakRoleCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
-
-        ErrorResponse errorResponse = new ErrorResponse(
-                new Date(),
-                status.value(),
-                status.getReasonPhrase(),
-                errorMessage,
-                null
-        );
-        log.error("KeycloakRoleCreationException capturada: Status={}, Message={}", status, ex.getMessage(), ex);
-
-        return new ResponseEntity<>(errorResponse, status);
-    }
-
-    /**
-     * Maneja las excepciones de tipo {@link ResponseStatusException}.
-     * Estas excepciones son lanzadas explícitamente en los controladores
-     * para indicar un estado HTTP y un mensaje de error específicos.
-     *
-     * @param ex La excepción {@link ResponseStatusException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y el código de estado HTTP especificado en la excepción.
-     */
-    @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
-        int statusCode = ex.getStatusCode().value();
-        HttpStatus httpStatus = HttpStatus.resolve(statusCode);
-        String reasonPhrase = httpStatus != null ? httpStatus.getReasonPhrase() : "Unknown Status";
-
-        ErrorResponse errorResponse = new ErrorResponse(
-                new Date(),
-                statusCode,
-                reasonPhrase,
-                ex.getReason() != null ? ex.getReason() : "No message available",
-                null
-        );
-
-        log.warn("ResponseStatusException capturada: Status={}, Reason={}", ex.getStatusCode(), ex.getReason(), ex);
-
-        return new ResponseEntity<>(errorResponse, ex.getStatusCode());
-    }
 }

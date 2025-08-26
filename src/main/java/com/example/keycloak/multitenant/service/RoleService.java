@@ -22,7 +22,6 @@ public class RoleService {
     private static final Logger log = LoggerFactory.getLogger(RoleService.class);
 
     private final KeycloakRoleService keycloakRoleService;
-    private final KeycloakUtilsService utilsService;
 
     /**
      * Constructor para inyeccion de dependencias.
@@ -32,7 +31,6 @@ public class RoleService {
      */
     public RoleService(KeycloakRoleService keycloakRoleService, KeycloakUtilsService utilsService) {
         this.keycloakRoleService = keycloakRoleService;
-        this.utilsService = utilsService;
     }
 
     /**
@@ -42,8 +40,7 @@ public class RoleService {
      * @return Lista de roles.
      */
     public List<RoleRepresentation> getRolesByRealm(String realm) {
-        String keycloakRealm = utilsService.resolveRealm(realm);
-        return keycloakRoleService.getRoles(keycloakRealm);
+        return keycloakRoleService.getRoles(realm);
     }
 
     /**
@@ -55,8 +52,7 @@ public class RoleService {
      * @throws com.example.keycloak.multitenant.exception.KeycloakRoleCreationException Si el rol ya existe o hay un error al crearlo.
      */
     public Map<String, Object> createRoleInRealm(String realm, CreateRoleRequest request) {
-        String keycloakRealm = utilsService.resolveRealm(realm);
-        keycloakRoleService.createRole(keycloakRealm, request);
+        keycloakRoleService.createRole(realm, request);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Rol creado exitosamente");
@@ -76,8 +72,7 @@ public class RoleService {
      * @throws RuntimeException                Si ocurre un error inesperado al eliminar el rol.
      */
     public Map<String, Object> deleteRoleFromRealm(String realm, String roleName) {
-        String keycloakRealm = utilsService.resolveRealm(realm);
-        keycloakRoleService.deleteRole(keycloakRealm, roleName);
+        keycloakRoleService.deleteRole(realm, roleName);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Rol eliminado exitosamente");
@@ -96,8 +91,7 @@ public class RoleService {
      * @throws RuntimeException Si el rol no tiene atributos o si el rol no se encuentra.
      */
     public Map<String, List<String>> getRoleAttributes(String realm, String roleName) {
-        String keycloakRealm = utilsService.resolveRealm(realm);
-        return keycloakRoleService.getRoleAttributes(keycloakRealm, roleName);
+        return keycloakRoleService.getRoleAttributes(realm, roleName);
     }
 
     /**
@@ -110,9 +104,8 @@ public class RoleService {
      * @throws RuntimeException         Si el rol no se encuentra o hay un error al actualizar.
      */
     public void addOrUpdateRoleAttributes(String realm, String roleName, Map<String, List<String>> roleAttributes) {
-        String keycloakRealm = utilsService.resolveRealm(realm);
-        log.info("Añadiendo/actualizando atributos en el rol '{}' del realm '{}'.", roleName, keycloakRealm);
-        keycloakRoleService.addOrUpdateRoleAttributes(keycloakRealm, roleName, roleAttributes);
+        log.info("Añadiendo/actualizando atributos en el rol '{}' del realm '{}'.", roleName, realm);
+        keycloakRoleService.addOrUpdateRoleAttributes(realm, roleName, roleAttributes);
     }
 
     /**
@@ -124,9 +117,8 @@ public class RoleService {
      * @throws IllegalArgumentException si el atributo especificado no existe en el rol.
      */
     public void removeRoleAttribute(String realm, String roleName, String attributeName) {
-        String keycloakRealm = utilsService.resolveRealm(realm);
         log.debug("Eliminando atributo '{}' del rol '{}' en realm '{}'.", attributeName, roleName, realm);
-        keycloakRoleService.removeRoleAttribute(keycloakRealm, roleName, attributeName);
+        keycloakRoleService.removeRoleAttribute(realm, roleName, attributeName);
     }
 
 }
