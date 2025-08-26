@@ -114,4 +114,19 @@ public class RoleService {
         log.info("Añadiendo/actualizando atributos en el rol '{}' del realm '{}'.", roleName, keycloakRealm);
         keycloakRoleService.addOrUpdateRoleAttributes(keycloakRealm, roleName, roleAttributes);
     }
+
+    /**
+     * Elimina un atributo específico de un rol dentro de un realm.
+     *
+     * @param realm         Nombre del tenant (realm).
+     * @param roleName      Nombre del rol en Keycloak.
+     * @param attributeName Nombre del atributo a eliminar.
+     * @throws IllegalArgumentException si el atributo especificado no existe en el rol.
+     */
+    public void removeRoleAttribute(String realm, String roleName, String attributeName) {
+        String keycloakRealm = utilsService.resolveRealm(realm);
+        log.debug("Eliminando atributo '{}' del rol '{}' en realm '{}'.", attributeName, roleName, realm);
+        keycloakRoleService.removeRoleAttribute(keycloakRealm, roleName, attributeName);
+    }
+
 }
