@@ -124,8 +124,9 @@ public class RoleService {
      * @throws IllegalArgumentException si el atributo especificado no existe en el rol.
      */
     public void removeRoleAttribute(String realm, String roleName, String attributeName) {
+        String keycloakRealm = utilsService.resolveRealm(realm);
         log.debug("Eliminando atributo '{}' del rol '{}' en realm '{}'.", attributeName, roleName, realm);
-        keycloakRoleService.removeRoleAttribute(realm, roleName, attributeName);
+        keycloakRoleService.removeRoleAttribute(keycloakRealm, roleName, attributeName);
     }
 
 }
