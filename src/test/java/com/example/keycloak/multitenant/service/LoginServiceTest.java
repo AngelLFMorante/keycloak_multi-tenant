@@ -35,7 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
-class AuthServiceTest {
+class LoginServiceTest {
 
     @Mock
     private RestTemplate restTemplate;
@@ -44,7 +44,7 @@ class AuthServiceTest {
     private KeycloakProperties keycloakProperties;
 
     @InjectMocks
-    private AuthService authService;
+    private LoginService loginService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private String realm;
@@ -146,7 +146,7 @@ class AuthServiceTest {
                 eq(String.class)
         )).thenReturn(new ResponseEntity<>(keycloakTokenResponse, HttpStatus.OK));
 
-        AuthResponse response = authService.authenticate(realm, client, username, password);
+        AuthResponse response = loginService.authenticate(realm, client, username, password);
 
         List<String> actualRoles = response.getRoles();
 
@@ -174,7 +174,7 @@ class AuthServiceTest {
     void testAuthenticateTenantNotFound() {
         when(keycloakProperties.getRealmMapping()).thenReturn(new HashMap<>());
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-                () -> authService.authenticate("unknown", "client", "user", "pass"));
+                () -> loginService.authenticate("unknown", "client", "user", "pass"));
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
     }
 
@@ -183,7 +183,7 @@ class AuthServiceTest {
         when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
         clientSecrets.remove("testClient");
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                authService.authenticate(realm, "testClient", "user", "pass"));
+                loginService.authenticate(realm, "testClient", "user", "pass"));
         assertTrue(exception.getMessage().contains("secreto no encontrado"));
     }
 
@@ -196,7 +196,7 @@ class AuthServiceTest {
         when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class))).thenThrow(httpEx);
 
         assertThrows(ResponseStatusException.class, () ->
-                authService.authenticate(realm, client, "user", "pass"));
+                loginService.authenticate(realm, client, "user", "pass"));
     }
 
     @Test
@@ -208,7 +208,7 @@ class AuthServiceTest {
                 .thenThrow(new RuntimeException("Unexpected"));
 
         assertThrows(ResponseStatusException.class, () ->
-                authService.authenticate(realm, client, "user", "pass"));
+                loginService.authenticate(realm, client, "user", "pass"));
     }
 
     @Test
@@ -219,7 +219,7 @@ class AuthServiceTest {
                 .thenReturn(new ResponseEntity<>("invalid-json", HttpStatus.OK));
 
         assertThrows(ResponseStatusException.class, () ->
-                authService.authenticate(realm, client, "user", "pass"));
+                loginService.authenticate(realm, client, "user", "pass"));
     }
 
     @Test
@@ -241,7 +241,7 @@ class AuthServiceTest {
         when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class)))
                 .thenReturn(responseEntity);
 
-        AuthResponse response = authService.refreshToken(oldRefreshToken, realm, client);
+        AuthResponse response = loginService.refreshToken(oldRefreshToken, realm, client);
 
         assertNotNull(response);
         assertEquals("new-access-token", response.getAccessToken());
@@ -251,14 +251,14 @@ class AuthServiceTest {
     @Test
     void refreshToken_realmNotFound() {
         assertThrows(ResponseStatusException.class, () ->
-                authService.refreshToken("token", "unknownRealm", "testClient"));
+                loginService.refreshToken("token", "unknownRealm", "testClient"));
     }
 
     @Test
     void refreshToken_clientSecretMissing() {
         when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
         assertThrows(IllegalArgumentException.class, () ->
-                authService.refreshToken("token", realm, null));
+                loginService.refreshToken("token", realm, null));
     }
 
     @Test
@@ -270,7 +270,7 @@ class AuthServiceTest {
                 .thenThrow(new RuntimeException("Simulated error"));
 
         assertThrows(ResponseStatusException.class, () ->
-                authService.refreshToken("dummyRefresh", realm, client));
+                loginService.refreshToken("dummyRefresh", realm, client));
     }
 
     @Test
@@ -282,7 +282,7 @@ class AuthServiceTest {
         when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class))).thenThrow(httpEx);
 
         assertThrows(ResponseStatusException.class, () ->
-                authService.refreshToken("dummyRefresh", realm, client));
+                loginService.refreshToken("dummyRefresh", realm, client));
     }
 
     @Test
@@ -293,7 +293,7 @@ class AuthServiceTest {
                 .thenReturn(new ResponseEntity<>("invalid-json", HttpStatus.OK));
 
         assertThrows(ResponseStatusException.class, () ->
-                authService.refreshToken("dummyRefresh", realm, client));
+                loginService.refreshToken("dummyRefresh", realm, client));
     }
 
     @Test
@@ -307,20 +307,20 @@ class AuthServiceTest {
         when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
         when(keycloakProperties.getAuthServerUrl()).thenReturn("http://auth-server");
 
-        assertDoesNotThrow(() -> authService.revokeRefreshToken("refresh-token", "tenant1", "client-app"));
+        assertDoesNotThrow(() -> loginService.revokeRefreshToken("refresh-token", "tenant1", "client-app"));
     }
 
     @Test
     void revokeRefreshToken_realmNotFound() {
         assertThrows(ResponseStatusException.class, () ->
-                authService.revokeRefreshToken("token", "unknownRealm", "testClient"));
+                loginService.revokeRefreshToken("token", "unknownRealm", "testClient"));
     }
 
     @Test
     void revokeRefreshToken_clientSecretMissing() {
         when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
         assertThrows(ResponseStatusException.class, () ->
-                authService.revokeRefreshToken("token", realm, null));
+                loginService.revokeRefreshToken("token", realm, null));
     }
 
     @Test
@@ -332,6 +332,6 @@ class AuthServiceTest {
                 .thenThrow(new RuntimeException("Simulated error"));
 
         assertThrows(ResponseStatusException.class, () ->
-                authService.revokeRefreshToken("dummyRefresh", realm, client));
+                loginService.revokeRefreshToken("dummyRefresh", realm, client));
     }
 }

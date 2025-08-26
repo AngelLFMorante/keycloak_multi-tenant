@@ -2,7 +2,7 @@ package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.model.UserRequest;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
-import com.example.keycloak.multitenant.service.keycloak.KeycloakUtilsService;
+import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +36,7 @@ class UserServiceTest {
     private KeycloakUserService keycloakUserService;
 
     @Mock
-    private KeycloakUtilsService utilsService;
+    private KeycloakConfigService utilsService;
 
     @InjectMocks
     private UserService userService;

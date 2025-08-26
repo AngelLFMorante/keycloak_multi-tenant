@@ -4,7 +4,7 @@ import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.config.SecurityConfig;
 import com.example.keycloak.multitenant.model.AuthResponse;
 import com.example.keycloak.multitenant.model.RefreshTokenRequest;
-import com.example.keycloak.multitenant.service.AuthService;
+import com.example.keycloak.multitenant.service.LoginService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -54,30 +54,30 @@ public class LoginController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
     private final KeycloakProperties keycloakProperties;
-    private final AuthService authService;
+    private final LoginService loginService;
 
     /**
      * Constructor para la inyeccion de dependencias de Spring.
      *
      * @param authenticationManager     Gestor de autenticacion de Spring Security.
      * @param securityContextRepository Repositorio para guardar el contexto de seguridad en la sesion.
-     * @param authService               Servicio para manejar la logica de autenticacion con Keycloak.
+     * @param loginService              Servicio para manejar la logica de autenticacion con Keycloak.
      * @param keycloakProperties        Propiedades de configuracion de Keycloak.
      */
     public LoginController(AuthenticationManager authenticationManager,
                            SecurityContextRepository securityContextRepository,
-                           AuthService authService,
+                           LoginService loginService,
                            KeycloakProperties keycloakProperties) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.keycloakProperties = keycloakProperties;
-        this.authService = authService;
+        this.loginService = loginService;
         log.info("LoginController inicializado.");
     }
 
     /**
      * Maneja la solicitud POST de login de un usuario para un tenant específico.
-     * Este método delega la autenticación a {@link AuthService} y, si es exitosa,
+     * Este método delega la autenticación a {@link LoginService} y, si es exitosa,
      * integra la autenticación con Spring Security para establecer la sesión.
      * El refresh token se devuelve en el cuerpo JSON a Go.
      *
@@ -116,7 +116,7 @@ public class LoginController {
     ) {
         log.info("Intento de login para usuario '{}' en tenant '{}' con cliente keycloak '{}'", username, realm, client);
 
-        AuthResponse authResponse = authService.authenticate(realm, client, username, password);
+        AuthResponse authResponse = loginService.authenticate(realm, client, username, password);
 
         log.debug("Integrando autenticación con Spring Security");
         UsernamePasswordAuthenticationToken authenticationRequest = new UsernamePasswordAuthenticationToken(
@@ -197,7 +197,7 @@ public class LoginController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faltan datos de sesion: 'realm' o 'client'.");
         }
 
-        AuthResponse authResponse = authService.refreshToken(token.refreshToken(), realm, client);
+        AuthResponse authResponse = loginService.refreshToken(token.refreshToken(), realm, client);
 
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("message", "Token refreshed successfully");
@@ -259,7 +259,7 @@ public class LoginController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faltan datos de sesion: 'realm' o 'client'.");
         }
 
-        authService.revokeRefreshToken(token.refreshToken(), realm, client);
+        loginService.revokeRefreshToken(token.refreshToken(), realm, client);
         session.invalidate();
 
         Map<String, Object> response = new HashMap<>();

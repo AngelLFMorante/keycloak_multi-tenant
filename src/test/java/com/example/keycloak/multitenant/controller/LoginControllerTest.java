@@ -4,7 +4,7 @@ import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.config.SecurityConfig;
 import com.example.keycloak.multitenant.model.AuthResponse;
 import com.example.keycloak.multitenant.model.RefreshTokenRequest;
-import com.example.keycloak.multitenant.service.AuthService;
+import com.example.keycloak.multitenant.service.LoginService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -50,7 +50,7 @@ class LoginControllerTest {
     @Mock
     private SecurityContextRepository securityContextRepository;
     @Mock
-    private AuthService authService;
+    private LoginService loginService;
 
     private KeycloakProperties keycloakProperties;
     @Mock
@@ -84,7 +84,7 @@ class LoginControllerTest {
         loginController = new LoginController(
                 authenticationManager,
                 securityContextRepository,
-                authService,
+                loginService,
                 keycloakProperties
         );
 
@@ -120,7 +120,7 @@ class LoginControllerTest {
                 List.of("ROLE_APP_USERS", "ROLE_OFFLINE_ACCESS", "ROLE_USER_APP"),
                 realm, client, username
         );
-        when(authService.authenticate(eq(realm), eq(client), eq(username), eq(password))).thenReturn(mockAuthResponse);
+        when(loginService.authenticate(eq(realm), eq(client), eq(username), eq(password))).thenReturn(mockAuthResponse);
 
         List<SimpleGrantedAuthority> expectedAuthorities = List.of(
                 new SimpleGrantedAuthority("ROLE_APP_USERS"),
@@ -146,7 +146,7 @@ class LoginControllerTest {
         assertNotNull(actualRoles);
         assertTrue(actualRoles.contains("ROLE_APP_USERS"));
 
-        verify(authService, times(1)).authenticate(eq(realm), eq(client), eq(username), eq(password));
+        verify(loginService, times(1)).authenticate(eq(realm), eq(client), eq(username), eq(password));
         verify(authenticationManager, times(1)).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(securityContextRepository, times(1)).saveContext(eq(securityContext), eq(request), eq(response));
         verify(session, times(1)).setAttribute("realm", realm);
@@ -156,7 +156,7 @@ class LoginControllerTest {
     @Test
     @DisplayName("Debería lanzar ResponseStatusException si el login falla en el AuthService")
     void doLogin_shouldThrowExceptionIfAuthServiceFails() {
-        when(authService.authenticate(any(), any(), any(), any()))
+        when(loginService.authenticate(any(), any(), any(), any()))
                 .thenThrow(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
@@ -180,7 +180,7 @@ class LoginControllerTest {
                 "newAccessToken", "newIdToken", "newRefreshToken",
                 300L, 1800L, realm, client
         );
-        when(authService.refreshToken(eq(refreshTokenValue), eq(realm), eq(client))).thenReturn(mockAuthResponse);
+        when(loginService.refreshToken(eq(refreshTokenValue), eq(realm), eq(client))).thenReturn(mockAuthResponse);
 
         RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest(refreshTokenValue);
         ResponseEntity<Map<String, Object>> responseEntity = loginController.refreshToken(request, refreshTokenRequest);
@@ -238,7 +238,7 @@ class LoginControllerTest {
         when(request.getSession(false)).thenReturn(session);
         when(session.getAttribute("realm")).thenReturn(realm);
         when(session.getAttribute("client")).thenReturn(client);
-        doNothing().when(authService).revokeRefreshToken(any(), any(), any());
+        doNothing().when(loginService).revokeRefreshToken(any(), any(), any());
 
         RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest(refreshTokenValue);
         ResponseEntity<Map<String, Object>> responseEntity = loginController.logout(request, refreshTokenRequest);
@@ -247,7 +247,7 @@ class LoginControllerTest {
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
         assertEquals("Logout exitoso. Token revocado.", responseEntity.getBody().get("message"));
 
-        verify(authService, times(1)).revokeRefreshToken(eq(refreshTokenValue), eq(realm), eq(client));
+        verify(loginService, times(1)).revokeRefreshToken(eq(refreshTokenValue), eq(realm), eq(client));
         verify(session, times(1)).invalidate();
     }
 
