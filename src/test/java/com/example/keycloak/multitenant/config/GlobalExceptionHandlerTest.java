@@ -65,9 +65,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.UNAUTHORIZED, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.UNAUTHORIZED.value(), errorResponse.getStatus());
-        assertEquals("Unauthorized", errorResponse.getError());
-        assertTrue(errorResponse.getMessage().contains("Error del cliente al comunicarse con el servicio externo"));
+        assertEquals(HttpStatus.UNAUTHORIZED.value(), errorResponse.status());
+        assertEquals("Unauthorized", errorResponse.error());
+        assertTrue(errorResponse.message().contains("Error del cliente al comunicarse con el servicio externo"));
     }
 
     @Test
@@ -87,9 +87,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
-        assertEquals("Internal Server Error", errorResponse.getError());
-        assertTrue(errorResponse.getMessage().contains("Error del servidor externo"));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.status());
+        assertEquals("Internal Server Error", errorResponse.error());
+        assertTrue(errorResponse.message().contains("Error del servidor externo"));
     }
 
     @Test
@@ -102,9 +102,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), errorResponse.getStatus());
-        assertEquals("Service Unavailable", errorResponse.getError());
-        assertTrue(errorResponse.getMessage().contains("Problema de comunicacion con el servicio externo"));
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), errorResponse.status());
+        assertEquals("Service Unavailable", errorResponse.error());
+        assertTrue(errorResponse.message().contains("Problema de comunicacion con el servicio externo"));
     }
 
     @Test
@@ -117,9 +117,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.GATEWAY_TIMEOUT, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.GATEWAY_TIMEOUT.value(), errorResponse.getStatus());
-        assertEquals("Gateway Timeout", errorResponse.getError());
-        assertTrue(errorResponse.getMessage().contains("Problema de comunicacion con el servicio externo"));
+        assertEquals(HttpStatus.GATEWAY_TIMEOUT.value(), errorResponse.status());
+        assertEquals("Gateway Timeout", errorResponse.error());
+        assertTrue(errorResponse.message().contains("Problema de comunicacion con el servicio externo"));
     }
 
     @Test
@@ -138,9 +138,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
-        assertEquals("Internal Server Error", errorResponse.getError());
-        assertTrue(errorResponse.getMessage().contains("Servicio externo respondio con codigo de estado desconocido: 999"));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.status());
+        assertEquals("Internal Server Error", errorResponse.error());
+        assertTrue(errorResponse.message().contains("Servicio externo respondio con codigo de estado desconocido: 999"));
     }
 
     @Test
@@ -154,9 +154,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
-        assertEquals("Bad Request", errorResponse.getError());
-        assertEquals(errorMessage, errorResponse.getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.status());
+        assertEquals("Bad Request", errorResponse.error());
+        assertEquals(errorMessage, errorResponse.message());
     }
 
     @Test
@@ -170,9 +170,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
-        assertEquals("Internal Server Error", errorResponse.getError());
-        assertEquals(errorMessage, errorResponse.getMessage());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.status());
+        assertEquals("Internal Server Error", errorResponse.error());
+        assertEquals(errorMessage, errorResponse.message());
     }
 
     @Test
@@ -186,9 +186,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.CONFLICT, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.CONFLICT.value(), errorResponse.getStatus());
-        assertEquals("Conflict", errorResponse.getError());
-        assertEquals(errorMessage, errorResponse.getMessage());
+        assertEquals(HttpStatus.CONFLICT.value(), errorResponse.status());
+        assertEquals("Conflict", errorResponse.error());
+        assertEquals(errorMessage, errorResponse.message());
     }
 
     @Test
@@ -202,9 +202,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
-        assertEquals("Bad Request", errorResponse.getError());
-        assertEquals(errorMessage, errorResponse.getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.status());
+        assertEquals("Bad Request", errorResponse.error());
+        assertEquals(errorMessage, errorResponse.message());
     }
 
     @Test
@@ -230,11 +230,11 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
-        assertEquals("Validation Failed", errorResponse.getError());
-        assertTrue(errorResponse.getMessage().contains("Uno o mas campos tienen errores de validacion"));
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.status());
+        assertEquals("Validation Failed", errorResponse.error());
+        assertTrue(errorResponse.message().contains("Uno o mas campos tienen errores de validacion"));
 
-        Map<String, String> details = (Map<String, String>) errorResponse.getDetails();
+        Map<String, String> details = (Map<String, String>) errorResponse.details();
         assertNotNull(details);
         assertEquals("El nombre de usuario no puede estar vacio", details.get("username"));
         assertEquals("El email debe tener un formato valido", details.get("email"));
@@ -252,9 +252,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(status, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(status.value(), errorResponse.getStatus());
-        assertEquals(status.getReasonPhrase(), errorResponse.getError());
-        assertEquals(reason, errorResponse.getMessage());
+        assertEquals(status.value(), errorResponse.status());
+        assertEquals(status.getReasonPhrase(), errorResponse.error());
+        assertEquals(reason, errorResponse.message());
     }
 
     @Test
@@ -268,9 +268,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
-        assertEquals("Internal Server Error", errorResponse.getError());
-        assertEquals("Ocurrio un error inesperado. Por favor, intente de nuevo mas tarde.", errorResponse.getMessage());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.status());
+        assertEquals("Internal Server Error", errorResponse.error());
+        assertEquals("Ocurrio un error inesperado. Por favor, intente de nuevo mas tarde.", errorResponse.message());
     }
 
     @Test
@@ -284,10 +284,10 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.CONFLICT, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.CONFLICT.value(), errorResponse.getStatus());
-        assertEquals("Conflict", errorResponse.getError());
-        assertEquals(errorMessage, errorResponse.getMessage());
-        assertNotNull(errorResponse.getTimestamp());
+        assertEquals(HttpStatus.CONFLICT.value(), errorResponse.status());
+        assertEquals("Conflict", errorResponse.error());
+        assertEquals(errorMessage, errorResponse.message());
+        assertNotNull(errorResponse.timestamp());
     }
 
     @Test
@@ -301,10 +301,10 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.getStatus());
-        assertEquals("Internal Server Error", errorResponse.getError());
-        assertEquals(errorMessage, errorResponse.getMessage());
-        assertNotNull(errorResponse.getTimestamp());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.status());
+        assertEquals("Internal Server Error", errorResponse.error());
+        assertEquals(errorMessage, errorResponse.message());
+        assertNotNull(errorResponse.timestamp());
     }
 
     @Test
@@ -318,10 +318,10 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
-        assertEquals("Bad Request", errorResponse.getError());
-        assertEquals(errorMessage, errorResponse.getMessage());
-        assertNotNull(errorResponse.getTimestamp());
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.status());
+        assertEquals("Bad Request", errorResponse.error());
+        assertEquals(errorMessage, errorResponse.message());
+        assertNotNull(errorResponse.timestamp());
     }
 
     @Test
@@ -334,9 +334,9 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
         assertNotNull(errorResponse);
-        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.getStatus());
-        assertEquals("Bad Request", errorResponse.getError());
-        assertEquals(null, errorResponse.getMessage());
-        assertNotNull(errorResponse.getTimestamp());
+        assertEquals(HttpStatus.BAD_REQUEST.value(), errorResponse.status());
+        assertEquals("Bad Request", errorResponse.error());
+        assertEquals(null, errorResponse.message());
+        assertNotNull(errorResponse.timestamp());
     }
 }

@@ -10,10 +10,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Clase de configuración para las propiedades de Keycloak.
- * Esta clase se encarga de cargar las propiedades relacionadas con Keycloak desde el archivo
- * de configuración de la aplicación (por ejemplo, `application.properties` o `application.yml`)
- * utilizando el prefijo "keycloak".
+ * Clase de configuración que carga las propiedades de Keycloak.
+ * <p>
+ * Se enlaza a las propiedades definidas en el archivo de configuración de la aplicación
+ * (ej. {@code application.yml}) bajo el prefijo {@code keycloak}. Esta clase
+ * centraliza toda la configuración necesaria para conectar y operar con Keycloak.
+ *
+ * @author Angel Fm
+ * @version 1.0
  */
 @Configuration
 @ConfigurationProperties(prefix = "keycloak")
@@ -24,30 +28,55 @@ public class KeycloakProperties {
 
     /**
      * URL del servidor de autenticación de Keycloak.
+     * <p>
+     * Ejemplo en YAML: {@code keycloak.auth-server-url: http://localhost:8080/auth}
      */
     private String authServerUrl;
 
     /**
-     * Mapa que contiene los secretos de los clientes de Keycloak, donde la clave es el ID del cliente
-     * y el valor es el secreto del cliente.
-     * Esto permite configurar múltiples secretos de cliente para diferentes clientes.
+     * Mapa que contiene los secretos de los clientes de Keycloak.
+     * <p>
+     * La clave es el ID del cliente y el valor es su secreto. Permite la configuración
+     * de múltiples clientes de forma centralizada.
+     * <p>
+     * Ejemplo en YAML:
+     * <pre>{@code
+     * keycloak:
+     * client-secrets:
+     * client1: secret123
+     * client2: secret456
+     * }</pre>
      */
     private Map<String, String> clientSecrets = new HashMap<>();
 
     /**
-     * Mapa que define el mapeo de rutas o identificadores a realms de Keycloak.
-     * La clave podría ser una ruta URL o un identificador lógico, y el valor el nombre del realm.
-     * Esto es útil en configuraciones multi-tenant donde diferentes rutas acceden a diferentes realms.
+     * Mapa que define el mapeo de identificadores de tenant a nombres de realms de Keycloak.
+     * <p>
+     * Esto es útil en una configuración multi-tenant, donde un nombre de tenant en la URL
+     * de la API se traduce a un nombre de realm real en Keycloak.
+     * <p>
+     * Ejemplo en YAML:
+     * <pre>{@code
+     * keycloak:
+     * realm-mapping:
+     * tenant-a: a-realm
+     * tenant-b: b-realm
+     * }</pre>
      */
     private Map<String, String> realmMapping = new HashMap<>();
 
     /**
-     * Objeto anidado que contiene las propiedades de configuración para el usuario administrador de Keycloak.
+     * Objeto anidado que contiene las propiedades de configuración para el cliente
+     * administrador de Keycloak.
      */
     private Admin admin = new Admin();
 
     /**
-     * Clase estática anidada que representa las propiedades de configuración para el usuario administrador de Keycloak.
+     * Clase estática anidada que representa las propiedades del cliente de administración.
+     * <p>
+     * Estas credenciales se utilizan para que la aplicación se autentique en el realm
+     * de administración (generalmente el 'master' realm) y pueda realizar operaciones
+     * administrativas a través de la API de Keycloak.
      */
     @Data
     public static class Admin {
@@ -70,10 +99,10 @@ public class KeycloakProperties {
     }
 
     /**
-     * Metodo de inicialización que se ejecuta después de que todas las propiedades han sido inyectadas.
-     * Registra información sobre las propiedades de Keycloak cargadas, incluyendo la URL del servidor,
-     * los detalles del administrador, los mapeos de realms y los IDs de los clientes con secretos configurados.
-     * Se utiliza para depuración y para verificar que las propiedades se han enlazado correctamente.
+     * Método de inicialización que se ejecuta después de que las propiedades han sido inyectadas.
+     * <p>
+     * Este método registra la configuración cargada, lo cual es de gran utilidad para
+     * la depuración y para verificar que las propiedades se han enlazado correctamente.
      */
     @PostConstruct
     public void init() {

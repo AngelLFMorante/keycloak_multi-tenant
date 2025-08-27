@@ -13,10 +13,22 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
 /**
- * Custom AuthenticationProvider para integrar la autenticación post-Keycloak con Spring Security.
- * Este proveedor asume que la autenticación de la contraseña ya fue realizada por Keycloak.
- * Su propósito es solo cargar los UserDetails (dummy) y construir el token final de autenticación
- * con las autoridades correctas extraídas de Keycloak.
+ * Custom {@link AuthenticationProvider} para integrar la autenticacion post-Keycloak
+ * con Spring Security.
+ * <p>
+ * Este proveedor asume que la autenticacion de la contraseña ya fue realizada
+ * por Keycloak a traves de un servicio de autenticacion externo. Su proposito
+ * principal es:
+ * <ul>
+ * <li>Cargar los detalles del usuario (un {@link UserDetails} dummy) desde
+ * un servicio para que el {@link SecurityContextHolder} de Spring Security
+ * no contenga un usuario nulo.</li>
+ * <li>Construir el token final de autenticacion con las autoridades correctas
+ * extraidas de la autenticacion inicial, permitiendo la autorizacion basada en roles.</li>
+ * </ul>
+ *
+ * @author Angel Fm
+ * @version 1.0
  */
 @Component
 public class KeycloakAuthenticationProvider implements AuthenticationProvider {
@@ -27,6 +39,7 @@ public class KeycloakAuthenticationProvider implements AuthenticationProvider {
 
     /**
      * Constructor para la inyeccion de dependencias.
+     * <p>
      *
      * @param userDetailsService El servicio para cargar los detalles del usuario.
      */
@@ -36,17 +49,21 @@ public class KeycloakAuthenticationProvider implements AuthenticationProvider {
 
     /**
      * Procesa una solicitud de autenticacion.
+     * <p>
      * Este metodo es llamado por Spring Security para autenticar a un usuario.
+     * En este caso, valida la autenticacion pre-existente y la completa
+     * con los detalles de usuario y roles.
      *
-     * @param authentication El token de autenticacion de entrada.
+     * @param authentication El token de autenticacion de entrada, que ya contiene
+     *                       el nombre de usuario y las autoridades extraidas.
      * @return Un token de autenticacion completamente poblado y autenticado.
-     * @throws AuthenticationException Si la autenticacion falla.
+     * @throws AuthenticationException Si la autenticacion no es valida.
      */
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         String username = authentication.getName();
 
-        log.debug("KeycloakAuthenticationProvider: Procesando autenticación para el usuario '{}'.", username);
+        log.debug("KeycloakAuthenticationProvider: Procesando autenticacion para el usuario '{}'.", username);
 
         // Cargar el UserDetails dummy. Esto es necesario para que Spring Security
         // tenga un UserDetails asociado al SecurityContext.
@@ -68,6 +85,8 @@ public class KeycloakAuthenticationProvider implements AuthenticationProvider {
 
     /**
      * Indica si este proveedor de autenticacion soporta el tipo de token de autenticacion dado.
+     * <p>
+     * Este proveedor solo soporta tokens de tipo {@link UsernamePasswordAuthenticationToken}.
      *
      * @param authentication La clase de token de autenticacion a verificar.
      * @return {@code true} si soporta el token, de lo contrario {@code false}.

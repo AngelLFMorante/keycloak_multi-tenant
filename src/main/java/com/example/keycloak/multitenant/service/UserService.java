@@ -16,8 +16,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Servicio de alto nivel para la gestion de usuarios, interactuando con la capa de Keycloak.
- * Encapsula la logica de negocio, como la validacion y la generacion de contrasenas temporales.
+ * Servicio de alto nivel para la gestión de usuarios, interactuando con la capa de Keycloak.
+ * Encapsula la lógica de negocio, como la validación de la existencia de usuarios por email,
+ * la generación de contraseñas temporales y la orquestación de la creación, actualización
+ * y eliminación de usuarios.
+ *
+ * @author Angel Fm
+ * @version 1.1
  */
 @Service
 public class UserService {
@@ -35,36 +40,37 @@ public class UserService {
     public UserService(KeycloakUserService keycloakUserService, KeycloakConfigService utilsConfigService) {
         this.keycloakUserService = keycloakUserService;
         this.utilsConfigService = utilsConfigService;
+        log.info("UserService inicializado.");
     }
 
     /**
      * Procesa el registro de un nuevo usuario, incluyendo validaciones y la creación
      * en Keycloak con una contraseña temporal.
      *
-     * @param realmPath El nombre del tenant.
-     * @param request   Los datos del usuario a registrar.
-     * @return Un mapa con los detalles de la respuesta de registro.
+     * @param realmPath El nombre del tenant (ruta de realm) de la aplicación.
+     * @param request   Los datos del usuario a registrar, encapsulados en un {@link UserRequest}.
+     * @return Un mapa con los detalles de la respuesta de registro, incluyendo un mensaje,
+     * el tenantId y el realm de Keycloak.
+     * @throws ResponseStatusException  Si el tenant (realm) no es reconocido.
+     * @throws IllegalArgumentException Si el email del usuario ya está registrado en el realm.
      */
     public Map<String, Object> registerUser(String realmPath, UserRequest request) {
         log.info("Procesando registro para el realm: {}", realmPath);
-        log.debug("Datos de registro recibidos: username={}, email={}", request.getUsername(), request.getEmail());
+        log.debug("Datos de registro recibidos: username={}, email={}", request.username(), request.email());
 
         String keycloakRealm = utilsConfigService.resolveRealm(realmPath);
 
-        if (keycloakRealm == null) {
-            log.warn("Mapeo de realm no encontrado para el tenantPath: {}", realmPath);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant " + realmPath + " no reconocido.");
-        }
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realmPath, keycloakRealm);
 
-        if (keycloakUserService.userExistsByEmail(keycloakRealm, request.getEmail())) {
-            log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.getEmail(), realmPath);
-            throw new IllegalArgumentException("El email '" + request.getEmail() + "' ya está registrado.");
+        if (keycloakUserService.userExistsByEmail(keycloakRealm, request.email())) {
+            log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.email(), realmPath);
+            throw new IllegalArgumentException("El email '" + request.email() + "' ya está registrado.");
         }
 
         String tempPassword = generateTemporaryPassword();
-        keycloakUserService.createUserWithRole(keycloakRealm, request, tempPassword);
+        keycloakUserService.createUserWithRole(keycloakRealm, realmPath, request, tempPassword);
 
-        log.info("Usuario '{}' registrado exitosamente en el realm Keycloak '{}' para el tenant '{}'.", request.getUsername(), keycloakRealm, realmPath);
+        log.info("Usuario '{}' registrado exitosamente en el realm Keycloak '{}' para el tenant '{}'.", request.username(), keycloakRealm, realmPath);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Usuario registrado. Esperando aprobacion de administrador.");
@@ -75,9 +81,10 @@ public class UserService {
     }
 
     /**
-     * Genera una contrasena temporal segura de 12 caracteres.
+     * Genera una contraseña temporal segura de 12 caracteres utilizando una mezcla
+     * de letras mayúsculas, minúsculas, números y caracteres especiales.
      *
-     * @return La contrasena temporal generada.
+     * @return La contraseña temporal generada.
      */
     private String generateTemporaryPassword() {
         final String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_";
@@ -86,40 +93,51 @@ public class UserService {
         for (int i = 0; i < 12; i++) {
             sb.append(chars.charAt(random.nextInt(chars.length())));
         }
+        log.debug("Contraseña temporal de 12 caracteres generada exitosamente.");
         return sb.toString();
     }
 
     /**
-     * Obtiene todos los usuarios de un realm.
+     * Obtiene todos los usuarios de un realm de Keycloak.
      *
      * @param realm El nombre del tenant.
-     * @return Una lista de representaciones de usuario.
+     * @return Una lista de representaciones de usuario {@link UserRepresentation}.
+     * @throws ResponseStatusException Si el tenant no es reconocido.
      */
     public List<UserRepresentation> getAllUsers(String realm) {
+        log.info("Solicitando todos los usuarios para el tenant '{}'.", realm);
         String keycloakRealm = utilsConfigService.resolveRealm(realm);
-        return keycloakUserService.getAllUsers(keycloakRealm);
+        List<UserRepresentation> users = keycloakUserService.getAllUsers(keycloakRealm);
+        log.debug("Se encontraron {} usuarios en el realm de Keycloak '{}'.", users.size(), keycloakRealm);
+        return users;
     }
 
     /**
-     * Actualiza un usuario en un realm.
+     * Actualiza un usuario existente en un realm de Keycloak.
      *
      * @param realm       El nombre del tenant.
-     * @param userId      El ID del usuario.
-     * @param updatedUser Los datos de usuario a actualizar.
+     * @param userId      El ID del usuario a actualizar.
+     * @param updatedUser Los datos de usuario a actualizar, encapsulados en un {@link UserRequest}.
+     * @throws ResponseStatusException Si el tenant no es reconocido.
      */
     public void updateUser(String realm, String userId, UserRequest updatedUser) {
+        log.info("Iniciando la actualización para el usuario con ID '{}' en el tenant '{}'.", userId, realm);
         String keycloakRealm = utilsConfigService.resolveRealm(realm);
         keycloakUserService.updateUser(keycloakRealm, userId, updatedUser);
+        log.info("Usuario con ID '{}' actualizado exitosamente.", userId);
     }
 
     /**
-     * Elimina un usuario de un realm.
+     * Elimina un usuario de un realm de Keycloak por su ID.
      *
      * @param realm  El nombre del tenant.
-     * @param userId El ID del usuario.
+     * @param userId El ID del usuario a eliminar.
+     * @throws ResponseStatusException Si el tenant no es reconocido.
      */
     public void deleteUser(String realm, String userId) {
+        log.info("Iniciando la eliminación para el usuario con ID '{}' del tenant '{}'.", userId, realm);
         String keycloakRealm = utilsConfigService.resolveRealm(realm);
         keycloakUserService.deleteUser(keycloakRealm, userId);
+        log.info("Usuario con ID '{}' eliminado exitosamente.", userId);
     }
 }

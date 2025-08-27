@@ -16,6 +16,16 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
 
+/**
+ * Servicio para realizar la introspeccion de tokens con el servidor de Keycloak.
+ * <p>
+ * La introspeccion permite a la aplicacion cliente validar un token de forma
+ * segura consultando al servidor de autorizacion. Esto es util para verificar
+ * la validez de un refresh token antes de intentar usarlo.
+ *
+ * @author Angel Fm
+ * @version 1.0
+ */
 @Service
 public class KeycloakIntrospectionService {
 
@@ -25,6 +35,13 @@ public class KeycloakIntrospectionService {
     private final KeycloakConfigService utilsConfigService;
     private final RestTemplate restTemplate;
 
+    /**
+     * Constructor para la inyeccion de dependencias.
+     *
+     * @param keycloakProperties Propiedades de configuracion de Keycloak.
+     * @param utilsConfigService Servicio de utilidades para la configuracion.
+     * @param restTemplate       Cliente HTTP para realizar las llamadas a la API de Keycloak.
+     */
     public KeycloakIntrospectionService(KeycloakProperties keycloakProperties,
                                         KeycloakConfigService utilsConfigService,
                                         RestTemplate restTemplate) {
@@ -34,14 +51,19 @@ public class KeycloakIntrospectionService {
     }
 
     /**
-     * Realiza la introspección del token contra Keycloak.
+     * Realiza la introspeccion de un token contra el endpoint de Keycloak.
+     * <p>
+     * Este metodo envia el token y las credenciales del cliente al servidor
+     * de Keycloak para verificar su validez y estado.
      *
-     * @param realm    Nombre público del realm (ej. "plexus").
-     * @param token    Token a validar.
-     * @param clientId ID del cliente que realiza la validación.
-     * @return Mapa con la respuesta del endpoint de introspección.
-     * @throws KeycloakCommunicationException Si ocurre un error de comunicación con Keycloak.
-     * @throws IllegalArgumentException       Si el client secret no se encuentra.
+     * @param realm    Nombre publico del realm (ej. "tenant1").
+     * @param token    El token a validar, encapsulado en un {@link RefreshTokenRequest}.
+     * @param clientId ID del cliente que realiza la validacion.
+     * @return Un {@link Map} con la respuesta JSON del endpoint de introspeccion.
+     * Normalmente contiene el campo 'active' (boolean) y otros detalles del token.
+     * @throws KeycloakCommunicationException Si ocurre un error de comunicacion con Keycloak,
+     *                                        como un error HTTP de cliente o servidor.
+     * @throws IllegalArgumentException       Si el secret del cliente no se encuentra en las propiedades.
      */
     public Map<String, Object> introspectToken(String realm, RefreshTokenRequest token, String clientId) {
         String keycloakRealm = utilsConfigService.resolveRealm(realm);

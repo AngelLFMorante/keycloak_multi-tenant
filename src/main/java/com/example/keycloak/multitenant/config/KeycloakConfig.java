@@ -9,12 +9,17 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Clase de configuración para inicializar el cliente de administración de Keycloak (Keycloak Admin Client).
+ * <p>
  * Esta configuración permite a la aplicación interactuar con la API de administración de Keycloak
  * para realizar operaciones como la creación de usuarios, la gestión de roles, clientes, etc.
- *
+ * <p>
  * Los valores de configuración para la conexión a Keycloak se obtienen de {@link KeycloakProperties}.
- * Es importante notar que el 'adminRealm' es master el realm donde se autentica
+ * Es importante notar que el 'adminRealm' es el realm donde se autentica
  * el propio cliente de administracion, no el realm donde se gestionan los usuarios de la aplicacion.
+ *
+ * @author Angel Fm
+ * @version 1.0
+ * @see KeycloakProperties
  */
 @Configuration
 public class KeycloakConfig {
@@ -23,12 +28,18 @@ public class KeycloakConfig {
 
     private final KeycloakProperties keycloakProperties;
 
+    /**
+     * Constructor para inyección de dependencias de las propiedades de Keycloak.
+     *
+     * @param keycloakProperties Las propiedades de configuración de Keycloak, cargadas desde {@code application.yml} o {@code application.properties}.
+     */
     public KeycloakConfig(KeycloakProperties keycloakProperties) {
         this.keycloakProperties = keycloakProperties;
     }
 
     /**
      * Define y configura un bean de {@link Keycloak}.
+     * <p>
      * Este bean proporciona una instancia del cliente de administración de Keycloak,
      * autenticado con las credenciales del administrador proporcionadas.
      *

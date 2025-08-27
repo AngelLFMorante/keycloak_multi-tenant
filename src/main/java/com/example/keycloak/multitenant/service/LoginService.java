@@ -3,7 +3,8 @@ package com.example.keycloak.multitenant.service;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.example.keycloak.multitenant.config.KeycloakProperties;
-import com.example.keycloak.multitenant.model.AuthResponse;
+import com.example.keycloak.multitenant.model.LoginResponse;
+import com.example.keycloak.multitenant.service.utils.DataConversionUtilsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -26,9 +27,12 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Servicio para manejar la autenticación y renovación de tokens con Keycloak
+ * Servicio para manejar la autenticacion y renovacion de tokens con Keycloak
  * utilizando el flujo de Password Grant Type y Refresh Token.
- * Esta clase encapsula la lógica de comunicación directa con los endpoints de Keycloak.
+ * Esta clase encapsula la logica de comunicacion directa con los endpoints de Keycloak.
+ *
+ * @author Angel Fm
+ * @version 1.0
  */
 @Service
 public class LoginService {
@@ -38,32 +42,34 @@ public class LoginService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate;
     private final KeycloakProperties keycloakProperties;
+    private final DataConversionUtilsService dataConversionUtilsService;
 
     /**
-     * Constructor para la inyección de dependencias.
+     * Constructor para la inyeccion de dependencias.
      *
      * @param restTemplate       Instancia de RestTemplate para realizar llamadas HTTP.
-     * @param keycloakProperties Propiedades de configuración de Keycloak.
+     * @param keycloakProperties Propiedades de configuracion de Keycloak.
      */
-    public LoginService(RestTemplate restTemplate, KeycloakProperties keycloakProperties) {
+    public LoginService(RestTemplate restTemplate, KeycloakProperties keycloakProperties, DataConversionUtilsService dataConversionUtilsService) {
         this.restTemplate = restTemplate;
         this.keycloakProperties = keycloakProperties;
-        log.info("AuthService inicializado.");
+        this.dataConversionUtilsService = dataConversionUtilsService;
+        log.info("LoginService inicializado.");
     }
 
     /**
      * Autentica a un usuario contra Keycloak utilizando el flujo de Password Grant.
-     * Extrae y devuelve los tokens y la información del usuario.
+     * Extrae y devuelve los tokens y la informacion del usuario.
      *
-     * @param realm    El nombre del realm (tenant) de la aplicación.
+     * @param realm    El nombre del realm (tenant) de la aplicacion.
      * @param client   El ID del cliente de Keycloak.
      * @param username El nombre de usuario.
-     * @param password La contraseña del usuario.
-     * @return Un objeto AuthResponse que contiene los tokens y la información del usuario.
-     * @throws ResponseStatusException  Si el tenant o cliente no son reconocidos, o si hay un error de comunicación con Keycloak.
-     * @throws IllegalArgumentException Si el secreto del cliente no está configurado.
+     * @param password La contrasena del usuario.
+     * @return Un objeto AuthResponse que contiene los tokens y la informacion del usuario.
+     * @throws ResponseStatusException  Si el tenant o cliente no son reconocidos, o si hay un error de comunicacion con Keycloak.
+     * @throws IllegalArgumentException Si el secreto del cliente no esta configurado.
      */
-    public AuthResponse authenticate(String realm, String client, String username, String password) {
+    public LoginResponse authenticate(String realm, String client, String username, String password) {
         log.info("Intentando autenticar usuario '{}' en tenant '{}' con cliente keycloak '{}'", username, realm, client);
 
         String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
@@ -164,7 +170,7 @@ public class LoginService {
                 }
             }
 
-            return new AuthResponse(accessToken, idToken, refreshToken, expiresIn, refreshExpiresIn,
+            return new LoginResponse(accessToken, idToken, refreshToken, expiresIn, refreshExpiresIn,
                     username, email, fullName, extractedRoles, realm, client, preferredUsername);
 
         } catch (Exception e) {
@@ -184,7 +190,7 @@ public class LoginService {
      *                                  o si hay un error de comunicación con Keycloak.
      * @throws IllegalArgumentException Si el secreto del cliente no está configurado.
      */
-    public AuthResponse refreshToken(String oldRefreshToken, String realm, String client) {
+    public LoginResponse refreshToken(String oldRefreshToken, String realm, String client) {
         log.info("Intentando renovar token para tenant '{}' con cliente keycloak '{}'", realm, client);
 
         String keycloakRealm = keycloakProperties.getRealmMapping().get(realm);
@@ -239,7 +245,7 @@ public class LoginService {
             long newExpiresIn = node.has("expires_in") ? node.get("expires_in").asLong() : 0;
             long newRefreshExpiresIn = node.has("refresh_expires_in") ? node.get("refresh_expires_in").asLong() : 0;
 
-            return new AuthResponse(newAccessToken, newIdToken, newRefreshToken, newExpiresIn, newRefreshExpiresIn,
+            return new LoginResponse(newAccessToken, newIdToken, newRefreshToken, newExpiresIn, newRefreshExpiresIn,
                     realm, client);
 
         } catch (Exception e) {

@@ -5,6 +5,7 @@ import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.UserRequest;
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import org.keycloak.admin.client.resource.RealmResource;
@@ -19,6 +20,12 @@ import org.springframework.stereotype.Service;
 /**
  * Servicio de bajo nivel para interactuar directamente con la API de administracion de Keycloak
  * y gestionar las operaciones relacionadas con los usuarios.
+ * <p>
+ * Este servicio encapsula la logica de comunicacion con el cliente de administracion de Keycloak
+ * para operaciones como la creacion, obtencion, actualizacion y eliminacion de usuarios.
+ *
+ * @author Angel Fm
+ * @version 1.0
  */
 @Service
 public class KeycloakUserService {
@@ -40,93 +47,131 @@ public class KeycloakUserService {
     }
 
     /**
-     * Obtiene una lista de todos los usuarios en un realm específico.
+     * Obtiene una lista de todos los usuarios en un realm especifico.
      *
      * @param realm El nombre del realm de Keycloak.
      * @return Una lista de {@link UserRepresentation} de todos los usuarios.
+     * @throws RuntimeException si el realm no se encuentra o hay un error de comunicacion.
      */
     public List<UserRepresentation> getAllUsers(String realm) {
         log.info("Obteniendo todos los usuarios del realm '{}'.", realm);
-        return utilsAdminService.getRealmResource(realm).users().list();
+        try {
+            return utilsAdminService.getRealmResource(realm).users().list();
+        } catch (WebApplicationException e) {
+            log.error("Error al obtener usuarios del realm '{}': Status={}", realm, e.getResponse().getStatus(), e);
+            throw new RuntimeException("Error al obtener usuarios del realm '" + realm + "'. Detalles: " + e.getMessage());
+        }
     }
 
     /**
-     * Crea un nuevo usuario en un realm de Keycloak, asigna una contraseña temporal y un rol.
+     * Crea un nuevo usuario en un realm de Keycloak, asigna una contrasena temporal y un rol.
+     * <p>
+     * Este metodo coordina la creacion del usuario, el establecimiento de la contrasena
+     * y la asignacion de roles en una sola operacion.
      *
      * @param realm        El nombre del realm de Keycloak.
      * @param request      Los datos del usuario a registrar.
-     * @param tempPassword La contraseña temporal generada.
+     * @param tempPassword La contrasena temporal generada.
+     * @throws KeycloakUserCreationException Si la creacion o actualizacion del usuario falla.
+     * @throws KeycloakRoleCreationException Si la asignacion del rol falla.
      */
-    public void createUserWithRole(String realm, UserRequest request, String tempPassword) {
-        log.info("Iniciando el proceso de registro para el usuario '{}' en el realm '{}'.", request.getUsername(), realm);
+    public void createUserWithRole(String keycloakRealm, String realm, UserRequest request, String tempPassword) {
+        log.info("Iniciando el proceso de registro para el usuario '{}' en el realm '{}'.", request.username(), realm);
 
-        RealmResource realmResource = utilsAdminService.getRealmResource(realm);
+        try {
+            RealmResource realmResource = utilsAdminService.getRealmResource(keycloakRealm);
 
-        String userId = createUser(realmResource, request);
-        setTemporaryPassword(realmResource, userId, tempPassword);
-        keycloakRoleService.checkRole(realm, request);
-        assignRoleToUser(realmResource, userId, request.getRole());
+            String userId = createUser(realmResource, request);
+            setTemporaryPassword(realmResource, userId, tempPassword);
+            keycloakRoleService.checkRole(realm, request);
+            assignRoleToUser(realmResource, userId, request.role());
 
-        log.info("Usuario '{}' registrado exitosamente con el rol '{}'.", request.getUsername(), request.getRole());
+            log.info("Usuario '{}' creado y configurado exitosamente en el realm '{}'.", request.username(), realm);
+        } catch (Exception e) {
+            log.error("Fallo durante el proceso de creacion de usuario '{}'.", request.username());
+            throw new KeycloakUserCreationException("Fallo durante el proceso de creacion de usuario: " + e.getMessage(), e);
+        }
     }
+
 
     /**
      * Comprueba si un usuario con el email dado ya existe en Keycloak.
      *
      * @param realm El nombre del realm de Keycloak a consultar.
      * @param email El email a buscar.
-     * @return {@code true} si el email ya está en uso, de lo contrario {@code false}.
+     * @return {@code true} si el email ya esta en uso, de lo contrario {@code false}.
      */
     public boolean userExistsByEmail(String realm, String email) {
         log.debug("Comprobando si el email '{}' ya existe en el realm '{}'.", email, realm);
         List<UserRepresentation> users = utilsAdminService.getRealmResource(realm).users().searchByEmail(email, true);
-        return users != null && !users.isEmpty();
+        boolean exists = users != null && !users.isEmpty();
+        if (exists) {
+            log.info("El email '{}' ya esta en uso en el realm '{}'.", email, realm);
+        } else {
+            log.debug("El email '{}' no existe en el realm '{}'.", email, realm);
+        }
+        return exists;
     }
 
     /**
-     * Actualiza la información de un usuario existente en un realm, modificando solo los campos proporcionados.
+     * Actualiza la informacion de un usuario existente en un realm, modificando solo los campos proporcionados.
      *
      * @param realm              El nombre del realm de Keycloak.
      * @param userId             El ID del usuario a actualizar.
      * @param updatedUserRequest Los datos de usuario actualizados, recibidos del controlador.
+     * @throws NotFoundException             Si el usuario no se encuentra.
+     * @throws KeycloakUserCreationException Si la actualizacion falla.
      */
     public void updateUser(String realm, String userId, UserRequest updatedUserRequest) {
         log.info("Actualizando usuario con ID '{}' en el realm '{}'.", userId, realm);
 
-        RealmResource realmResource = utilsAdminService.getRealmResource(realm);
-        UserResource userResource = realmResource.users().get(userId);
+        try {
+            RealmResource realmResource = utilsAdminService.getRealmResource(realm);
+            UserResource userResource = realmResource.users().get(userId);
 
-        UserRepresentation userRepresentation = userResource.toRepresentation();
+            UserRepresentation userRepresentation = userResource.toRepresentation();
 
-        if (updatedUserRequest.getFirstName() != null && !updatedUserRequest.getFirstName().isBlank()) {
-            userRepresentation.setFirstName(updatedUserRequest.getFirstName());
+            if (updatedUserRequest.firstName() != null && !updatedUserRequest.firstName().isBlank()) {
+                userRepresentation.setFirstName(updatedUserRequest.firstName());
+            }
+            if (updatedUserRequest.lastName() != null && !updatedUserRequest.lastName().isBlank()) {
+                userRepresentation.setLastName(updatedUserRequest.lastName());
+            }
+            if (updatedUserRequest.email() != null && !updatedUserRequest.email().isBlank()) {
+                userRepresentation.setEmail(updatedUserRequest.email());
+            }
+
+            userResource.update(userRepresentation);
+            log.info("Usuario con ID '{}' actualizado exitosamente.", userId);
+        } catch (NotFoundException e) {
+            log.error("Usuario con ID '{}' no encontrado para actualizacion.", userId);
+            throw new NotFoundException("Usuario no encontrado con ID: " + userId);
+        } catch (WebApplicationException e) {
+            log.error("Fallo la actualizacion del usuario con ID '{}': Status={}", userId, e.getResponse().getStatus(), e);
+            throw new KeycloakUserCreationException("Error al actualizar el usuario: " + e.getMessage(), e);
         }
-        if (updatedUserRequest.getLastName() != null && !updatedUserRequest.getLastName().isBlank()) {
-            userRepresentation.setLastName(updatedUserRequest.getLastName());
-        }
-        if (updatedUserRequest.getEmail() != null && !updatedUserRequest.getEmail().isBlank()) {
-            userRepresentation.setEmail(updatedUserRequest.getEmail());
-        }
-        //Actualmente no se puede cambiar el username si no esta habilitado el switch en realmSetting -> login -> email as username
-        /*if (updatedUserRequest.getUsername() != null && !updatedUserRequest.getUsername().isBlank()) {
-            userRepresentation.setUsername(updatedUserRequest.getUsername());
-        }*/
-
-        userResource.update(userRepresentation);
-
-        log.info("Usuario con ID '{}' actualizado exitosamente.", userId);
     }
 
     /**
-     * Elimina un usuario por su ID en un realm específico.
+     * Elimina un usuario por su ID en un realm especifico.
      *
      * @param realm  El nombre del realm de Keycloak.
      * @param userId El ID del usuario a eliminar.
+     * @throws NotFoundException             Si el usuario no se encuentra.
+     * @throws KeycloakUserCreationException Si la eliminacion falla.
      */
     public void deleteUser(String realm, String userId) {
         log.info("Eliminando usuario con ID '{}' del realm '{}'.", userId, realm);
-        utilsAdminService.getRealmResource(realm).users().get(userId).remove();
-        log.info("Usuario con ID '{}' eliminado exitosamente.", userId);
+        try {
+            utilsAdminService.getRealmResource(realm).users().get(userId).remove();
+            log.info("Usuario con ID '{}' eliminado exitosamente.", userId);
+        } catch (NotFoundException e) {
+            log.warn("Usuario con ID '{}' no encontrado, no se puede eliminar.", userId);
+            throw new NotFoundException("Usuario no encontrado con ID: " + userId);
+        } catch (WebApplicationException e) {
+            log.error("Fallo al eliminar el usuario con ID '{}': Status={}", userId, e.getResponse().getStatus(), e);
+            throw new KeycloakUserCreationException("Error al eliminar el usuario: " + e.getMessage(), e);
+        }
     }
 
     // ---------------------- Private Helpers ----------------------
@@ -140,25 +185,33 @@ public class KeycloakUserService {
      * @throws KeycloakUserCreationException Si la creacion del usuario falla.
      */
     private String createUser(RealmResource realmResource, UserRequest request) {
-        log.debug("Creando usuario '{}' en Keycloak.", request.getUsername());
+        log.debug("Creando usuario '{}' en Keycloak.", request.username());
         UserRepresentation user = new UserRepresentation();
-        user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setFirstName(request.getFirstName());
-        user.setLastName(request.getLastName());
+        user.setUsername(request.username());
+        user.setEmail(request.email());
+        user.setFirstName(request.firstName());
+        user.setLastName(request.lastName());
         user.setEnabled(false);
 
         try (Response response = realmResource.users().create(user)) {
+            if (response.getStatusInfo().equals(Response.Status.CONFLICT)) {
+                log.error("Fallo al crear usuario '{}'. El nombre de usuario o email ya existen.", request.username());
+                throw new KeycloakUserCreationException("El nombre de usuario o email ya existen.");
+            }
             if (response.getStatus() != 201) {
                 String errorDetails = response.readEntity(String.class);
-                log.error("Fallo al crear usuario '{}'. Estado: {}, Detalles: {}", request.getUsername(), response.getStatus(), errorDetails);
+                log.error("Fallo al crear usuario '{}'. Estado: {}, Detalles: {}", request.username(), response.getStatus(), errorDetails);
                 throw new KeycloakUserCreationException("Error al crear usuario. Estado HTTP: " + response.getStatus() + ". Detalles: " + errorDetails);
             }
             String userId = response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
-            log.info("Usuario '{}' creado exitosamente con ID: {}.", request.getUsername(), userId);
+            log.info("Usuario '{}' creado exitosamente con ID: {}.", request.username(), userId);
             return userId;
+        } catch (WebApplicationException e) {
+            String errorDetails = e.getResponse().readEntity(String.class);
+            log.error("Error de la aplicacion al crear usuario: Status={}, Detalles={}", e.getResponse().getStatus(), errorDetails, e);
+            throw new KeycloakUserCreationException("Error al crear usuario. Detalles: " + errorDetails, e);
         } catch (Exception e) {
-            log.error("Excepción inesperada al crear usuario: {}", e.getMessage());
+            log.error("Excepcion inesperada al crear usuario: {}", e.getMessage(), e);
             throw new KeycloakUserCreationException("Error inesperado al crear usuario: " + e.getMessage(), e);
         }
     }
@@ -214,4 +267,5 @@ public class KeycloakUserService {
             throw new KeycloakRoleCreationException("Error al asignar el rol '" + roleName + "'.");
         }
     }
+
 }
