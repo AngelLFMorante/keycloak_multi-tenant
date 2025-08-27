@@ -29,7 +29,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Controlador REST para gestionar las operaciones de roles en Keycloak.
- * Proporcioina endpoints para crear, eliminar, obtener y actualizar roles.
+ * <p>
+ * Proporciona endpoints para crear, eliminar, obtener y actualizar roles
+ * de manera centralizada en un entorno multi-tenant.
+ *
+ * @author Angel Fm
+ * @version 1.0
+ * @see RoleService
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -41,19 +47,20 @@ public class RoleController {
     private final RoleService roleService;
 
     /**
-     * Constructor pra inyeccion de dependencias
+     * Constructor para inyeccion de dependencias.
+     * <p>
      *
-     * @param roleService roleService
+     * @param roleService El servicio responsable de las operaciones de roles en Keycloak.
      */
     public RoleController(RoleService roleService) {
         this.roleService = roleService;
     }
 
     /**
-     * Obtiene todos los roles para un tenant específico.
+     * Obtiene todos los roles disponibles para un tenant específico.
      *
-     * @param realm Nombre del tenant (mapeado a un realm Keycloak).
-     * @return Lista de roles del realm.
+     * @param realm Nombre del tenant (mapeado a un realm de Keycloak).
+     * @return Una {@link ResponseEntity} que contiene una lista de {@link RoleRepresentation} de roles.
      */
     @Operation(
             summary = "Obtiene todos los roles disponibles en un tenant.",
@@ -79,9 +86,9 @@ public class RoleController {
     /**
      * Crea un nuevo rol en el tenant especificado.
      *
-     * @param realm   Nombre del tenant (mapeado a un realm Keycloak).
-     * @param request Datos del rol a crear.
-     * @return Respuesta con estado y detalles.
+     * @param realm   Nombre del tenant (mapeado a un realm de Keycloak).
+     * @param request Datos del rol a crear, incluyendo nombre y descripcion.
+     * @return Una {@link ResponseEntity} con el estado de la operación y un mensaje de éxito.
      */
     @Operation(
             summary = "Crea un nuevo rol en un tenant.",
@@ -104,7 +111,7 @@ public class RoleController {
             @Parameter(description = "El identificador del tenant (realm).")
             @PathVariable String realm,
             @Valid @RequestBody CreateRoleRequest request) {
-        log.info("Solicitud POST para crear rol '{}' en tenant '{}'", request.getName(), realm);
+        log.info("Solicitud POST para crear rol '{}' en tenant '{}'", request.name(), realm);
         Map<String, Object> response = roleService.createRoleInRealm(realm, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -112,9 +119,9 @@ public class RoleController {
     /**
      * Elimina un rol por nombre en el tenant especificado.
      *
-     * @param realm    Nombre del tenant.
+     * @param realm    Nombre del tenant (realm).
      * @param roleName Nombre del rol a eliminar.
-     * @return Mensaje de confirmación.
+     * @return Una {@link ResponseEntity} con un mensaje de confirmación de la eliminación.
      */
     @Operation(
             summary = "Elimina un rol por nombre.",
@@ -140,11 +147,11 @@ public class RoleController {
     }
 
     /**
-     * Obtiene atributos asociados a un rol específico.
+     * Obtiene los atributos asociados a un rol específico dentro de un tenant.
      *
-     * @param realm    Nombre del tenant.
+     * @param realm    Nombre del tenant (realm).
      * @param roleName Nombre del rol.
-     * @return Mapa de atributos.
+     * @return Una {@link ResponseEntity} que contiene un mapa de atributos del rol.
      */
     @Operation(
             summary = "Obtiene los atributos de un rol.",
@@ -175,7 +182,7 @@ public class RoleController {
      * @param realm          Nombre lógico del tenant (mapeado a un realm de Keycloak).
      * @param roleName       Nombre del rol en Keycloak.
      * @param roleAttributes Mapa de atributos a añadir o actualizar.
-     * @return ResponseEntity sin contenido en caso de éxito.
+     * @return Una {@link ResponseEntity} sin contenido en caso de éxito.
      */
     @Operation(
             summary = "Añade o actualiza atributos en un rol.",
@@ -211,7 +218,7 @@ public class RoleController {
      * @param realm         Nombre del tenant.
      * @param roleName      Nombre del rol en Keycloak.
      * @param attributeName Nombre del atributo a eliminar.
-     * @return ResponseEntity sin contenido si la operación es exitosa.
+     * @return Una {@link ResponseEntity} sin contenido si la operación es exitosa.
      */
     @Operation(
             summary = "Elimina un atributo de un rol.",

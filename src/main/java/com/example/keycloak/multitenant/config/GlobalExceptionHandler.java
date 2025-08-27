@@ -23,9 +23,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Clase global para el manejo de excepciones en la aplicación REST.
+ * <p>
  * Utiliza {@link ControllerAdvice} para centralizar el manejo de excepciones
  * de la aplicación en una sola clase, proporcionando respuestas HTTP consistentes
  * y útiles para el cliente.
+ *
+ * @author Angel Fm
+ * @version 1.0
  */
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -36,12 +40,13 @@ public class GlobalExceptionHandler {
 
     /**
      * Maneja las excepciones de tipo {@link KeycloakCommunicationException}.
-     * Estas excepciones son lanzadas cuando hay un error de comunicación con Keycloak,
+     * <p>
+     * Estas excepciones se lanzan cuando hay un error de comunicación con Keycloak,
      * como un error de red o un error inesperado del servidor.
      *
      * @param ex La excepción {@link KeycloakCommunicationException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y el código de estado HTTP 500 (Internal Server Error).
+     * @return Un {@link ResponseEntity} con un objeto {@link ErrorResponse} y
+     * un código de estado HTTP 500 (Internal Server Error).
      */
     @ExceptionHandler(KeycloakCommunicationException.class)
     public ResponseEntity<ErrorResponse> handleKeycloakCommunicationException(KeycloakCommunicationException ex) {
@@ -59,13 +64,15 @@ public class GlobalExceptionHandler {
 
     /**
      * Maneja las excepciones de tipo {@link KeycloakUserCreationException}.
-     * Estas excepciones son lanzadas específicamente por KeycloakService
-     * cuando hay un problema al interactuar con la API de administración de Keycloak para la creación de usuarios.
-     * Se mapea a un 400 Bad Request si el problema es de datos o conflicto, o 500 si es un error interno.
+     * <p>
+     * Estas excepciones se lanzan cuando hay un problema al interactuar con la API
+     * de administración de Keycloak para la creación de usuarios. El método mapea el
+     * error a un código de estado apropiado (400, 409 o 500) basado en el mensaje
+     * de la excepción.
      *
      * @param ex La excepción {@link KeycloakUserCreationException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
+     * @return Un {@link ResponseEntity} con el error mapeado a un código de estado
+     * HTTP 400 (Bad Request), 409 (Conflict) o 500 (Internal Server Error).
      */
     @ExceptionHandler(KeycloakUserCreationException.class)
     public ResponseEntity<ErrorResponse> handleKeycloakUserCreationException(KeycloakUserCreationException ex) {
@@ -94,13 +101,14 @@ public class GlobalExceptionHandler {
 
     /**
      * Maneja las excepciones de tipo {@link KeycloakRoleCreationException}.
-     * Estas excepciones son lanzadas específicamente por KeycloakService
-     * cuando hay un problema al interactuar con la API de administración de Keycloak para la creación de roles.
-     * Se mapea a un 400 Bad Request si el problema es de datos o conflicto, o 500 si es un error interno.
+     * <p>
+     * Estas excepciones son lanzadas cuando hay un problema al crear roles en Keycloak.
+     * El método adapta el código de estado HTTP basándose en el mensaje de error para
+     * ofrecer una respuesta precisa (400, 409 o 500).
      *
      * @param ex La excepción {@link KeycloakRoleCreationException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y un código de estado HTTP 400 (Bad Request) o 409 (Conflict) o 500 (Internal Server Error).
+     * @return Un {@link ResponseEntity} con el error mapeado a un código de estado
+     * HTTP 400 (Bad Request), 409 (Conflict) o 500 (Internal Server Error).
      */
     @ExceptionHandler(KeycloakRoleCreationException.class)
     public ResponseEntity<ErrorResponse> handleKeycloakRoleCreationException(KeycloakRoleCreationException ex) {
@@ -131,12 +139,12 @@ public class GlobalExceptionHandler {
 
     /**
      * Maneja las excepciones de tipo {@link HttpClientErrorException} (errores 4xx).
+     * <p>
      * Estas excepciones son lanzadas por RestTemplate cuando el servidor externo
      * responde con un código de estado de cliente (4xx).
      *
      * @param ex La excepción {@link HttpClientErrorException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y el código de estado HTTP 4xx correspondiente.
+     * @return Un {@link ResponseEntity} que describe el error con el código de estado HTTP 4xx correspondiente.
      */
     @ExceptionHandler(HttpClientErrorException.class)
     public ResponseEntity<ErrorResponse> handleHttpClientErrorException(HttpClientErrorException ex) {
@@ -156,12 +164,12 @@ public class GlobalExceptionHandler {
 
     /**
      * Maneja las excepciones de tipo {@link HttpServerErrorException} (errores 5xx).
+     * <p>
      * Estas excepciones son lanzadas por RestTemplate cuando el servidor externo
      * responde con un código de estado de servidor (5xx).
      *
      * @param ex La excepción {@link HttpServerErrorException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y el código de estado HTTP 5xx correspondiente.
+     * @return Un {@link ResponseEntity} que describe el error con el código de estado HTTP 5xx correspondiente.
      */
     @ExceptionHandler(HttpServerErrorException.class)
     public ResponseEntity<ErrorResponse> handleHttpServerErrorException(HttpServerErrorException ex) {
@@ -181,13 +189,13 @@ public class GlobalExceptionHandler {
 
     /**
      * Maneja las excepciones de tipo {@link ResourceAccessException}.
+     * <p>
      * Estas excepciones son lanzadas por RestTemplate cuando hay problemas de red,
-     * como un servidor no disponible, timeout de conexión, etc.
+     * como un servidor no disponible o un timeout de conexión.
      *
      * @param ex La excepción {@link ResourceAccessException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y un código de estado HTTP 503 (Service Unavailable) o 504 (Gateway Timeout)
-     * dependiendo de la causa subyacente.
+     * @return Un {@link ResponseEntity} que describe el error con un código de estado
+     * HTTP 503 (Service Unavailable) o 504 (Gateway Timeout) dependiendo de la causa.
      */
     @ExceptionHandler(ResourceAccessException.class)
     public ResponseEntity<ErrorResponse> handleResourceAccessException(ResourceAccessException ex) {
@@ -211,12 +219,12 @@ public class GlobalExceptionHandler {
 
     /**
      * Maneja las excepciones de tipo {@link UnknownHttpStatusCodeException}.
-     * Esta excepción es lanzada por RestTemplate cuando recibe un código de estado HTTP
+     * <p>
+     * Esta excepción se lanza por RestTemplate cuando recibe un código de estado HTTP
      * que no puede mapear a un {@link HttpStatus} conocido.
      *
      * @param ex La excepción {@link UnknownHttpStatusCodeException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y un código de estado HTTP 500 (Internal Server Error).
+     * @return Un {@link ResponseEntity} que describe el error con un código de estado HTTP 500.
      */
     @ExceptionHandler(UnknownHttpStatusCodeException.class)
     public ResponseEntity<ErrorResponse> handleUnknownHttpStatusCodeException(UnknownHttpStatusCodeException ex) {
@@ -236,12 +244,13 @@ public class GlobalExceptionHandler {
 
     /**
      * Maneja las excepciones de tipo {@link ResponseStatusException}.
+     * <p>
      * Estas excepciones son lanzadas explícitamente en los controladores
      * para indicar un estado HTTP y un mensaje de error específicos.
      *
      * @param ex La excepción {@link ResponseStatusException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON que describe el error
-     * y el código de estado HTTP especificado en la excepción.
+     * @return Un {@link ResponseEntity} que describe el error con el código de estado
+     * HTTP especificado en la excepción.
      */
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
@@ -264,12 +273,15 @@ public class GlobalExceptionHandler {
 
     // --- Manejo de Excepciones de Validación y Genéricas ---
 
+
     /**
-     * Maneja las excepciones de tipo {@link IllegalArgumentException}
-     * Argumentos de entrada no validas
+     * Maneja las excepciones de tipo {@link IllegalArgumentException}.
+     * <p>
+     * Estas excepciones se lanzan cuando los argumentos de entrada no son válidos.
      *
-     * @param ex la excepcion {@link IllegalArgumentException} capturada.
-     * @return un {@link ResponseEntity} con un mapa JSon que describe el error
+     * @param ex La excepción {@link IllegalArgumentException} capturada.
+     * @return Un {@link ResponseEntity} con el error mapeado a un código de estado
+     * HTTP 400 (Bad Request).
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
@@ -288,12 +300,13 @@ public class GlobalExceptionHandler {
 
     /**
      * Maneja las excepciones de tipo {@link MethodArgumentNotValidException}.
-     * Estas excepciones se lanzan cuando la validación de un argumento de metodo
-     * anotado con Valid o Validated falla.
+     * <p>
+     * Estas excepciones se lanzan cuando la validación de un argumento de método
+     * anotado con `@Valid` o `@Validated` falla.
      *
-     * @param ex La excepcion {@link MethodArgumentNotValidException} capturada.
-     * @return Un {@link ResponseEntity} con un mapa JSON los errores de validación
-     * y un código de estado HTTP 400 (Bad Request).
+     * @param ex La excepción {@link MethodArgumentNotValidException} capturada.
+     * @return Un {@link ResponseEntity} con los errores de validación y un código
+     * de estado HTTP 400 (Bad Request).
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
@@ -318,11 +331,13 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Maneja cualquier otra excecion no capturada por los manejadores especificos.
-     * Proporciona un mensaje de error generico para evitar exponer detalles internos
+     * Maneja cualquier otra excepción no capturada por los manejadores específicos.
+     * <p>
+     * Proporciona un mensaje de error genérico para evitar exponer detalles internos
+     * del sistema al cliente.
      *
-     * @param ex La excepcion {@link Exception} generica capturada.
-     * @return Un {@link ResponseEntity} describe el rror y codigo de estado Http 500
+     * @param ex La excepción genérica {@link Exception} capturada.
+     * @return Un {@link ResponseEntity} que describe el error y un código de estado HTTP 500.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleAllUncaughtException(Exception ex) {

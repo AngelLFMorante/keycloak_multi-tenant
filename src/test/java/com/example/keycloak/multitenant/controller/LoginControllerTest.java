@@ -2,7 +2,7 @@ package com.example.keycloak.multitenant.controller;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.config.SecurityConfig;
-import com.example.keycloak.multitenant.model.AuthResponse;
+import com.example.keycloak.multitenant.model.LoginResponse;
 import com.example.keycloak.multitenant.model.RefreshTokenRequest;
 import com.example.keycloak.multitenant.service.LoginService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -114,13 +114,13 @@ class LoginControllerTest {
     @Test
     @DisplayName("Debería procesar el login exitosamente y retornar tokens y roles")
     void doLogin_shouldProcessLoginSuccessfully() throws Exception {
-        AuthResponse mockAuthResponse = new AuthResponse(
+        LoginResponse mockLoginResponse = new LoginResponse(
                 "mockAccessToken", "mockIdToken", "mockRefreshToken",
                 300L, 1800L, username, "test@example.com", "Test User",
                 List.of("ROLE_APP_USERS", "ROLE_OFFLINE_ACCESS", "ROLE_USER_APP"),
                 realm, client, username
         );
-        when(loginService.authenticate(eq(realm), eq(client), eq(username), eq(password))).thenReturn(mockAuthResponse);
+        when(loginService.authenticate(eq(realm), eq(client), eq(username), eq(password))).thenReturn(mockLoginResponse);
 
         List<SimpleGrantedAuthority> expectedAuthorities = List.of(
                 new SimpleGrantedAuthority("ROLE_APP_USERS"),
@@ -176,11 +176,11 @@ class LoginControllerTest {
         when(session.getAttribute("realm")).thenReturn(realm);
         when(session.getAttribute("client")).thenReturn(client);
 
-        AuthResponse mockAuthResponse = new AuthResponse(
+        LoginResponse mockLoginResponse = new LoginResponse(
                 "newAccessToken", "newIdToken", "newRefreshToken",
                 300L, 1800L, realm, client
         );
-        when(loginService.refreshToken(eq(refreshTokenValue), eq(realm), eq(client))).thenReturn(mockAuthResponse);
+        when(loginService.refreshToken(eq(refreshTokenValue), eq(realm), eq(client))).thenReturn(mockLoginResponse);
 
         RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest(refreshTokenValue);
         ResponseEntity<Map<String, Object>> responseEntity = loginController.refreshToken(request, refreshTokenRequest);

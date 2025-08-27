@@ -1,7 +1,7 @@
 package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
-import com.example.keycloak.multitenant.model.AuthResponse;
+import com.example.keycloak.multitenant.model.LoginResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -146,7 +146,7 @@ class LoginServiceTest {
                 eq(String.class)
         )).thenReturn(new ResponseEntity<>(keycloakTokenResponse, HttpStatus.OK));
 
-        AuthResponse response = loginService.authenticate(realm, client, username, password);
+        LoginResponse response = loginService.authenticate(realm, client, username, password);
 
         List<String> actualRoles = response.getRoles();
 
@@ -241,7 +241,7 @@ class LoginServiceTest {
         when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class)))
                 .thenReturn(responseEntity);
 
-        AuthResponse response = loginService.refreshToken(oldRefreshToken, realm, client);
+        LoginResponse response = loginService.refreshToken(oldRefreshToken, realm, client);
 
         assertNotNull(response);
         assertEquals("new-access-token", response.getAccessToken());

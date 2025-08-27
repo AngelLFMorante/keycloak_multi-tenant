@@ -29,9 +29,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controlador REST para gestionar el proceso de registro de nuevos usuarios en Keycloak.
- * Maneja la visualización del formulario de registro y el procesamiento de la solicitud de registro.
- * La creación de usuarios en Keycloak se delega a {@link UserService}.
+ * Controlador REST para gestionar el ciclo de vida de los usuarios en Keycloak.
+ * <p>
+ * Proporciona endpoints para registrar, obtener, actualizar y eliminar usuarios
+ * en un entorno multi-tenant. Las operaciones se delegan a {@link UserService}.
+ *
+ * @author Angel Fm
+ * @version 1.0
+ * @see UserService
  */
 @RestController
 @RequestMapping("/api/v1/{realm}/users")
@@ -44,7 +49,9 @@ public class UserController {
 
     /**
      * Constructor para la inyección de dependencias.
-     **/
+     *
+     * @param userService El servicio de usuarios que maneja la lógica de negocio.
+     */
     public UserController(UserService userService) {
         this.userService = userService;
         log.info("UserController inicializado.");
@@ -52,15 +59,12 @@ public class UserController {
 
     /**
      * Maneja las solicitudes POST para procesar el registro de un nuevo usuario.
-     * Recibe los datos de registro como JSON en el cuerpo de la solicitud.
-     * Realiza una validación básica de contraseñas y luego delega la creación del usuario
-     * a {@link UserService}. Devuelve JSON con el estado de la operación.
+     * <p>
+     * Recibe los datos de registro como JSON en el cuerpo de la solicitud, realiza la validación
+     * y delega la creación del usuario a {@link UserService}.
      *
-     * @param realm   El nombre del tenant extraído de la URL. Este `realm`
-     *                se usará para cualquier lógica específica del cliente si fuera necesario,
-     *                pero el registro de usuario se hace en el `singleKeycloakRealm` principal.
-     * @param request El objeto {@link UserRequest} que contiene los datos del formulario de registro,
-     *                recibido del cuerpo de la solicitud JSON.
+     * @param realm   El nombre del tenant (realm) para el que se registra el usuario.
+     * @param request El objeto {@link UserRequest} que contiene los datos del usuario.
      * @return Un {@link ResponseEntity} con el estado de éxito o error del registro.
      */
     @Operation(
@@ -89,7 +93,7 @@ public class UserController {
      * Endpoint para obtener la lista de todos los usuarios en un realm.
      *
      * @param realm El nombre del realm (tenant).
-     * @return Una lista de {@link UserRepresentation} con los usuarios.
+     * @return Una {@link ResponseEntity} que contiene una lista de {@link UserRepresentation}.
      */
     @Operation(
             summary = "Obtiene todos los usuarios",
@@ -116,7 +120,7 @@ public class UserController {
      * @param realm       El nombre del realm (tenant).
      * @param userId      El ID del usuario a actualizar.
      * @param updatedUser Los datos del usuario actualizados.
-     * @return Una respuesta vacía con estado OK.
+     * @return Una {@link ResponseEntity} vacía con estado OK.
      */
     @Operation(
             summary = "Actualiza un usuario",
@@ -144,7 +148,7 @@ public class UserController {
      *
      * @param realm  El nombre del realm (tenant).
      * @param userId El ID del usuario a eliminar.
-     * @return Una respuesta vacía con estado NO_CONTENT.
+     * @return Una {@link ResponseEntity} vacía con estado NO_CONTENT.
      */
     @Operation(
             summary = "Elimina un usuario",
