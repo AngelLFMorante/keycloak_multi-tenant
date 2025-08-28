@@ -1,5 +1,6 @@
 package com.example.keycloak.multitenant.config;
 
+import com.example.keycloak.multitenant.exception.KeycloakCommunicationException;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.ErrorResponse;
@@ -47,6 +48,23 @@ class GlobalExceptionHandlerTest {
 
     @Mock
     private BindingResult bindingResult;
+
+    @Test
+    @DisplayName("Debería manejar KeycloakCommunicationException")
+    void handleKeycloakCommunicationException() {
+        String errorMessage = "Problema de conexión con Keycloak.";
+        KeycloakCommunicationException ex = new KeycloakCommunicationException(errorMessage);
+
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleKeycloakCommunicationException(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
+        assertNotNull(errorResponse);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.status());
+        assertEquals("Internal Server Error", errorResponse.error());
+        assertTrue(errorResponse.message().contains("Error de comunicación con el servicio Keycloak:"));
+        assertTrue(errorResponse.message().contains(errorMessage));
+    }
 
     @Test
     @DisplayName("Debería manejar HttpClientErrorException (401 Unauthorized)")

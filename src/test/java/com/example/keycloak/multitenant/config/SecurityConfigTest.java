@@ -1,10 +1,6 @@
 package com.example.keycloak.multitenant.config;
 
 import com.example.keycloak.multitenant.security.KeycloakAuthenticationProvider;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,23 +46,8 @@ class SecurityConfigTest {
 
     private SecurityConfig securityConfig;
 
-    @Autowired(required = false)
-    private ObjectMapper objectMapper;
-
     @Mock
     private KeycloakAuthenticationProvider mockKeycloakAuthenticationProvider;
-
-    @Mock
-    private HttpServletRequest mockRequest;
-
-    @Mock
-    private HttpServletResponse mockResponse;
-
-    @Mock
-    private RestTemplate restTemplate;
-
-    @Mock
-    private HttpSession mockSession;
 
     private KeycloakProperties keycloakProperties;
 
@@ -157,5 +138,13 @@ class SecurityConfigTest {
         RestTemplate restTemplate = securityConfig.restTemplate();
         assertNotNull(restTemplate);
         assertTrue(restTemplate instanceof RestTemplate);
+    }
+
+    @Test
+    @DisplayName("Debería retornar 401 Unauthorized cuando no se provee autenticación a un endpoint protegido")
+    void securityFilterChain_shouldReturn401ForUnauthenticatedAccess() throws Exception {
+        mockMvc.perform(post("/api/v1/realm/users")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isUnauthorized()); // Espera un 401
     }
 }

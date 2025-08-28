@@ -26,7 +26,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-/*
+
 @ExtendWith(MockitoExtension.class)
 class UserControllerTest {
 
@@ -42,12 +42,13 @@ class UserControllerTest {
     @BeforeEach
     void setUp() {
         realm = "plexus";
-        userRequest = new UserRequest();
-        userRequest.setUsername("user");
-        userRequest.setEmail("user@gmail.com");
-        userRequest.setFirstName("Test");
-        userRequest.setLastName("User");
-        userRequest.setRole("USER");
+        userRequest = new UserRequest(
+                "user",
+                "user@gmail.com",
+                "Test",
+                "User",
+                "USER"
+        );
     }
 
     @Test
@@ -116,4 +117,4 @@ class UserControllerTest {
 
         verify(userService, times(1)).deleteUser(eq(realm), eq(userId.toString()));
     }
-}*/
+}

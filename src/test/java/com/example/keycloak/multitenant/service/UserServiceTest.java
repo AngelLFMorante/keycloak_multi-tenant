@@ -28,7 +28,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/*
+
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
@@ -45,20 +45,21 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userRequest = new UserRequest();
-        userRequest.setUsername("user");
-        userRequest.setEmail("user@gmail.com");
-        userRequest.setFirstName("Test");
-        userRequest.setLastName("User");
-        userRequest.setRole("USER");
+        userRequest = new UserRequest(
+                "user",
+                "user@gmail.com",
+                "Test",
+                "User",
+                "USER"
+        );
     }
 
     @Test
     @DisplayName("registerUser debería crear usuario si realm existe y email no está registrado")
     void registerUser_shouldCreateUserSuccessfully() {
         when(utilsService.resolveRealm("plexus")).thenReturn("plexus-realm");
-        when(keycloakUserService.userExistsByEmail("plexus-realm", userRequest.getEmail())).thenReturn(false);
-        doNothing().when(keycloakUserService).createUserWithRole(eq("plexus-realm"), any(UserRequest.class), anyString());
+        when(keycloakUserService.userExistsByEmail("plexus-realm", userRequest.email())).thenReturn(false);
+        doNothing().when(keycloakUserService).createUserWithRole(eq("plexus-realm"), anyString(), any(UserRequest.class), anyString());
 
         Map<String, Object> response = userService.registerUser("plexus", userRequest);
 
@@ -67,29 +68,28 @@ class UserServiceTest {
         assertEquals("plexus", response.get("tenantId"));
         assertEquals("plexus-realm", response.get("keycloakRealm"));
 
-        verify(keycloakUserService, times(1)).createUserWithRole(eq("plexus-realm"), eq(userRequest), anyString());
+        verify(keycloakUserService, times(1)).createUserWithRole(eq("plexus-realm"), anyString(), eq(userRequest), anyString());
     }
 
-    @Test
     @DisplayName("registerUser debería lanzar excepción si el realm no existe")
     void registerUser_shouldThrowExceptionIfRealmNotFound() {
         when(utilsService.resolveRealm("unknownRealm")).thenReturn(null);
         assertThrows(ResponseStatusException.class, () -> userService.registerUser("unknownRealm", userRequest));
 
-        verify(keycloakUserService, never()).createUserWithRole(anyString(), any(), anyString());
+        verify(keycloakUserService, never()).createUserWithRole(anyString(), anyString(), any(), anyString());
     }
 
     @Test
     @DisplayName("registerUser debería lanzar excepción si el email ya existe")
     void registerUser_shouldThrowExceptionIfEmailExists() {
         when(utilsService.resolveRealm("plexus")).thenReturn("plexus-realm");
-        when(keycloakUserService.userExistsByEmail("plexus-realm", userRequest.getEmail())).thenReturn(true);
+        when(keycloakUserService.userExistsByEmail("plexus-realm", userRequest.email())).thenReturn(true);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> userService.registerUser("plexus", userRequest));
 
         assertEquals("El email 'user@gmail.com' ya está registrado.", ex.getMessage());
-        verify(keycloakUserService, never()).createUserWithRole(anyString(), any(), anyString());
+        verify(keycloakUserService, never()).createUserWithRole(anyString(), anyString(), any(), anyString());
     }
 
     @Test
@@ -133,4 +133,4 @@ class UserServiceTest {
 
         verify(keycloakUserService, times(1)).deleteUser("plexus-realm", "12345");
     }
-}*/
+}

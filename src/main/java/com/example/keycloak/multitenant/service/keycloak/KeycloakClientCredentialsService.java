@@ -68,7 +68,7 @@ public class KeycloakClientCredentialsService {
      */
     public ClientCredentialsTokenResponse obtainToken(String tenant, String clientId) {
         log.info("Iniciando la solicitud para obtener token 'Client Credentials' para el cliente '{}' en el tenant '{}'", clientId, tenant);
-        
+
         String realm = utilsConfigService.resolveRealm(tenant);
         String clientSecret = keycloakProperties.getClientSecrets().get(clientId);
 
@@ -104,6 +104,8 @@ public class KeycloakClientCredentialsService {
 
             log.info("Token obtenido exitosamente para clientId={}", clientId);
             return responseBody;
+        } catch (IllegalStateException | IllegalArgumentException ex) {
+            throw ex;
         } catch (Exception ex) {
             log.error("Error al obtener token de Keycloak: {}", ex.getMessage(), ex);
             throw new RuntimeException("Error al obtener token de Keycloak.", ex);
