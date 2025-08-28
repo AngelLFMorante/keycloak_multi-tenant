@@ -4,6 +4,7 @@ import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
 import com.example.keycloak.multitenant.model.UserRequest;
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
+import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -13,6 +14,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,12 +40,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/*
 @ExtendWith(MockitoExtension.class)
 class KeycloakRoleServiceTest {
 
     @Mock
     private KeycloakAdminService utilsService;
+
+    @Mock
+    private KeycloakConfigService utilsConfigService;
 
     @Mock
     private RealmResource realmResource;
@@ -57,8 +61,25 @@ class KeycloakRoleServiceTest {
     @InjectMocks
     private KeycloakRoleService roleService;
 
+    private UserRequest userRequest;
+    private CreateRoleRequest request;
+
     private final String realm = "plexus";
     private final String testRole = "ADMIN_ROLE";
+
+    @BeforeEach
+    void setUp() {
+        when(utilsConfigService.resolveRealm(realm)).thenReturn(realm);
+
+        userRequest = new UserRequest(
+                "username",
+                "email@gmail.com",
+                "lastname",
+                "firstname",
+                testRole
+        );
+        request = new CreateRoleRequest(testRole, "Rol de administrador");
+    }
 
     @Test
     @DisplayName("Debería obtener roles correctamente")
@@ -67,6 +88,7 @@ class KeycloakRoleServiceTest {
         role1.setName("role1");
         RoleRepresentation role2 = new RoleRepresentation();
         role2.setName("role2");
+
 
         when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
         when(realmResource.roles()).thenReturn(rolesResource);
@@ -96,10 +118,6 @@ class KeycloakRoleServiceTest {
     @Test
     @DisplayName("Debería crear rol exitosamente cuando no existe")
     void createRole_Success() {
-        CreateRoleRequest request = new CreateRoleRequest();
-        request.setName(testRole);
-        request.setDescription("Rol de administrador");
-
         when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
         when(realmResource.roles()).thenReturn(rolesResource);
         when(rolesResource.list()).thenReturn(Collections.emptyList());
@@ -120,9 +138,6 @@ class KeycloakRoleServiceTest {
         when(realmResource.roles()).thenReturn(rolesResource);
         when(rolesResource.list()).thenReturn(Collections.singletonList(existingRole));
 
-        CreateRoleRequest request = new CreateRoleRequest();
-        request.setName(testRole);
-
         KeycloakRoleCreationException exception = assertThrows(KeycloakRoleCreationException.class, () ->
                 roleService.createRole(realm, request)
         );
@@ -139,9 +154,6 @@ class KeycloakRoleServiceTest {
         WebApplicationException webException = new WebApplicationException(Response.status(400).entity("Invalid role").build());
 
         doThrow(webException).when(rolesResource).create(any(RoleRepresentation.class));
-
-        CreateRoleRequest request = new CreateRoleRequest();
-        request.setName(testRole);
 
         KeycloakRoleCreationException exception = assertThrows(KeycloakRoleCreationException.class, () ->
                 roleService.createRole(realm, request)
@@ -207,12 +219,6 @@ class KeycloakRoleServiceTest {
         List<RoleRepresentation> roles = new ArrayList<>();
         roles.add(roleRepresentation);
 
-        UserRequest userRequest = new UserRequest();
-        userRequest.setRole(testRole);
-        userRequest.setUsername("username");
-        userRequest.setLastName("lastname");
-        userRequest.setFirstName("firstname");
-        userRequest.setEmail("email@gmail.com");
 
         when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
         when(realmResource.roles()).thenReturn(rolesResource);
@@ -228,9 +234,6 @@ class KeycloakRoleServiceTest {
         RoleRepresentation anotherRole = new RoleRepresentation();
         anotherRole.setName("USER");
         roles.add(anotherRole);
-
-        UserRequest userRequest = new UserRequest();
-        userRequest.setRole(testRole);
 
         when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
         when(realmResource.roles()).thenReturn(rolesResource);
@@ -416,7 +419,7 @@ class KeycloakRoleServiceTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> roleService.removeRoleAttribute(realm, testRole, "scope"));
 
-        assertEquals("El atributo 'scope' no existe en el rol 'ADMIN_ROLE' del realm 'plexus'.", ex.getMessage());
+        assertEquals("El atributo 'scope' no existe en el rol 'ADMIN_ROLE'.", ex.getMessage());
     }
 
     @Test
@@ -436,7 +439,52 @@ class KeycloakRoleServiceTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> roleService.removeRoleAttribute(realm, testRole, "scope"));
 
-        assertEquals("El atributo 'scope' no existe en el rol 'ADMIN_ROLE' del realm 'plexus'.", ex.getMessage());
+        assertEquals("El atributo 'scope' no existe en el rol 'ADMIN_ROLE'.", ex.getMessage());
     }
 
-*/
+    @Test
+    @DisplayName("Debería lanzar NotFoundException cuando el rol no existe al eliminar atributo")
+    void removeRoleAttribute_ShouldThrow_WhenRoleNotFound() {
+        when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
+        when(realmResource.roles()).thenReturn(rolesResource);
+        when(rolesResource.get(testRole)).thenReturn(roleResource);
+        when(roleResource.toRepresentation()).thenThrow(new NotFoundException("Rol no encontrado"));
+
+        NotFoundException ex = assertThrows(NotFoundException.class, () ->
+                roleService.removeRoleAttribute(realm, testRole, "scope")
+        );
+
+        assertEquals("Rol no encontrado: " + testRole, ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Debería lanzar RuntimeException si ocurre excepción inesperada al crear rol")
+    void createRole_ShouldThrow_WhenUnexpectedError() {
+        when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
+        when(realmResource.roles()).thenReturn(rolesResource);
+        when(rolesResource.list()).thenReturn(Collections.emptyList());
+
+        doThrow(new RuntimeException("Fallo de red")).when(rolesResource).create(any(RoleRepresentation.class));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                roleService.createRole(realm, request)
+        );
+
+        assertTrue(ex.getMessage().contains("Error inesperado al crear el rol"));
+    }
+
+    @Test
+    @DisplayName("Debería lanzar NotFoundException si el rol no existe al obtener atributos")
+    void getRoleAttributes_ShouldThrow_WhenRoleNotFound() {
+        when(utilsService.getRealmResource(anyString())).thenReturn(realmResource);
+        when(realmResource.roles()).thenReturn(rolesResource);
+        when(rolesResource.get(testRole)).thenThrow(new NotFoundException("Rol no encontrado"));
+
+        NotFoundException ex = assertThrows(NotFoundException.class, () ->
+                roleService.getRoleAttributes(realm, testRole)
+        );
+
+        assertEquals("Rol '" + testRole + "' no encontrado en el realm '" + realm + "'.", ex.getMessage());
+    }
+
+}
