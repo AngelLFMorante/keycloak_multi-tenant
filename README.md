@@ -92,19 +92,24 @@ O usando Docker:
 
 ## 🔐 Endpoints Disponibles
 
-| Método | Endpoint                            | Descripción                     |
-|--------|-------------------------------------|---------------------------------|
-| GET    | `/api/v1/{realm}/login`             | Página de login                 |
-| POST   | `/api/v1/{realm}/{client}/do_login` | Login con usuario/password      |
-| GET    | `/api/v1/{realm}/users`             | Obtener todos los usuarios      |
-| POST   | `/api/v1/{realm}/users/register`    | Registro de usuario en Keycloak |
-| PUT    | `/api/v1/{realm}/users/{userId}`    | Actualizar un usuario           |
-| DELETE | `/api/v1/{realm}/users/{userId}`    | Eliminar un usuario             |
-| GET    | `/api/v1/logout`                    | Logout y cierre de sesión       |
-| GET    | `/api/v1/{realm}/roles`             | Obtener todos los roles         |
-| POST   | `/api/v1/{realm}/roles`             | Crear un nuevo rol              |
-| DELETE | `/api/v1/{realm}/roles/{roleName}`  | Eliminar un rol específico      |
-| GET    | `/swagger-ui/index.html`            | Acceso a Swagger UI             |
+| Método | Endpoint                                      | Descripción                                 |
+|--------|-----------------------------------------------|---------------------------------------------|
+| GET    | `/api/v1/{realm}/login`                       | Página de login                             |
+| POST   | `/api/v1/{realm}/{client}/do_login`           | Login con usuario/password                  |
+| GET    | `/api/v1/{realm}/users`                       | Obtener todos los usuarios                  |
+| POST   | `/api/v1/{realm}/users/register`              | Registro de usuario en Keycloak             |
+| PUT    | `/api/v1/{realm}/users/{userId}`              | Actualizar un usuario                       |
+| DELETE | `/api/v1/{realm}/users/{userId}`              | Eliminar un usuario                         |
+| GET    | `/api/v1/logout`                              | Logout y cierre de sesión                   |
+| GET    | `/api/v1/{realm}/roles`                       | Obtener todos los roles                     |
+| POST   | `/api/v1/{realm}/roles`                       | Crear un nuevo rol                          |
+| DELETE | `/api/v1/{realm}/roles/{roleName}`            | Eliminar un rol específico                  |
+| GET    | `/api/v1/{realm}/roles/{roleName}/attributes` | Obtener atributos de un rol                 |
+| PUT    | `/api/v1/{realm}/roles/{roleName}/attributes` | Añadir/Actualizar atributos de un rol       |
+| DELETE | `/api/v1/{realm}/roles/{roleName}/attributes` | Eliminar un atributo de un rol              |
+| POST   | `/api/v1/{realm}/auth/{client}/validate`      | Validar un token de acceso o refresco.      |
+| POST   | `/api/v1/{realm}/auth/{client}/token`         | Obtener un token usando Client Credentials. |
+| GET    | `/swagger-ui/index.html`                      | Acceso a Swagger UI                         |
 
 ## 🧪 Postman cURL's de Ejemplo
 
@@ -201,6 +206,52 @@ http://localhost:8081/api/v1/{REALM_PATH}/roles \
 ```bash
   curl -X DELETE \
 http://localhost:8081/api/v1/{REALM_PATH}/roles/{ROLE_NAME}
+```
+
+### ⚙️ Gestión de Atributos de Roles
+
+🧾 Obtener Atributos de Rol
+
+```bash
+  curl -X GET http://localhost:8081/api/v1/{REALM_PATH}/roles/{ROLE_NAME}/attributes
+```
+
+➕ Añadir/Actualizar Atributos de Rol
+
+```bash
+  curl -X PUT http://localhost:8081/api/v1/{REALM_PATH}/roles/{ROLE_NAME}/attributes \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <access_token>' \
+  -d '{
+      "attribute1": ["value1", "value2"],
+      "another_attribute": ["value3"]
+    }'
+```
+
+❌ Eliminar Atributo de Rol
+
+```bash
+  curl -X DELETE http://localhost:8081/api/v1/{REALM_PATH}/roles/{ROLE_NAME}/attributes/{ATTRIBUTE_NAME}
+```
+
+### 🔒 Endpoints de Autenticación
+
+📝 Validar Token
+
+```bash
+    curl -X POST http://localhost:8081/api/v1/{REALM_PATH}/auth/{CLIENT_ID}/validate \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <access_token_del_cliente_admin>' \
+  -d '{
+      "token": "eyJhbG..."
+    }'
+```
+
+🔑 Obtener Token de Cliente
+
+```bash
+     curl -X POST http://localhost:8081/api/v1/{REALM_PATH}/auth/{CLIENT_ID}/token \
+  -H 'Content-Type: application/json'
 ```
 
 ## 🫰 Manejo de Errores
