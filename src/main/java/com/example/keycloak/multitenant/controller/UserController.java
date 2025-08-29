@@ -1,6 +1,7 @@
 package com.example.keycloak.multitenant.controller;
 
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserWithRoles;
 import com.example.keycloak.multitenant.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -93,24 +94,25 @@ public class UserController {
      * Endpoint para obtener la lista de todos los usuarios en un realm.
      *
      * @param realm El nombre del realm (tenant).
-     * @return Una {@link ResponseEntity} que contiene una lista de {@link UserRepresentation}.
+     * @return Una {@link ResponseEntity} que contiene una lista de {@link UserWithRoles}.
      */
     @Operation(
             summary = "Obtiene todos los usuarios",
-            description = "Recupera una lista de todos los usuarios en un realm de Keycloak."
+            description = "Recupera una lista de todos los usuarios en un realm de Keycloak con sus roles."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Lista de usuarios recuperada con exito.",
-                    content = @Content(schema = @Schema(implementation = UserRepresentation[].class))),
+            @ApiResponse(responseCode = "200", description = "Lista de usuarios recuperada con éxito.",
+                    content = @Content(schema = @Schema(implementation = UserWithRoles[].class))),
             @ApiResponse(responseCode = "404", description = "Tenant no reconocido.",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping
-    public ResponseEntity<List<UserRepresentation>> getAllUsers(
+    public ResponseEntity<List<UserWithRoles>> getAllUsers(
             @Parameter(description = "El nombre del tenant (realm).")
             @PathVariable String realm) {
         log.info("Solicitud para obtener todos los usuarios del tenant: {}", realm);
-        List<UserRepresentation> users = userService.getAllUsers(realm);
+        List<UserWithRoles> users = userService.getAllUsers(realm);
+        log.info("Lista de {} usuarios obtenida con éxito.", users.size());
         return ResponseEntity.ok(users);
     }
 
@@ -169,4 +171,39 @@ public class UserController {
         userService.deleteUser(realm, userId.toString());
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Endpoint para obtener un usuario por ID junto con sus roles.
+     * <p>
+     * Este método gestiona la solicitud GET para recuperar la información completa
+     * de un usuario, incluyendo sus atributos y roles, a partir de su ID.
+     *
+     * @param realm  El nombre del realm (tenant).
+     * @param userId El ID del usuario en formato UUID.
+     * @return Una {@link ResponseEntity} con el objeto {@link UserWithRoles}
+     * si el usuario es encontrado, o una respuesta de error 404 si no lo es.
+     */
+    @Operation(
+            summary = "Obtiene un usuario por su ID",
+            description = "Recupera la información del usuario y sus roles en una sola respuesta."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Usuario recuperado con éxito.",
+                    content = @Content(schema = @Schema(implementation = UserWithRoles.class))),
+            @ApiResponse(responseCode = "404", description = "Tenant o usuario no encontrado.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/{userId}")
+    public ResponseEntity<UserWithRoles> getUserById(
+            @Parameter(description = "El nombre del tenant (realm).")
+            @PathVariable String realm,
+            @Parameter(description = "El ID del usuario a obtener.")
+            @PathVariable UUID userId) {
+        log.info("Iniciando solicitud para obtener el usuario con ID '{}' del tenant: {}", userId, realm);
+        UserWithRoles userDetails = userService.getUserById(realm, userId.toString());
+        log.info("Usuario con ID '{}' recuperado exitosamente del tenant '{}'", userId, realm);
+        return ResponseEntity.ok(userDetails);
+    }
+
+
 }

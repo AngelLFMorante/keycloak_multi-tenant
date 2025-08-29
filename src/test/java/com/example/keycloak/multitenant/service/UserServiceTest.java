@@ -1,11 +1,14 @@
 package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserWithRoles;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -93,23 +96,32 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("getAllUsers debería retornar lista del keycloakUserService")
-    void getAllUsers_shouldReturnUserList() {
-        List<UserRepresentation> users = new ArrayList<>();
-        UserRepresentation user = new UserRepresentation();
-        user.setUsername("user");
-        users.add(user);
+    @DisplayName("getAllUsers debería retornar lista de DTOs de usuarios con roles")
+    void getAllUsers_shouldReturnUserWithRolesList() {
+        List<UserWithRoles> usersWithRoles = Collections.singletonList(
+                new UserWithRoles(
+                        "123",
+                        "testuser",
+                        "test@test.com",
+                        "Test",
+                        "User",
+                        true,
+                        true,
+                        List.of("user")
+                )
+        );
 
         when(utilsService.resolveRealm("plexus")).thenReturn("plexus-realm");
-        when(keycloakUserService.getAllUsers("plexus-realm")).thenReturn(users);
+        when(keycloakUserService.getAllUsersWithRoles("plexus-realm")).thenReturn(usersWithRoles);
 
-        List<UserRepresentation> result = userService.getAllUsers("plexus");
+        List<UserWithRoles> result = userService.getAllUsers("plexus");
 
         assertNotNull(result);
         assertEquals(1, result.size());
-        assertEquals("user", result.get(0).getUsername());
+        assertEquals("testuser", result.get(0).username());
+        assertEquals("user", result.get(0).roles().get(0));
 
-        verify(keycloakUserService, times(1)).getAllUsers("plexus-realm");
+        verify(keycloakUserService, times(1)).getAllUsersWithRoles("plexus-realm");
     }
 
     @Test
@@ -132,5 +144,34 @@ class UserServiceTest {
         userService.deleteUser("plexus", "12345");
 
         verify(keycloakUserService, times(1)).deleteUser("plexus-realm", "12345");
+    }
+
+    @Test
+    @DisplayName("getUserById debería devolver un usuario con roles si es encontrado")
+    void getUserById_shouldReturnUserWithRoles_WhenUserIsFound() {
+        String realm = "testRealm";
+        String keycloakRealm = "testRealm-keycloak";
+        String userId = UUID.randomUUID().toString();
+        UserWithRoles mockUser = new UserWithRoles(
+                userId,
+                "testuser",
+                "test@test.com",
+                "Test",
+                "User",
+                true,
+                true,
+                List.of("user")
+        );
+
+        when(utilsService.resolveRealm(realm)).thenReturn(keycloakRealm);
+        when(keycloakUserService.getUserByIdWithRoles(keycloakRealm, userId)).thenReturn(mockUser);
+
+        UserWithRoles result = userService.getUserById(realm, userId);
+
+        assertNotNull(result);
+        assertEquals(userId, result.id());
+        assertEquals(mockUser.username(), result.username());
+        verify(utilsService, times(1)).resolveRealm(realm);
+        verify(keycloakUserService, times(1)).getUserByIdWithRoles(keycloakRealm, userId);
     }
 }

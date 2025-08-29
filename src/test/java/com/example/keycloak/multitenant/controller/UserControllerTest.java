@@ -1,8 +1,10 @@
 package com.example.keycloak.multitenant.controller;
 
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserWithRoles;
 import com.example.keycloak.multitenant.service.UserService;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,20 +72,54 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("getAllUsers debería retornar la lista de usuarios del service")
-    void getAllUsers_shouldReturnListOfUsers() {
-        List<UserRepresentation> users = new ArrayList<>();
-        UserRepresentation user = new UserRepresentation();
-        user.setUsername("testuser");
-        users.add(user);
+    @DisplayName("getUserById debería retornar un usuario con roles")
+    void getUserById_shouldReturnUserWithRoles() {
+        UUID userId = UUID.randomUUID();
+        UserWithRoles userDetails = new UserWithRoles(
+                userId.toString(),
+                "testuser",
+                "test@example.com",
+                "Test",
+                "User",
+                true,
+                true,
+                List.of("ADMIN")
+        );
 
-        when(userService.getAllUsers(realm)).thenReturn(users);
+        when(userService.getUserById(eq(realm), eq(userId.toString()))).thenReturn(userDetails);
 
-        ResponseEntity<List<UserRepresentation>> responseEntity = userController.getAllUsers(realm);
+        ResponseEntity<UserWithRoles> responseEntity = userController.getUserById(realm, userId);
 
         assertNotNull(responseEntity);
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(users, responseEntity.getBody());
+        assertEquals(userDetails, responseEntity.getBody());
+
+        verify(userService, times(1)).getUserById(eq(realm), eq(userId.toString()));
+    }
+
+    @Test
+    @DisplayName("getAllUsers debería retornar una lista de usuarios con roles")
+    void getAllUsers_shouldReturnListOfUsersWithRoles() {
+        List<UserWithRoles> usersWithRoles = Collections.singletonList(
+                new UserWithRoles(
+                        "123",
+                        "testuser",
+                        "test@test.com",
+                        "Test",
+                        "User",
+                        true,
+                        true,
+                        List.of("user")
+                )
+        );
+
+        when(userService.getAllUsers(realm)).thenReturn(usersWithRoles);
+
+        ResponseEntity<List<UserWithRoles>> responseEntity = userController.getAllUsers(realm);
+
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(usersWithRoles, responseEntity.getBody());
 
         verify(userService, times(1)).getAllUsers(realm);
     }

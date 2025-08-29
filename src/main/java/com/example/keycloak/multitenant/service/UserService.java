@@ -1,6 +1,7 @@
 package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserWithRoles;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import java.security.SecureRandom;
@@ -98,17 +99,23 @@ public class UserService {
     }
 
     /**
-     * Obtiene todos los usuarios de un realm de Keycloak.
+     * Obtiene una lista de todos los usuarios de un tenant, incluyendo sus roles.
+     * <p>
+     * Este método actúa como una capa de servicio, resolviendo el realm
+     * de Keycloak y delegando la obtención de datos a la capa de bajo nivel.
      *
-     * @param realm El nombre del tenant.
-     * @return Una lista de representaciones de usuario {@link UserRepresentation}.
-     * @throws ResponseStatusException Si el tenant no es reconocido.
+     * @param realm El nombre público del tenant.
+     * @return Una lista de {@link UserWithRoles} con los detalles de cada usuario.
      */
-    public List<UserRepresentation> getAllUsers(String realm) {
-        log.info("Solicitando todos los usuarios para el tenant '{}'.", realm);
+    public List<UserWithRoles> getAllUsers(String realm) {
+        log.info("Procesando la solicitud para obtener todos los usuarios del tenant '{}'.", realm);
+
         String keycloakRealm = utilsConfigService.resolveRealm(realm);
-        List<UserRepresentation> users = keycloakUserService.getAllUsers(keycloakRealm);
-        log.debug("Se encontraron {} usuarios en el realm de Keycloak '{}'.", users.size(), keycloakRealm);
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
+
+        List<UserWithRoles> users = keycloakUserService.getAllUsersWithRoles(keycloakRealm);
+
+        log.info("Se han obtenido {} usuarios con sus roles del tenant '{}'.", users.size(), realm);
         return users;
     }
 
@@ -140,4 +147,32 @@ public class UserService {
         keycloakUserService.deleteUser(keycloakRealm, userId);
         log.info("Usuario con ID '{}' eliminado exitosamente.", userId);
     }
+
+    /**
+     * Obtiene la información de un usuario, incluyendo sus roles,
+     * a partir de su ID y el nombre del tenant.
+     * <p>
+     * Este método actúa como una capa de servicio, resolviendo el realm
+     * de Keycloak y delegando la lógica de recuperación de datos a
+     * {@link KeycloakUserService}.
+     *
+     * @param realm  El nombre público del tenant.
+     * @param userId El ID único del usuario en Keycloak.
+     * @return Un objeto {@link UserWithRoles} que contiene los detalles del usuario
+     * y una lista de sus roles.
+     * @throws org.springframework.web.server.ResponseStatusException si el tenant
+     *                                                                no es reconocido.
+     */
+    public UserWithRoles getUserById(String realm, String userId) {
+        log.info("Procesando la solicitud para obtener detalles del usuario con ID '{}' en el tenant '{}'.", userId, realm);
+
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
+
+        UserWithRoles userDetails = keycloakUserService.getUserByIdWithRoles(keycloakRealm, userId);
+
+        log.debug("Detalles de usuario obtenidos exitosamente para el ID '{}'.", userId);
+        return userDetails;
+    }
+
 }

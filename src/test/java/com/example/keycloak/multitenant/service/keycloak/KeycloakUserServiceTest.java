@@ -2,6 +2,7 @@ package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserWithRoles;
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
@@ -99,17 +100,93 @@ class KeycloakUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debería obtener todos los usuarios del realm")
-    void getAllUsers_Success() {
-        UserRepresentation user1 = new UserRepresentation();
-        user1.setUsername("user1");
+    @DisplayName("Debería obtener un usuario con sus roles por ID")
+    void getUserByIdWithRoles_Success() {
+        UserRepresentation userRep = new UserRepresentation();
+        userRep.setId(testUserId);
+        userRep.setUsername("testuser");
+        userRep.setFirstName("Test");
+        userRep.setLastName("User");
+        userRep.setEmail("test@example.com");
+        userRep.setEnabled(true);
+        userRep.setEmailVerified(true);
+
+        RoleRepresentation roleRep = new RoleRepresentation();
+        roleRep.setName("admin");
+
         when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.list()).thenReturn(List.of(user1));
+        when(usersResource.get(testUserId)).thenReturn(userResource);
+        when(userResource.toRepresentation()).thenReturn(userRep);
+        when(userResource.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+        when(roleScopeResource.listAll()).thenReturn(List.of(roleRep));
 
-        List<UserRepresentation> result = userService.getAllUsers(testRealm);
+        UserWithRoles result = userService.getUserByIdWithRoles(testRealm, testUserId);
 
-        assertEquals(1, result.size());
+        assertEquals(testUserId, result.id());
+        assertEquals("testuser", result.username());
+        assertEquals("test@example.com", result.email());
+        assertEquals("Test", result.firstName());
+        assertEquals("User", result.lastName());
+        assertEquals(true, result.enabled());
+        assertEquals(true, result.emailVerified());
+        assertEquals(1, result.roles().size());
+        assertEquals("admin", result.roles().get(0));
+
+        verify(usersResource, times(2)).get(testUserId);
+    }
+
+    @Test
+    @DisplayName("Debería obtener todos los usuarios con sus roles")
+    void getAllUsersWithRoles_Success() {
+        UserRepresentation userRep1 = new UserRepresentation();
+        userRep1.setId("user1-id");
+        userRep1.setUsername("user1");
+        userRep1.setEnabled(true);
+        userRep1.setEmailVerified(true);
+        UserRepresentation userRep2 = new UserRepresentation();
+        userRep2.setId("user2-id");
+        userRep2.setUsername("user2");
+        userRep2.setEnabled(true);
+        userRep2.setEmailVerified(false);
+
+        RoleRepresentation roleRep1 = new RoleRepresentation();
+        roleRep1.setName("user");
+        RoleRepresentation roleRep2 = new RoleRepresentation();
+        roleRep2.setName("user");
+
+        UserResource userResource1 = mock(UserResource.class);
+        UserResource userResource2 = mock(UserResource.class);
+
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.list()).thenReturn(List.of(userRep1, userRep2));
+        when(usersResource.get("user1-id")).thenReturn(userResource1);
+        when(usersResource.get("user2-id")).thenReturn(userResource2);
+
+        when(userResource1.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+        when(roleScopeResource.listAll()).thenReturn(List.of(roleRep1));
+
+        when(userResource2.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+        when(roleScopeResource.listAll()).thenReturn(List.of(roleRep2));
+
+        List<UserWithRoles> result = userService.getAllUsersWithRoles(testRealm);
+
+        assertEquals("user1", result.get(0).username());
+        assertEquals(1, result.get(0).roles().size());
+        assertEquals("user", result.get(0).roles().get(0));
+        assertEquals(true, result.get(0).enabled());
+        assertEquals(true, result.get(0).emailVerified());
+
+        assertEquals("user2", result.get(1).username());
+        assertEquals(1, result.get(1).roles().size());
+        assertEquals("user", result.get(1).roles().get(0));
+        assertEquals(true, result.get(1).enabled());
+        assertEquals(false, result.get(1).emailVerified());
+
         verify(usersResource, times(1)).list();
+        verify(usersResource, times(2)).get(anyString());
     }
 
     @Test
@@ -245,15 +322,13 @@ class KeycloakUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debería lanzar RuntimeException si la obtención de usuarios falla")
+    @DisplayName("Debería lanzar WebApplicationException si la obtención de usuarios falla")
     void obtenerUsuariosDelRealm_Failure() {
         when(realmResource.users()).thenThrow(new WebApplicationException("Error al obtener usuarios", Response.Status.INTERNAL_SERVER_ERROR));
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                userService.getAllUsers("testRealm")
+        WebApplicationException exception = assertThrows(WebApplicationException.class, () ->
+                userService.getAllUsersWithRoles("testRealm")
         );
-
-        assertTrue(exception.getMessage().contains("Error al obtener usuarios del realm"));
+        assertTrue(exception.getMessage().contains("Error al obtener usuarios"));
     }
 
     @Test
