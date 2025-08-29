@@ -4,6 +4,7 @@ import com.example.keycloak.multitenant.exception.KeycloakCommunicationException
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.ErrorResponse;
+import jakarta.ws.rs.NotFoundException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -134,6 +135,34 @@ public class GlobalExceptionHandler {
 
         return new ResponseEntity<>(errorResponse, status);
     }
+
+    /**
+     * Manejador global para la excepción {@link NotFoundException}.
+     * <p>
+     * Este método se encarga de interceptar cualquier {@code NotFoundException}
+     * lanzada en los controladores y la transforma en una respuesta HTTP
+     * estandarizada con un código de estado 404 Not Found.
+     *
+     * @param ex La excepción {@link NotFoundException} que fue capturada.
+     * @return Una {@link ResponseEntity} que contiene un objeto {@link ErrorResponse}
+     * con los detalles del error y un código de estado HTTP 404.
+     */
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNotFoundException(NotFoundException ex) {
+        log.warn("Se ha capturado una NotFoundException. Mensaje: {}", ex.getMessage());
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                HttpStatus.NOT_FOUND.value(),
+                HttpStatus.NOT_FOUND.getReasonPhrase(),
+                "El recurso solicitado no fue encontrado: " + ex.getMessage(),
+                null
+        );
+
+        log.debug("Generando respuesta de error 404 Not Found para la excepción: {}", ex.getClass().getName());
+        return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
+    }
+
 
     // --- Manejo de Excepciones de Spring y RestTemplate ---
 

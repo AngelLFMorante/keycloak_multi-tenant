@@ -3,13 +3,17 @@ package com.example.keycloak.multitenant.service.keycloak;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserWithRoles;
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -47,20 +51,55 @@ public class KeycloakUserService {
     }
 
     /**
-     * Obtiene una lista de todos los usuarios en un realm especifico.
+     * Recupera todos los usuarios de un realm de Keycloak, incluyendo sus roles.
+     * <p>
+     * Este método obtiene la lista completa de usuarios y, para cada uno, realiza una
+     * llamada adicional para obtener y mapear sus roles de nivel de realm.
      *
-     * @param realm El nombre del realm de Keycloak.
-     * @return Una lista de {@link UserRepresentation} de todos los usuarios.
-     * @throws RuntimeException si el realm no se encuentra o hay un error de comunicacion.
+     * @param realm El nombre interno del realm de Keycloak.
+     * @return Una lista de {@link UserWithRoles} que contiene los detalles de cada usuario
+     * y sus roles.
+     * @throws WebApplicationException Si ocurre un error al comunicarse con la API de Keycloak.
      */
-    public List<UserRepresentation> getAllUsers(String realm) {
-        log.info("Obteniendo todos los usuarios del realm '{}'.", realm);
+    public List<UserWithRoles> getAllUsersWithRoles(String realm) {
+        log.info("Recuperando todos los usuarios con roles del realm '{}'.", realm);
+
+        UsersResource usersResource;
         try {
-            return utilsAdminService.getRealmResource(realm).users().list();
+            usersResource = utilsAdminService.getRealmResource(realm).users();
         } catch (WebApplicationException e) {
-            log.error("Error al obtener usuarios del realm '{}': Status={}", realm, e.getResponse().getStatus(), e);
-            throw new RuntimeException("Error al obtener usuarios del realm '" + realm + "'. Detalles: " + e.getMessage());
+            log.error("Error al obtener el recurso de usuarios para el realm '{}': Status={}", realm, e.getResponse().getStatus(), e);
+            throw e;
         }
+
+        List<UserRepresentation> userRepresentations = usersResource.list();
+        log.debug("Se encontraron {} representaciones de usuario en el realm '{}'.", userRepresentations.size(), realm);
+
+        return userRepresentations.stream()
+                .map(userRep -> {
+
+                    List<RoleRepresentation> realmRoles;
+                    try {
+                        realmRoles = usersResource.get(userRep.getId()).roles().realmLevel().listAll();
+                    } catch (WebApplicationException e) {
+                        log.error("Error al obtener roles para el usuario '{}': Status={}", userRep.getId(), e.getResponse().getStatus(), e);
+                        realmRoles = Collections.emptyList();
+                    }
+                    List<String> roleNames = realmRoles.stream()
+                            .map(RoleRepresentation::getName).toList();
+
+                    return new UserWithRoles(
+                            userRep.getId(),
+                            userRep.getUsername(),
+                            userRep.getEmail(),
+                            userRep.getFirstName(),
+                            userRep.getLastName(),
+                            userRep.isEnabled(),
+                            userRep.isEmailVerified(),
+                            roleNames
+                    );
+                })
+                .toList();
     }
 
     /**
@@ -172,6 +211,52 @@ public class KeycloakUserService {
             log.error("Fallo al eliminar el usuario con ID '{}': Status={}", userId, e.getResponse().getStatus(), e);
             throw new KeycloakUserCreationException("Error al eliminar el usuario: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Recupera un usuario por su ID junto con sus roles a nivel de realm en Keycloak.
+     * <p>
+     * Este método interactúa directamente con la API de administración de Keycloak para
+     * obtener la representación del usuario y luego una lista de sus roles. Si el
+     * usuario no tiene roles, la lista estará vacía, y solo se lanzará una excepción
+     * si el usuario no es encontrado.
+     *
+     * @param realm  El nombre interno del realm de Keycloak.
+     * @param userId El ID único del usuario en Keycloak.
+     * @return Un DTO {@link UserWithRoles} con los datos del usuario y una lista
+     * de sus roles.
+     * @throws NotFoundException Si el usuario no es encontrado en el realm especificado.
+     */
+    public UserWithRoles getUserByIdWithRoles(String realm, String userId) {
+        log.info("Recuperando usuario con ID '{}' del realm de Keycloak '{}'.", userId, realm);
+
+        RealmResource realmResource = utilsAdminService.getRealmResource(realm);
+        UsersResource usersResource = realmResource.users();
+
+        UserRepresentation user;
+        try {
+            user = usersResource.get(userId).toRepresentation();
+        } catch (NotFoundException e) {
+            log.error("Usuario con ID '{}' no encontrado en el realm '{}'.", userId, realm, e);
+            throw e;
+        }
+
+        List<RoleRepresentation> roleReps = usersResource.get(userId).roles().realmLevel().listAll();
+        List<String> roles = roleReps.stream()
+                .map(RoleRepresentation::getName).toList();
+
+        log.debug("Usuario '{}' encontrado con roles: {}", user.getUsername(), roles);
+
+        return new UserWithRoles(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.isEnabled(),
+                user.isEmailVerified(),
+                roles
+        );
     }
 
     // ---------------------- Private Helpers ----------------------
