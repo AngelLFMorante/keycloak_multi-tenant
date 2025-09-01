@@ -1,7 +1,9 @@
 package com.example.keycloak.multitenant.controller;
 
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.UserWithRoles;
+import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -205,5 +208,74 @@ public class UserController {
         return ResponseEntity.ok(userDetails);
     }
 
+    /**
+     * Endpoint para obtener un usuario por su email.
+     *
+     * @param realm El nombre del realm (tenant).
+     * @param email El correo electrónico del usuario a buscar.
+     * @return Una {@link ResponseEntity} con el objeto {@link UserWithRoles}
+     * si el usuario es encontrado, o una respuesta de error 404 si no lo es.
+     */
+    @Operation(
+            summary = "Obtiene un usuario por su email",
+            description = "REcupera la información del usaurio y sus roles en una sola respuesta."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Usuario recuperado con éxito.",
+                    content = @Content(schema = @Schema(implementation = UserWithRoles.class))),
+            @ApiResponse(responseCode = "404", description = "Realm o usuario no encontrado.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/email/{email}")
+    public ResponseEntity<UserWithRoles> getUserByEmail(
+            @Parameter(description = "El nombre del realm.")
+            @PathVariable String realm,
+            @Parameter(description = "El email del usuario a obtener.")
+            @PathVariable String email
+    ) {
+        log.info("Iniciando solicitud para obtener el usuario con el email '{}' del realm '{}'", email, realm);
+        UserWithRoles userDetails = userService.getUserByEmail(realm, email);
+        log.info("Usuario con email '{}' recuperado exitosamente del realm '{}'", email, realm);
+        return ResponseEntity.ok(userDetails);
+    }
 
+    /**
+     * Endpoint para obtener una lista de usuarios por atributos personalizados.
+     * <p>
+     * Este método delega la búsqueda a la capa de servicio. Los parámetros de
+     * búsqueda se pasan como query parameters, lo cual es una buena práctica para GET.
+     *
+     * @param realm        El nombre del realm (tenant).
+     * @param organization Atributo de la organización para filtrar.
+     * @param subsidiary   Atributo de la filial para filtrar.
+     * @param department   Atributo del departamento para filtrar.
+     * @return Una {@link ResponseEntity} que contiene una lista de {@link UserWithRolesAndAttributes}.
+     */
+    @Operation(
+            summary = "Obtiene usuarios por atributos personalizados",
+            description = "Busca y filtra una lista de usuarios en un realm por sus atributos personalizados (organizacion, filial, departamento)."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Lista de usuarios recuperada con exito.",
+                    content = @Content(schema = @Schema(implementation = UserWithRolesAndAttributes[].class))),
+            @ApiResponse(responseCode = "404", description = "Tenant no reconocido.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/attributes")
+    public ResponseEntity<List<UserWithRolesAndAttributes>> getUsersByAttributes(
+            @Parameter(description = "El nombre del realm.")
+            @PathVariable String realm,
+            @Parameter(description = "Filtra por la organización.")
+            @RequestParam(required = false) String organization,
+            @Parameter(description = "Filtra por la filial.")
+            @RequestParam(required = false) String subsidiary,
+            @Parameter(description = "Filtra por el departamento.")
+            @RequestParam(required = false) String department) {
+        log.info("Solicitud de busqueda por atributos para el realm '{}'", realm);
+        log.debug("Criterios de búsqueda recibidos: organizacion='{}', filial='{}', departamento='{}'.", organization, subsidiary, department);
+        UserSearchCriteria criteria = new UserSearchCriteria(organization, subsidiary, department);
+        List<UserWithRolesAndAttributes> users = userService.getUsersByAttributes(realm, criteria);
+        log.info("Busqueda completada. {} usuarios encontrados.", users.size());
+        return ResponseEntity.ok(users);
+    }
 }

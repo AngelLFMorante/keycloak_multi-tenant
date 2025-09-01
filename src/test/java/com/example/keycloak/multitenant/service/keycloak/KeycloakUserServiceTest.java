@@ -2,13 +2,17 @@ package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.UserWithRoles;
+import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +33,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -398,4 +404,239 @@ class KeycloakUserServiceTest {
         assertTrue(exception.getMessage().contains("El nombre de usuario o email ya existen"));
     }
 
+    @Test
+    @DisplayName("Debería obtener un usuario por email con sus roles")
+    void getUserByEmailWithRoles_Success() {
+        UserRepresentation userRep = new UserRepresentation();
+        userRep.setId("user-id-1");
+        userRep.setUsername("testuser");
+        userRep.setEmail("test@example.com");
+        userRep.setFirstName("Test");
+        userRep.setLastName("User");
+        userRep.setEnabled(true);
+        userRep.setEmailVerified(true);
+
+        RoleRepresentation roleRep = new RoleRepresentation();
+        roleRep.setName("user");
+
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.searchByEmail("test@example.com", true)).thenReturn(List.of(userRep));
+        when(usersResource.get(userRep.getId())).thenReturn(userResource);
+        when(userResource.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+        when(roleScopeResource.listAll()).thenReturn(List.of(roleRep));
+
+        UserWithRoles result = userService.getUserByEmailWithRoles(testRealm, "test@example.com");
+
+        assertEquals("user-id-1", result.id());
+        assertEquals("test@example.com", result.email());
+        assertEquals("testuser", result.username());
+        assertEquals(true, result.enabled());
+        assertEquals(true, result.emailVerified());
+        assertEquals(1, result.roles().size());
+        assertEquals("user", result.roles().get(0));
+    }
+
+    @Test
+    @DisplayName("Debería lanzar NotFoundException si el usuario no es encontrado por email")
+    void getUserByEmailWithRoles_NotFound() {
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.searchByEmail("nonexistent@example.com", true)).thenReturn(Collections.emptyList());
+
+        assertThrows(NotFoundException.class, () ->
+                userService.getUserByEmailWithRoles(testRealm, "nonexistent@example.com")
+        );
+    }
+
+    @Test
+    @DisplayName("Debería retornar usuarios que coinciden con todos los criterios de busqueda")
+    void getUsersByAttributes_shouldReturnUsersMatchingAllCriteria() {
+        UserSearchCriteria criteria = new UserSearchCriteria("Plexus", "ES", "IT");
+
+        UserRepresentation matchingUser = createUserRepresentation("user-123", "matchinguser",
+                Map.of("organization", List.of("Plexus"), "subsidiary", List.of("ES"), "department", List.of("IT")));
+
+        UserRepresentation nonMatchingUser = createUserRepresentation("user-456", "nonmatchinguser",
+                Map.of("organization", List.of("AnotherOrg")));
+
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.list()).thenReturn(List.of(matchingUser, nonMatchingUser));
+
+        UserResource userResourceMock = mock(UserResource.class);
+        when(usersResource.get("user-123")).thenReturn(userResourceMock);
+        when(userResourceMock.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+        when(roleScopeResource.listAll()).thenReturn(List.of(createRole("admin_role")));
+
+        List<UserWithRolesAndAttributes> result = userService.getUsersByAttributes(testRealm, criteria);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+
+        UserWithRolesAndAttributes foundUser = result.get(0);
+        assertEquals("user-123", foundUser.userWithRoles().id());
+        assertEquals("matchinguser", foundUser.userWithRoles().username());
+        assertEquals("Plexus", foundUser.attributes().get("organization").get(0));
+        assertEquals("ES", foundUser.attributes().get("subsidiary").get(0));
+        assertEquals("IT", foundUser.attributes().get("department").get(0));
+        assertTrue(foundUser.userWithRoles().roles().contains("admin_role"));
+
+        verify(usersResource, times(1)).list();
+        verify(usersResource, times(1)).get("user-123");
+    }
+
+    // Métodos auxiliares
+    private UserRepresentation createUserRepresentation(String id, String username, Map<String, List<String>> attributes) {
+        UserRepresentation user = new UserRepresentation();
+        user.setId(id);
+        user.setUsername(username);
+        user.setAttributes(attributes);
+        user.setEnabled(true);
+        user.setEmailVerified(true);
+        return user;
+    }
+
+    private RoleRepresentation createRole(String name) {
+        RoleRepresentation role = new RoleRepresentation();
+        role.setName(name);
+        return role;
+    }
+
+    @Test
+    @DisplayName("getUsersByAttributes debería manejar errores al obtener roles y continuar con la busqueda")
+    void getUsersByAttributes_shouldHandleRoleFetchingError() {
+        UserSearchCriteria criteria = new UserSearchCriteria(null, null, null);
+
+        UserRepresentation matchingUser1 = createUserRepresentation("user-1", "user1", Collections.emptyMap());
+
+        UserRepresentation failingUser = createUserRepresentation("user-2", "user2", Collections.emptyMap());
+
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.list()).thenReturn(List.of(matchingUser1, failingUser));
+
+        UserResource userResource1 = mock(UserResource.class);
+        when(usersResource.get("user-1")).thenReturn(userResource1);
+        when(userResource1.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+        when(roleScopeResource.listAll()).thenReturn(List.of(createRole("user")));
+
+        UserResource userResource2 = mock(UserResource.class);
+        when(usersResource.get("user-2")).thenReturn(userResource2);
+        when(userResource2.roles()).thenThrow(new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode()));
+
+        List<UserWithRolesAndAttributes> result = userService.getUsersByAttributes(testRealm, criteria);
+
+        assertNotNull(result);
+
+        assertEquals(2, result.size());
+        assertEquals("user1", result.get(0).userWithRoles().username());
+        assertTrue(result.get(0).userWithRoles().roles().contains("user"));
+
+        verify(usersResource, times(1)).list();
+        verify(usersResource, times(1)).get("user-1");
+        verify(usersResource, times(1)).get("user-2");
+    }
+
+    @Test
+    @DisplayName("getUsersByAttributes debería retornar todos los usuarios si los criterios de busqueda son nulos")
+    void getUsersByAttributes_shouldReturnAllUsersIfCriteriaIsNull() {
+        UserRepresentation user1 = createUserRepresentation("user-1", "user1", Map.of("organization", List.of("Plexus")));
+        UserRepresentation user2 = createUserRepresentation("user-2", "user2", Map.of("subsidiary", List.of("ES")));
+
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.list()).thenReturn(List.of(user1, user2));
+
+        UserResource userResource1 = mock(UserResource.class);
+        UserResource userResource2 = mock(UserResource.class);
+        when(usersResource.get("user-1")).thenReturn(userResource1);
+        when(usersResource.get("user-2")).thenReturn(userResource2);
+
+        when(userResource1.roles()).thenReturn(roleMappingResource);
+        when(userResource2.roles()).thenReturn(roleMappingResource);
+
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+        when(roleScopeResource.listAll()).thenReturn(List.of(createRole("user")));
+
+        UserSearchCriteria criteria = new UserSearchCriteria(null, null, null);
+
+        List<UserWithRolesAndAttributes> result = userService.getUsersByAttributes(testRealm, criteria);
+
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals("user1", result.get(0).userWithRoles().username());
+        assertEquals("user2", result.get(1).userWithRoles().username());
+
+        verify(usersResource, times(1)).list();
+        verify(usersResource, times(1)).get("user-1");
+        verify(usersResource, times(1)).get("user-2");
+    }
+
+    @Test
+    @DisplayName("getUsersByAttributes debería filtrar usuarios sin atributos si se proporcionan criterios")
+    void getUsersByAttributes_shouldFilterUsersWithNoAttributes() {
+        UserRepresentation userWithAttributes = createUserRepresentation("user-1", "user1", Map.of("organization", List.of("Plexus")));
+        UserRepresentation userWithoutAttributes = new UserRepresentation();
+        userWithoutAttributes.setId("user-2");
+        userWithoutAttributes.setUsername("user2");
+        userWithoutAttributes.setAttributes(null);
+
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.list()).thenReturn(List.of(userWithAttributes, userWithoutAttributes));
+
+        UserResource userResource1 = mock(UserResource.class);
+        when(usersResource.get("user-1")).thenReturn(userResource1);
+        when(userResource1.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+        when(roleScopeResource.listAll()).thenReturn(List.of(createRole("user")));
+
+        UserSearchCriteria criteria = new UserSearchCriteria("Plexus", null, null);
+
+        List<UserWithRolesAndAttributes> result = userService.getUsersByAttributes(testRealm, criteria);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals("user1", result.get(0).userWithRoles().username());
+
+        verify(usersResource, times(1)).list();
+        verify(usersResource, times(1)).get("user-1");
+        verify(usersResource, times(0)).get("user-2");
+    }
+
+    @Test
+    @DisplayName("getUsersByAttributes debería filtrar usuarios si el atributo de filial no coincide")
+    void getUsersByAttributes_shouldFilterBySubsidiaryMismatch() {
+        UserRepresentation userWithWrongSubsidiary = createUserRepresentation("user-1", "user1",
+                Map.of("organization", List.of("Plexus"), "subsidiary", List.of("UK")));
+
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.list()).thenReturn(List.of(userWithWrongSubsidiary));
+
+        UserSearchCriteria criteria = new UserSearchCriteria("Plexus", "ES", null);
+
+        List<UserWithRolesAndAttributes> result = userService.getUsersByAttributes(testRealm, criteria);
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(usersResource, times(1)).list();
+        verify(usersResource, times(0)).get(any());
+    }
+
+    @Test
+    @DisplayName("getUsersByAttributes debería filtrar usuarios si el atributo de departamento no coincide")
+    void getUsersByAttributes_shouldFilterByDepartmentMismatch() {
+        UserRepresentation userWithWrongDepartment = createUserRepresentation("user-1", "user1",
+                Map.of("organization", List.of("Plexus"), "department", List.of("HR")));
+
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.list()).thenReturn(List.of(userWithWrongDepartment));
+
+        UserSearchCriteria criteria = new UserSearchCriteria("Plexus", null, "IT");
+
+        List<UserWithRolesAndAttributes> result = userService.getUsersByAttributes(testRealm, criteria);
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(usersResource, times(1)).list();
+        verify(usersResource, times(0)).get(any());
+    }
 }

@@ -1,7 +1,9 @@
 package com.example.keycloak.multitenant.controller;
 
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.UserWithRoles;
+import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.UserService;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -152,5 +154,68 @@ class UserControllerTest {
         assertEquals(HttpStatus.NO_CONTENT, responseEntity.getStatusCode());
 
         verify(userService, times(1)).deleteUser(eq(realm), eq(userId.toString()));
+    }
+
+    @Test
+    @DisplayName("getUserByEmail debería retornar un usuario con roles")
+    void getUserByEmail_shouldReturnUserWithRoles() {
+        String email = "testuser@example.com";
+        UserWithRoles userDetails = new UserWithRoles(
+                UUID.randomUUID().toString(),
+                "testuser",
+                email,
+                "Test",
+                "User",
+                true,
+                true,
+                List.of("USER")
+        );
+
+        when(userService.getUserByEmail(eq(realm), eq(email))).thenReturn(userDetails);
+
+        ResponseEntity<UserWithRoles> responseEntity = userController.getUserByEmail(realm, email);
+
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(userDetails, responseEntity.getBody());
+
+        verify(userService, times(1)).getUserByEmail(eq(realm), eq(email));
+    }
+
+    @Test
+    @DisplayName("getUsersByAttributes should return a list of users with attributes")
+    void getUsersByAttributes_shouldReturnUsersWithAttributes() {
+        String organization = "Plexus";
+        String subsidiary = "ES";
+        String department = "IT";
+
+        List<UserWithRolesAndAttributes> usersWithAttributes = new ArrayList<>();
+        usersWithAttributes.add(new UserWithRolesAndAttributes(
+                new UserWithRoles(
+                        UUID.randomUUID().toString(),
+                        "testuser",
+                        "test@example.com",
+                        "Test",
+                        "User",
+                        true,
+                        true,
+                        List.of("user")
+                ),
+                Map.of("organization", List.of(organization), "subsidiary", List.of(subsidiary), "department", List.of(department))
+        ));
+
+        when(userService.getUsersByAttributes(eq(realm), any(UserSearchCriteria.class)))
+                .thenReturn(usersWithAttributes);
+
+        ResponseEntity<List<UserWithRolesAndAttributes>> responseEntity = userController.getUsersByAttributes(
+                realm, organization, subsidiary, department
+        );
+
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(usersWithAttributes.size(), responseEntity.getBody().size());
+        assertEquals(usersWithAttributes, responseEntity.getBody());
+
+        verify(userService, times(1)).getUsersByAttributes(eq(realm), any(UserSearchCriteria.class));
     }
 }

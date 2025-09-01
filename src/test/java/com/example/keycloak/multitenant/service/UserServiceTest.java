@@ -1,7 +1,9 @@
 package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.UserWithRoles;
+import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import java.util.ArrayList;
@@ -173,5 +175,70 @@ class UserServiceTest {
         assertEquals(mockUser.username(), result.username());
         verify(utilsService, times(1)).resolveRealm(realm);
         verify(keycloakUserService, times(1)).getUserByIdWithRoles(keycloakRealm, userId);
+    }
+
+    @Test
+    @DisplayName("getUserByEmail debería devolver un usuario con roles si es encontrado")
+    void getUserByEmail_shouldReturnUserWithRoles_WhenUserIsFound() {
+        String realm = "testRealm";
+        String keycloakRealm = "testRealm-keycloak";
+        String email = "test@example.com";
+        UserWithRoles mockUser = new UserWithRoles(
+                UUID.randomUUID().toString(),
+                "testuser",
+                email,
+                "Test",
+                "User",
+                true,
+                true,
+                List.of("user")
+        );
+
+        when(utilsService.resolveRealm(realm)).thenReturn(keycloakRealm);
+        when(keycloakUserService.getUserByEmailWithRoles(keycloakRealm, email)).thenReturn(mockUser);
+
+        UserWithRoles result = userService.getUserByEmail(realm, email);
+
+        assertNotNull(result);
+        assertEquals(mockUser.email(), result.email());
+        assertEquals(mockUser.username(), result.username());
+        verify(utilsService, times(1)).resolveRealm(realm);
+        verify(keycloakUserService, times(1)).getUserByEmailWithRoles(keycloakRealm, email);
+    }
+
+    @Test
+    @DisplayName("getUsersByAttributes debería devolver una lista de usuarios con atributos")
+    void getUsersByAttributes_shouldReturnUsersWithAttributesList() {
+        String realm = "testRealm";
+        String keycloakRealm = "testRealm-keycloak";
+        UserSearchCriteria criteria = new UserSearchCriteria("Plexus", "ES", "IT");
+
+        List<UserWithRolesAndAttributes> mockUsers = Collections.singletonList(
+                new UserWithRolesAndAttributes(
+                        new UserWithRoles(
+                                "123",
+                                "testuser",
+                                "test@test.com",
+                                "Test",
+                                "User",
+                                true,
+                                true,
+                                List.of("user")
+                        ),
+                        Map.of("organization", List.of("Plexus"))
+                )
+        );
+
+        when(utilsService.resolveRealm(realm)).thenReturn(keycloakRealm);
+        when(keycloakUserService.getUsersByAttributes(keycloakRealm, criteria)).thenReturn(mockUsers);
+
+        List<UserWithRolesAndAttributes> result = userService.getUsersByAttributes(realm, criteria);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals(mockUsers, result);
+
+        verify(utilsService, times(1)).resolveRealm(realm);
+        verify(keycloakUserService, times(1)).getUsersByAttributes(keycloakRealm, criteria);
     }
 }
