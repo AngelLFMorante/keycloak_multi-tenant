@@ -184,7 +184,7 @@ public class UserService {
      * @param realm El nombre público del tenant.
      * @param email El correo electrónico del usuario.
      * @return Un objeto {@link UserWithRoles} que contiene los detalles del usuario y una lista de sus roles.
-     * @throws org.springframework.web.server.ResponseStatusException si el tenant no es reconocido.
+     * @throws ResponseStatusException si el tenant no es reconocido.
      */
     public UserWithRoles getUserByEmail(String realm, String email) {
         log.info("Procesando la solicitud para obtener detalles del usuario con email '{}' en el realm '{}'.", email, realm);
@@ -215,5 +215,34 @@ public class UserService {
 
         log.info("Búsqueda completada. Se encontraron {} usuarios.", users.size());
         return users;
+    }
+
+    /**
+     * Restablece la contrasena de un usuario en un realm especifico.
+     * <p>
+     * Este metodo anade logica de negocio antes de delegar la llamada a la capa de
+     * interaccion con Keycloak. Por ejemplo, valida que la nueva contrasena no este
+     * vacia.
+     *
+     * @param realm       El nombre publico del tenant.
+     * @param userId      El ID unico del usuario en Keycloak.
+     * @param newPassword La nueva contrasena para el usuario.
+     * @throws IllegalArgumentException Si la nueva contrasena es nula o esta vacia.
+     * @throws ResponseStatusException  Si el tenant no es reconocido.
+     */
+    public void resetUserPassword(String realm, String userId, String newPassword) {
+        log.info("Iniciando la solicitud de restablecimiento de contrasena para el usuario con ID '{}' en el tenant '{}'.", userId, realm);
+
+        if (newPassword == null || newPassword.isBlank()) {
+            log.warn("Error de validacion: La nueva contrasena no puede ser nula o vacia para el usuario '{}'.", userId);
+            throw new IllegalArgumentException("La nueva contrasena no puede estar vacia.");
+        }
+
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Tenant '{}' mapeado a Keycloak realm '{}'.", realm, keycloakRealm);
+
+        keycloakUserService.resetUserPassword(keycloakRealm, userId, newPassword);
+
+        log.info("Contrasena restablecida exitosamente para el usuario con ID '{}'.", userId);
     }
 }

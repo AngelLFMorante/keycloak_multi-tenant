@@ -324,6 +324,42 @@ public class KeycloakUserService {
                 .toList();
     }
 
+    /**
+     * Restablece la contrasena de un usuario en un realm especifico de Keycloak.
+     * <p>
+     * Utiliza la API de administracion para establecer una nueva contrasena. La nueva
+     * contrasena no sera temporal, lo que significa que el usuario no tendra que
+     * cambiarla en su proximo inicio de sesion.
+     *
+     * @param realm       El nombre del realm de Keycloak.
+     * @param userId      El ID del usuario en Keycloak.
+     * @param newPassword La nueva contrasena para el usuario.
+     * @throws NotFoundException       Si el usuario no se encuentra en el realm.
+     * @throws WebApplicationException Si la comunicacion con Keycloak falla.
+     */
+    public void resetUserPassword(String realm, String userId, String newPassword) {
+        log.info("Iniciando el restablecimiento de contrasena para el usuario con ID '{}' en el realm '{}'.", userId, realm);
+
+        CredentialRepresentation passwordCred = new CredentialRepresentation();
+        passwordCred.setTemporary(false);
+        passwordCred.setType(CredentialRepresentation.PASSWORD);
+        passwordCred.setValue(newPassword);
+
+        try {
+            UserResource userResource = utilsAdminService.getRealmResource(realm).users().get(userId);
+
+            userResource.resetPassword(passwordCred);
+
+            log.info("Contrasena restablecida exitosamente para el usuario con ID '{}'.", userId);
+        } catch (NotFoundException e) {
+            log.warn("Usuario con ID '{}' no encontrado, no se puede restablecer la contrasena.", userId);
+            throw new NotFoundException("Usuario no encontrado con ID: " + userId);
+        } catch (WebApplicationException e) {
+            log.error("Fallo la comunicacion con Keycloak al intentar restablecer la contrasena del usuario '{}': Status = {}", userId, e.getResponse().getStatus(), e);
+            throw e;
+        }
+    }
+
     // ---------------------- Private Helpers ----------------------
 
     /**
