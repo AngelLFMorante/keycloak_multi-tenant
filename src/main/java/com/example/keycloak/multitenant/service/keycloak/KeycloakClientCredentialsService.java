@@ -36,6 +36,7 @@ public class KeycloakClientCredentialsService {
     private final RestTemplate restTemplate;
     private final KeycloakConfigService utilsConfigService;
     private final KeycloakProperties keycloakProperties;
+    private final KeycloakOidcClient keycloakOidcClient;
 
     /**
      * Constructor para la inyección de dependencias.
@@ -46,10 +47,11 @@ public class KeycloakClientCredentialsService {
      */
     public KeycloakClientCredentialsService(RestTemplate restTemplate,
                                             KeycloakConfigService utilsConfigService,
-                                            KeycloakProperties keycloakProperties) {
+                                            KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient) {
         this.restTemplate = restTemplate;
         this.utilsConfigService = utilsConfigService;
         this.keycloakProperties = keycloakProperties;
+        this.keycloakOidcClient = keycloakOidcClient;
     }
 
     /**
@@ -77,25 +79,20 @@ public class KeycloakClientCredentialsService {
             throw new IllegalArgumentException("Client secret no encontrado para: " + clientId);
         }
 
-        String tokenUrl = String.format("%s/realms/%s/protocol/openid-connect/token",
-                keycloakProperties.getAuthServerUrl(), realm);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "client_credentials");
         body.add("client_id", clientId);
         body.add("client_secret", clientSecret);
 
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
-
-        log.debug("Solicitando token a Keycloak en {} con clientId={}", tokenUrl, clientId);
-
         try {
-            ResponseEntity<ClientCredentialsTokenResponse> response =
-                    restTemplate.exchange(tokenUrl, HttpMethod.POST, request, ClientCredentialsTokenResponse.class);
-            ClientCredentialsTokenResponse responseBody = response.getBody();
+
+            ClientCredentialsTokenResponse responseBody = keycloakOidcClient.postRequest(
+                    realm,
+                    "token",
+                    body,
+                    new HttpHeaders(),
+                    ClientCredentialsTokenResponse.class
+            );
 
             if (responseBody == null) {
                 log.error("Respuesta vacía desde Keycloak para clientId={}", clientId);

@@ -1,5 +1,6 @@
 package com.example.keycloak.multitenant.service;
 
+import com.example.keycloak.multitenant.model.LoginResponse;
 import com.example.keycloak.multitenant.model.UserRequest;
 import com.example.keycloak.multitenant.model.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.UserWithRoles;
@@ -245,4 +246,6 @@ public class UserService {
 
         log.info("Contrasena restablecida exitosamente para el usuario con ID '{}'.", userId);
     }
+
+    
 }
