@@ -1,7 +1,9 @@
 package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.UserWithRoles;
+import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import java.security.SecureRandom;
@@ -175,4 +177,43 @@ public class UserService {
         return userDetails;
     }
 
+    /**
+     * Obtiene la información de un usuario, incluyendo sus roles,
+     * a partir de su email y el nombre del tenant.
+     *
+     * @param realm El nombre público del tenant.
+     * @param email El correo electrónico del usuario.
+     * @return Un objeto {@link UserWithRoles} que contiene los detalles del usuario y una lista de sus roles.
+     * @throws org.springframework.web.server.ResponseStatusException si el tenant no es reconocido.
+     */
+    public UserWithRoles getUserByEmail(String realm, String email) {
+        log.info("Procesando la solicitud para obtener detalles del usuario con email '{}' en el realm '{}'.", email, realm);
+
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Realm '{}' mapeado al realm de keycloak: '{}'", realm, keycloakRealm);
+
+        UserWithRoles userDetails = keycloakUserService.getUserByEmailWithRoles(keycloakRealm, email);
+
+        log.debug("Detalles de usuario obtenidos exitosamente para el email '{}'.", email);
+        return userDetails;
+    }
+
+    /**
+     * Busca usuarios por atributos personalizados dentro de un tenant específico.
+     * Delega la búsqueda a la capa de servicio de Keycloak y maneja la resolución del realm.
+     *
+     * @param realm    El nombre del tenant (realm) a buscar.
+     * @param criteria Los criterios de búsqueda (organización, filial, departamento).
+     * @return Una lista de usuarios que coinciden con los criterios.
+     */
+    public List<UserWithRolesAndAttributes> getUsersByAttributes(String realm, UserSearchCriteria criteria) {
+        log.info("Iniciando la búsqueda de usuarios por atributos para el tenant '{}'.", realm);
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Tenant '{}' mapeado a Keycloak realm '{}'.", realm, keycloakRealm);
+
+        List<UserWithRolesAndAttributes> users = keycloakUserService.getUsersByAttributes(keycloakRealm, criteria);
+
+        log.info("Búsqueda completada. Se encontraron {} usuarios.", users.size());
+        return users;
+    }
 }

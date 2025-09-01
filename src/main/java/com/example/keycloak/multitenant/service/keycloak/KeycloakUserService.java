@@ -3,13 +3,16 @@ package com.example.keycloak.multitenant.service.keycloak;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.UserWithRoles;
+import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
@@ -259,6 +262,68 @@ public class KeycloakUserService {
         );
     }
 
+    /**
+     * Recupera un usuario por su email junto con sus roles a nivel de realm en Keycloak.
+     * <p>
+     * Este método busca un usuario por su dirección de email. Si encuentra el usuario,
+     * también recupera y mapea sus roles para construir un objeto UserWithRoles.
+     *
+     * @param realm El nombre interno del realm de Keycloak.
+     * @param email El correo electrónico del usuario.
+     * @return Un DTO {@link UserWithRoles} con los datos del usuario y una lista de sus roles.
+     * @throws NotFoundException Si no se encuentra ningún usuario con el email proporcionado.
+     */
+    public UserWithRoles getUserByEmailWithRoles(String realm, String email) {
+        log.info("Recuperando usuario por email '{}' del realm keycloak '{}'.", email, realm);
+
+        UsersResource userResource = utilsAdminService.getRealmResource(realm).users();
+        List<UserRepresentation> users = userResource.searchByEmail(email, true);
+
+        if (users == null || users.isEmpty()) {
+            log.error("Usuario con email '{}' no encontrado en el realm '{}'.", email, realm);
+            throw new NotFoundException("User not found with email: " + email);
+        }
+
+        UserRepresentation user = users.get(0);
+        List<RoleRepresentation> roleReps = userResource.get(user.getId()).roles().realmLevel().listAll();
+        List<String> roles = roleReps.stream().map(RoleRepresentation::getName).toList();
+
+        log.debug("Usuario '{}' encontrado con roles: {}", user.getUsername(), roles);
+
+        return new UserWithRoles(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.isEnabled(),
+                user.isEmailVerified(),
+                roles
+        );
+    }
+
+    /**
+     * Recupera una lista de usuarios de Keycloak filtrados por atributos personalizados.
+     * Es la forma más eficiente dado que la API de Keycloak no soporta búsqueda directa por atributos.
+     *
+     * @param realm    El nombre del realm de Keycloak.
+     * @param criteria Un DTO con los criterios de búsqueda (organization, subsidiary, department).
+     * @return Una lista de {@link UserWithRolesAndAttributes} que cumplen con los criterios.
+     * @throws WebApplicationException Si la comunicación con Keycloak falla.
+     */
+    public List<UserWithRolesAndAttributes> getUsersByAttributes(String realm, UserSearchCriteria criteria) {
+        log.info("Buscando usuarios en el realm '{}' por los atributos: {}", realm, criteria);
+
+        UsersResource usersResource = utilsAdminService.getRealmResource(realm).users();
+        List<UserRepresentation> allUsers = usersResource.list();
+        log.debug("Total de usuarios encontrados en el realm '{}': {}", realm, allUsers);
+
+        return allUsers.stream()
+                .filter(user -> matchesCriteria(user, criteria))
+                .map(userRep -> createUserDto(userRep, usersResource))
+                .toList();
+    }
+
     // ---------------------- Private Helpers ----------------------
 
     /**
@@ -353,4 +418,101 @@ public class KeycloakUserService {
         }
     }
 
+    /**
+     * Mapea un UserRepresentation de Keycloak a un DTO de la aplicación.
+     * Este método privado mejora la legibilidad y separa la lógica de conversión.
+     *
+     * @param userRep       La representación del usuario de Keycloak.
+     * @param usersResource El recurso de usuarios para obtener los roles.
+     * @return Un DTO UserWithRolesAndAttributes completo.
+     */
+    private UserWithRolesAndAttributes createUserDto(UserRepresentation userRep, UsersResource usersResource) {
+        log.debug("Iniciando la creacion del DTO para el usuario con ID: {}", userRep.getId());
+        List<String> rolesNames = getUserRoles(userRep.getId(), usersResource);
+
+        UserWithRoles userWithRoles = new UserWithRoles(
+                userRep.getId(),
+                userRep.getUsername(),
+                userRep.getEmail(),
+                userRep.getFirstName(),
+                userRep.getLastName(),
+                userRep.isEnabled(),
+                userRep.isEmailVerified(),
+                rolesNames
+        );
+
+        Map<String, List<String>> userAttributes = userRep.getAttributes() != null ? userRep.getAttributes() : Collections.emptyMap();
+
+        log.debug("DTO creado para el usuario '{}'", userRep.getUsername());
+
+        return new UserWithRolesAndAttributes(userWithRoles, userAttributes);
+    }
+
+    /**
+     * Obtiene los nombres de los roles de un usuario específico.
+     * Maneja excepciones si la comunicación con Keycloak falla.
+     *
+     * @param userId        El ID del usuario.
+     * @param usersResource El recurso de usuarios de Keycloak.
+     * @return Una lista de nombres de roles o una lista vacía si hay un error.
+     */
+    private List<String> getUserRoles(String userId, UsersResource usersResource) {
+        log.debug("Obteniendo roles para el usuario con ID: {}", userId);
+        try {
+            List<RoleRepresentation> realmRoles = usersResource.get(userId).roles().realmLevel().listAll();
+            log.debug("Roles obtenidos para el usuario '{}': {}", userId, realmRoles.size());
+            return realmRoles.stream().map(RoleRepresentation::getName).toList();
+        } catch (WebApplicationException e) {
+            log.error("Error al obtener roles para el usuario '{}': Status = {}", userId, e.getResponse().getStatus(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Método auxiliar para filtrar usuarios por sus atributos.
+     *
+     * @param userRepresentation La representación del usuario a evaluar.
+     * @param criteria           Los criterios de búsqueda.
+     * @return {@code true} si el usuario cumple con todos los criterios, {@code false} en caso contrario.
+     */
+    private boolean matchesCriteria(UserRepresentation userRepresentation, UserSearchCriteria criteria) {
+        if (criteria.organization() == null && criteria.subsidiary() == null && criteria.department() == null) {
+            log.debug("No se proporcionaron criterios de busqueda, el usuario '{}' coincide por defecto.", userRepresentation.getUsername());
+            return true;
+        }
+
+        if (userRepresentation.getAttributes() == null) {
+            log.debug("El usuario '{}' no tiene atributos, por lo tanto, no coincide.", userRepresentation.getUsername());
+            return false;
+        }
+
+        Map<String, List<String>> attributes = userRepresentation.getAttributes();
+
+        if (criteria.organization() != null && !criteria.organization().isBlank()) {
+            List<String> orgAttrs = attributes.getOrDefault("organization", Collections.emptyList());
+            if (!orgAttrs.contains(criteria.organization())) {
+                log.debug("El usuario '{}' no coincide con el criterio de organizacion '{}'.", userRepresentation.getUsername(), criteria.organization());
+                return false;
+            }
+        }
+
+        if (criteria.subsidiary() != null && !criteria.subsidiary().isBlank()) {
+            List<String> subAttrs = attributes.getOrDefault("subsidiary", Collections.emptyList());
+            if (!subAttrs.contains(criteria.subsidiary())) {
+                log.debug("El usuario '{}' no coincide con el criterio de filial '{}'.", userRepresentation.getUsername(), criteria.subsidiary());
+                return false;
+            }
+        }
+
+        if (criteria.department() != null && !criteria.department().isBlank()) {
+            List<String> depAttrs = attributes.getOrDefault("department", Collections.emptyList());
+            if (!depAttrs.contains(criteria.department())) {
+                log.debug("El usuario '{}' no coincide con el criterio de departamento '{}'.", userRepresentation.getUsername(), criteria.department());
+                return false;
+            }
+        }
+
+        log.debug("El usuario '{}' coincide con todos los criterios de busqueda.", userRepresentation.getUsername());
+        return true;
+    }
 }
