@@ -1,7 +1,6 @@
 package com.example.keycloak.multitenant.service.utils;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
-import com.example.keycloak.multitenant.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;

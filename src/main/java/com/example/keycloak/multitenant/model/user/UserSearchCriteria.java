@@ -1,4 +1,4 @@
-package com.example.keycloak.multitenant.model;
+package com.example.keycloak.multitenant.model.user;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 

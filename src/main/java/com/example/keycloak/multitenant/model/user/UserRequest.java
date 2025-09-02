@@ -1,9 +1,8 @@
-package com.example.keycloak.multitenant.model;
+package com.example.keycloak.multitenant.model.user;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 /**
  * Record DTO (Data Transfer Object) para la solicitud de registro o actualizacion de un usuario.

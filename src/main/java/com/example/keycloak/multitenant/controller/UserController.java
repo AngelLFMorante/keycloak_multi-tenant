@@ -1,9 +1,9 @@
 package com.example.keycloak.multitenant.controller;
 
-import com.example.keycloak.multitenant.model.UserRequest;
-import com.example.keycloak.multitenant.model.UserSearchCriteria;
-import com.example.keycloak.multitenant.model.UserWithRoles;
-import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
+import com.example.keycloak.multitenant.model.user.UserRequest;
+import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
+import com.example.keycloak.multitenant.model.user.UserWithRoles;
+import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,12 +13,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import jakarta.ws.rs.core.Response;
-import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;

@@ -1,9 +1,9 @@
 package com.example.keycloak.multitenant.controller;
 
-import com.example.keycloak.multitenant.model.UserRequest;
-import com.example.keycloak.multitenant.model.UserSearchCriteria;
-import com.example.keycloak.multitenant.model.UserWithRoles;
-import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
+import com.example.keycloak.multitenant.model.user.UserRequest;
+import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
+import com.example.keycloak.multitenant.model.user.UserWithRoles;
+import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.UserService;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,7 +15,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;

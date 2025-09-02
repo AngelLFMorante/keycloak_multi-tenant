@@ -5,26 +5,18 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.LoginResponse;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakOidcClient;
-import com.example.keycloak.multitenant.service.utils.DataConversionUtilsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -41,21 +33,12 @@ public class LoginService {
     private static final Logger log = LoggerFactory.getLogger(LoginService.class);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final RestTemplate restTemplate;
     private final KeycloakProperties keycloakProperties;
-    private final DataConversionUtilsService dataConversionUtilsService;
     private final KeycloakOidcClient keycloakOidcClient;
 
-    /**
-     * Constructor para la inyeccion de dependencias.
-     *
-     * @param restTemplate       Instancia de RestTemplate para realizar llamadas HTTP.
-     * @param keycloakProperties Propiedades de configuracion de Keycloak.
-     */
-    public LoginService(RestTemplate restTemplate, KeycloakProperties keycloakProperties, DataConversionUtilsService dataConversionUtilsService, KeycloakOidcClient keycloakOidcClient) {
-        this.restTemplate = restTemplate;
+
+    public LoginService(KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient) {
         this.keycloakProperties = keycloakProperties;
-        this.dataConversionUtilsService = dataConversionUtilsService;
         this.keycloakOidcClient = keycloakOidcClient;
         log.info("LoginService inicializado.");
     }

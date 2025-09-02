@@ -2,7 +2,7 @@ package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.exception.KeycloakCommunicationException;
-import com.example.keycloak.multitenant.model.RefreshTokenRequest;
+import com.example.keycloak.multitenant.model.token.RefreshTokenRequest;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

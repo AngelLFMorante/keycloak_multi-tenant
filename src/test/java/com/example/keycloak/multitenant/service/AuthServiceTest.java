@@ -1,8 +1,8 @@
 package com.example.keycloak.multitenant.service;
 
-import com.example.keycloak.multitenant.model.ClientCredentialsTokenResponse;
-import com.example.keycloak.multitenant.model.RefreshTokenRequest;
-import com.example.keycloak.multitenant.model.TokenValidationResponse;
+import com.example.keycloak.multitenant.model.token.ClientCredentialsTokenResponse;
+import com.example.keycloak.multitenant.model.token.RefreshTokenRequest;
+import com.example.keycloak.multitenant.model.token.TokenValidationResponse;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakClientCredentialsService;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakIntrospectionService;
 import com.example.keycloak.multitenant.service.utils.DataConversionUtilsService;

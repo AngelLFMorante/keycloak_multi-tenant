@@ -1,15 +1,11 @@
 package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
-import com.example.keycloak.multitenant.model.ClientCredentialsTokenResponse;
+import com.example.keycloak.multitenant.model.token.ClientCredentialsTokenResponse;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -33,22 +29,14 @@ public class KeycloakClientCredentialsService {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakClientCredentialsService.class);
 
-    private final RestTemplate restTemplate;
     private final KeycloakConfigService utilsConfigService;
     private final KeycloakProperties keycloakProperties;
     private final KeycloakOidcClient keycloakOidcClient;
 
-    /**
-     * Constructor para la inyección de dependencias.
-     *
-     * @param restTemplate       El cliente HTTP para realizar las peticiones a Keycloak.
-     * @param utilsConfigService El servicio de configuración de Keycloak para resolver realms.
-     * @param keycloakProperties Las propiedades de configuración de Keycloak de la aplicación.
-     */
-    public KeycloakClientCredentialsService(RestTemplate restTemplate,
-                                            KeycloakConfigService utilsConfigService,
-                                            KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient) {
-        this.restTemplate = restTemplate;
+
+    public KeycloakClientCredentialsService(
+            KeycloakConfigService utilsConfigService,
+            KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient) {
         this.utilsConfigService = utilsConfigService;
         this.keycloakProperties = keycloakProperties;
         this.keycloakOidcClient = keycloakOidcClient;

@@ -1,7 +1,7 @@
 package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
-import com.example.keycloak.multitenant.model.ClientCredentialsTokenResponse;
+import com.example.keycloak.multitenant.model.token.ClientCredentialsTokenResponse;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

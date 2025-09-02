@@ -1,21 +1,17 @@
 package com.example.keycloak.multitenant.service;
 
-import com.example.keycloak.multitenant.model.LoginResponse;
-import com.example.keycloak.multitenant.model.UserRequest;
-import com.example.keycloak.multitenant.model.UserSearchCriteria;
-import com.example.keycloak.multitenant.model.UserWithRoles;
-import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
+import com.example.keycloak.multitenant.model.user.UserRequest;
+import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
+import com.example.keycloak.multitenant.model.user.UserWithRoles;
+import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
-import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -33,17 +29,15 @@ public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
     private final KeycloakUserService keycloakUserService;
-    private final KeycloakConfigService utilsConfigService;
+
 
     /**
      * Constructor para la inyeccion de dependencias.
      *
      * @param keycloakUserService Servicio de bajo nivel para operaciones CRUD en Keycloak.
-     * @param utilsConfigService  Servicio de utilidades para interactuar con Keycloak.
      */
-    public UserService(KeycloakUserService keycloakUserService, KeycloakConfigService utilsConfigService) {
+    public UserService(KeycloakUserService keycloakUserService) {
         this.keycloakUserService = keycloakUserService;
-        this.utilsConfigService = utilsConfigService;
         log.info("UserService inicializado.");
     }
 
@@ -62,24 +56,20 @@ public class UserService {
         log.info("Procesando registro para el realm: {}", realmPath);
         log.debug("Datos de registro recibidos: username={}, email={}", request.username(), request.email());
 
-        String keycloakRealm = utilsConfigService.resolveRealm(realmPath);
-
-        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realmPath, keycloakRealm);
-
-        if (keycloakUserService.userExistsByEmail(keycloakRealm, request.email())) {
+        if (keycloakUserService.userExistsByEmail(realmPath, request.email())) {
             log.warn("Error de registro: El email'{}' ya esta registrado en el realm '{}'.", request.email(), realmPath);
             throw new IllegalArgumentException("El email '" + request.email() + "' ya está registrado.");
         }
 
         String tempPassword = generateTemporaryPassword();
-        keycloakUserService.createUserWithRole(keycloakRealm, realmPath, request, tempPassword);
+        keycloakUserService.createUserWithRole(realmPath, request, tempPassword);
 
-        log.info("Usuario '{}' registrado exitosamente en el realm Keycloak '{}' para el tenant '{}'.", request.username(), keycloakRealm, realmPath);
+        log.info("Usuario '{}' registrado exitosamente en el realm '{}'.", request.username(), realmPath);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Usuario registrado. Esperando aprobacion de administrador.");
         response.put("tenantId", realmPath);
-        response.put("keycloakRealm", keycloakRealm);
+        response.put("keycloakRealm", realmPath);
 
         return response;
     }
@@ -113,10 +103,7 @@ public class UserService {
     public List<UserWithRoles> getAllUsers(String realm) {
         log.info("Procesando la solicitud para obtener todos los usuarios del tenant '{}'.", realm);
 
-        String keycloakRealm = utilsConfigService.resolveRealm(realm);
-        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
-
-        List<UserWithRoles> users = keycloakUserService.getAllUsersWithRoles(keycloakRealm);
+        List<UserWithRoles> users = keycloakUserService.getAllUsersWithRoles(realm);
 
         log.info("Se han obtenido {} usuarios con sus roles del tenant '{}'.", users.size(), realm);
         return users;
@@ -132,8 +119,7 @@ public class UserService {
      */
     public void updateUser(String realm, String userId, UserRequest updatedUser) {
         log.info("Iniciando la actualización para el usuario con ID '{}' en el tenant '{}'.", userId, realm);
-        String keycloakRealm = utilsConfigService.resolveRealm(realm);
-        keycloakUserService.updateUser(keycloakRealm, userId, updatedUser);
+        keycloakUserService.updateUser(realm, userId, updatedUser);
         log.info("Usuario con ID '{}' actualizado exitosamente.", userId);
     }
 
@@ -146,8 +132,7 @@ public class UserService {
      */
     public void deleteUser(String realm, String userId) {
         log.info("Iniciando la eliminación para el usuario con ID '{}' del tenant '{}'.", userId, realm);
-        String keycloakRealm = utilsConfigService.resolveRealm(realm);
-        keycloakUserService.deleteUser(keycloakRealm, userId);
+        keycloakUserService.deleteUser(realm, userId);
         log.info("Usuario con ID '{}' eliminado exitosamente.", userId);
     }
 
@@ -169,10 +154,7 @@ public class UserService {
     public UserWithRoles getUserById(String realm, String userId) {
         log.info("Procesando la solicitud para obtener detalles del usuario con ID '{}' en el tenant '{}'.", userId, realm);
 
-        String keycloakRealm = utilsConfigService.resolveRealm(realm);
-        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
-
-        UserWithRoles userDetails = keycloakUserService.getUserByIdWithRoles(keycloakRealm, userId);
+        UserWithRoles userDetails = keycloakUserService.getUserByIdWithRoles(realm, userId);
 
         log.debug("Detalles de usuario obtenidos exitosamente para el ID '{}'.", userId);
         return userDetails;
@@ -190,10 +172,7 @@ public class UserService {
     public UserWithRoles getUserByEmail(String realm, String email) {
         log.info("Procesando la solicitud para obtener detalles del usuario con email '{}' en el realm '{}'.", email, realm);
 
-        String keycloakRealm = utilsConfigService.resolveRealm(realm);
-        log.debug("Realm '{}' mapeado al realm de keycloak: '{}'", realm, keycloakRealm);
-
-        UserWithRoles userDetails = keycloakUserService.getUserByEmailWithRoles(keycloakRealm, email);
+        UserWithRoles userDetails = keycloakUserService.getUserByEmailWithRoles(realm, email);
 
         log.debug("Detalles de usuario obtenidos exitosamente para el email '{}'.", email);
         return userDetails;
@@ -209,10 +188,8 @@ public class UserService {
      */
     public List<UserWithRolesAndAttributes> getUsersByAttributes(String realm, UserSearchCriteria criteria) {
         log.info("Iniciando la búsqueda de usuarios por atributos para el tenant '{}'.", realm);
-        String keycloakRealm = utilsConfigService.resolveRealm(realm);
-        log.debug("Tenant '{}' mapeado a Keycloak realm '{}'.", realm, keycloakRealm);
 
-        List<UserWithRolesAndAttributes> users = keycloakUserService.getUsersByAttributes(keycloakRealm, criteria);
+        List<UserWithRolesAndAttributes> users = keycloakUserService.getUsersByAttributes(realm, criteria);
 
         log.info("Búsqueda completada. Se encontraron {} usuarios.", users.size());
         return users;
@@ -239,13 +216,10 @@ public class UserService {
             throw new IllegalArgumentException("La nueva contrasena no puede estar vacia.");
         }
 
-        String keycloakRealm = utilsConfigService.resolveRealm(realm);
-        log.debug("Tenant '{}' mapeado a Keycloak realm '{}'.", realm, keycloakRealm);
-
-        keycloakUserService.resetUserPassword(keycloakRealm, userId, newPassword);
+        keycloakUserService.resetUserPassword(realm, userId, newPassword);
 
         log.info("Contrasena restablecida exitosamente para el usuario con ID '{}'.", userId);
     }
 
-    
+
 }

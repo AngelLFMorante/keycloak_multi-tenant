@@ -2,19 +2,16 @@ package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.exception.KeycloakCommunicationException;
-import com.example.keycloak.multitenant.model.RefreshTokenRequest;
+import com.example.keycloak.multitenant.model.token.RefreshTokenRequest;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.*;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
-
-import java.util.Map;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -81,8 +78,6 @@ public class KeycloakIntrospectionService {
 
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("token", token.refreshToken());
-
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 
         try {
             Map<String, Object> responseBody = keycloakOidcClient.postRequest(

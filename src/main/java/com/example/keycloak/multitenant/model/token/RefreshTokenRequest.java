@@ -1,4 +1,4 @@
-package com.example.keycloak.multitenant.model;
+package com.example.keycloak.multitenant.model.token;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;

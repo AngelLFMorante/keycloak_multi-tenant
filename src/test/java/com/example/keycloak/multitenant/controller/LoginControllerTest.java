@@ -3,7 +3,7 @@ package com.example.keycloak.multitenant.controller;
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.config.SecurityConfig;
 import com.example.keycloak.multitenant.model.LoginResponse;
-import com.example.keycloak.multitenant.model.RefreshTokenRequest;
+import com.example.keycloak.multitenant.model.token.RefreshTokenRequest;
 import com.example.keycloak.multitenant.service.LoginService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
