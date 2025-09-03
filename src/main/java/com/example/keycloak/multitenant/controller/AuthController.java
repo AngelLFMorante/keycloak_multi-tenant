@@ -1,9 +1,9 @@
 package com.example.keycloak.multitenant.controller;
 
-import com.example.keycloak.multitenant.model.ClientCredentialsTokenResponse;
+import com.example.keycloak.multitenant.model.token.ClientCredentialsTokenResponse;
 import com.example.keycloak.multitenant.model.ErrorResponse;
-import com.example.keycloak.multitenant.model.RefreshTokenRequest;
-import com.example.keycloak.multitenant.model.TokenValidationResponse;
+import com.example.keycloak.multitenant.model.token.RefreshTokenRequest;
+import com.example.keycloak.multitenant.model.token.TokenValidationResponse;
 import com.example.keycloak.multitenant.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

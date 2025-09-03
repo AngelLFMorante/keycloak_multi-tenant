@@ -1,12 +1,10 @@
 package com.example.keycloak.multitenant.service;
 
-import com.example.keycloak.multitenant.model.UserRequest;
-import com.example.keycloak.multitenant.model.UserSearchCriteria;
-import com.example.keycloak.multitenant.model.UserWithRoles;
-import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
+import com.example.keycloak.multitenant.model.user.UserRequest;
+import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
+import com.example.keycloak.multitenant.model.user.UserWithRoles;
+import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
-import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -15,10 +13,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,26 +25,30 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
+/**
+ * Pruebas unitarias para la clase UserService, utilizando Mockito.
+ * Valida la lógica de negocio y la delegación de responsabilidades a la capa
+ * de servicio de bajo nivel de Keycloak.
+ */
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Unit Tests for UserService")
 class UserServiceTest {
 
     @Mock
     private KeycloakUserService keycloakUserService;
 
-    @Mock
-    private KeycloakConfigService utilsService;
-
     @InjectMocks
     private UserService userService;
 
     private UserRequest userRequest;
+    private String realm;
 
     @BeforeEach
     void setUp() {
@@ -57,44 +59,45 @@ class UserServiceTest {
                 "User",
                 "USER"
         );
+        realm = "plexus";
     }
 
     @Test
     @DisplayName("registerUser debería crear usuario si realm existe y email no está registrado")
     void registerUser_shouldCreateUserSuccessfully() {
-        when(utilsService.resolveRealm("plexus")).thenReturn("plexus-realm");
-        when(keycloakUserService.userExistsByEmail("plexus-realm", userRequest.email())).thenReturn(false);
-        doNothing().when(keycloakUserService).createUserWithRole(eq("plexus-realm"), anyString(), any(UserRequest.class), anyString());
+        when(keycloakUserService.userExistsByEmail(anyString(), anyString())).thenReturn(false);
 
-        Map<String, Object> response = userService.registerUser("plexus", userRequest);
+        Map<String, Object> response = userService.registerUser(realm, userRequest);
 
         assertNotNull(response);
         assertEquals("Usuario registrado. Esperando aprobacion de administrador.", response.get("message"));
-        assertEquals("plexus", response.get("tenantId"));
-        assertEquals("plexus-realm", response.get("keycloakRealm"));
+        assertEquals(realm, response.get("tenantId"));
+        assertEquals(realm, response.get("keycloakRealm"));
 
-        verify(keycloakUserService, times(1)).createUserWithRole(eq("plexus-realm"), anyString(), eq(userRequest), anyString());
+        verify(keycloakUserService, times(1)).userExistsByEmail(eq(realm), eq(userRequest.email()));
+        verify(keycloakUserService, times(1)).createUserWithRole(eq(realm), eq(userRequest), anyString());
     }
 
+    @Test // Esta anotación estaba faltando
     @DisplayName("registerUser debería lanzar excepción si el realm no existe")
     void registerUser_shouldThrowExceptionIfRealmNotFound() {
-        when(utilsService.resolveRealm("unknownRealm")).thenReturn(null);
+        when(keycloakUserService.userExistsByEmail(anyString(), anyString())).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND));
+
         assertThrows(ResponseStatusException.class, () -> userService.registerUser("unknownRealm", userRequest));
 
-        verify(keycloakUserService, never()).createUserWithRole(anyString(), anyString(), any(), anyString());
+        verify(keycloakUserService, never()).createUserWithRole(anyString(), any(), anyString());
     }
 
     @Test
     @DisplayName("registerUser debería lanzar excepción si el email ya existe")
     void registerUser_shouldThrowExceptionIfEmailExists() {
-        when(utilsService.resolveRealm("plexus")).thenReturn("plexus-realm");
-        when(keycloakUserService.userExistsByEmail("plexus-realm", userRequest.email())).thenReturn(true);
+        when(keycloakUserService.userExistsByEmail(eq(realm), eq(userRequest.email()))).thenReturn(true);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> userService.registerUser("plexus", userRequest));
+                () -> userService.registerUser(realm, userRequest));
 
         assertEquals("El email 'user@gmail.com' ya está registrado.", ex.getMessage());
-        verify(keycloakUserService, never()).createUserWithRole(anyString(), anyString(), any(), anyString());
+        verify(keycloakUserService, never()).createUserWithRole(anyString(), any(), anyString());
     }
 
     @Test
@@ -112,47 +115,39 @@ class UserServiceTest {
                         List.of("user")
                 )
         );
+        when(keycloakUserService.getAllUsersWithRoles(realm)).thenReturn(usersWithRoles);
 
-        when(utilsService.resolveRealm("plexus")).thenReturn("plexus-realm");
-        when(keycloakUserService.getAllUsersWithRoles("plexus-realm")).thenReturn(usersWithRoles);
-
-        List<UserWithRoles> result = userService.getAllUsers("plexus");
+        List<UserWithRoles> result = userService.getAllUsers(realm);
 
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals("testuser", result.get(0).username());
         assertEquals("user", result.get(0).roles().get(0));
 
-        verify(keycloakUserService, times(1)).getAllUsersWithRoles("plexus-realm");
+        verify(keycloakUserService, times(1)).getAllUsersWithRoles(realm);
     }
 
     @Test
     @DisplayName("updateUser debería delegar en keycloakUserService")
     void updateUser_shouldDelegateTokeycloakUserService() {
-        when(utilsService.resolveRealm("plexus")).thenReturn("plexus-realm");
-        doNothing().when(keycloakUserService).updateUser(eq("plexus-realm"), anyString(), any(UserRequest.class));
+        String userId = "12345";
+        userService.updateUser(realm, userId, userRequest);
 
-        userService.updateUser("plexus", "12345", userRequest);
-
-        verify(keycloakUserService, times(1)).updateUser("plexus-realm", "12345", userRequest);
+        verify(keycloakUserService, times(1)).updateUser(realm, userId, userRequest);
     }
 
     @Test
     @DisplayName("deleteUser debería delegar en keycloakUserService")
     void deleteUser_shouldDelegateTokeycloakUserService() {
-        when(utilsService.resolveRealm("plexus")).thenReturn("plexus-realm");
-        doNothing().when(keycloakUserService).deleteUser(eq("plexus-realm"), anyString());
+        String userId = "12345";
+        userService.deleteUser(realm, userId);
 
-        userService.deleteUser("plexus", "12345");
-
-        verify(keycloakUserService, times(1)).deleteUser("plexus-realm", "12345");
+        verify(keycloakUserService, times(1)).deleteUser(realm, userId);
     }
 
     @Test
     @DisplayName("getUserById debería devolver un usuario con roles si es encontrado")
     void getUserById_shouldReturnUserWithRoles_WhenUserIsFound() {
-        String realm = "testRealm";
-        String keycloakRealm = "testRealm-keycloak";
         String userId = UUID.randomUUID().toString();
         UserWithRoles mockUser = new UserWithRoles(
                 userId,
@@ -164,24 +159,19 @@ class UserServiceTest {
                 true,
                 List.of("user")
         );
-
-        when(utilsService.resolveRealm(realm)).thenReturn(keycloakRealm);
-        when(keycloakUserService.getUserByIdWithRoles(keycloakRealm, userId)).thenReturn(mockUser);
+        when(keycloakUserService.getUserByIdWithRoles(realm, userId)).thenReturn(mockUser);
 
         UserWithRoles result = userService.getUserById(realm, userId);
 
         assertNotNull(result);
         assertEquals(userId, result.id());
         assertEquals(mockUser.username(), result.username());
-        verify(utilsService, times(1)).resolveRealm(realm);
-        verify(keycloakUserService, times(1)).getUserByIdWithRoles(keycloakRealm, userId);
+        verify(keycloakUserService, times(1)).getUserByIdWithRoles(realm, userId);
     }
 
     @Test
     @DisplayName("getUserByEmail debería devolver un usuario con roles si es encontrado")
     void getUserByEmail_shouldReturnUserWithRoles_WhenUserIsFound() {
-        String realm = "testRealm";
-        String keycloakRealm = "testRealm-keycloak";
         String email = "test@example.com";
         UserWithRoles mockUser = new UserWithRoles(
                 UUID.randomUUID().toString(),
@@ -193,24 +183,19 @@ class UserServiceTest {
                 true,
                 List.of("user")
         );
-
-        when(utilsService.resolveRealm(realm)).thenReturn(keycloakRealm);
-        when(keycloakUserService.getUserByEmailWithRoles(keycloakRealm, email)).thenReturn(mockUser);
+        when(keycloakUserService.getUserByEmailWithRoles(realm, email)).thenReturn(mockUser);
 
         UserWithRoles result = userService.getUserByEmail(realm, email);
 
         assertNotNull(result);
         assertEquals(mockUser.email(), result.email());
         assertEquals(mockUser.username(), result.username());
-        verify(utilsService, times(1)).resolveRealm(realm);
-        verify(keycloakUserService, times(1)).getUserByEmailWithRoles(keycloakRealm, email);
+        verify(keycloakUserService, times(1)).getUserByEmailWithRoles(realm, email);
     }
 
     @Test
     @DisplayName("getUsersByAttributes debería devolver una lista de usuarios con atributos")
     void getUsersByAttributes_shouldReturnUsersWithAttributesList() {
-        String realm = "testRealm";
-        String keycloakRealm = "testRealm-keycloak";
         UserSearchCriteria criteria = new UserSearchCriteria("Plexus", "ES", "IT");
 
         List<UserWithRolesAndAttributes> mockUsers = Collections.singletonList(
@@ -228,9 +213,7 @@ class UserServiceTest {
                         Map.of("organization", List.of("Plexus"))
                 )
         );
-
-        when(utilsService.resolveRealm(realm)).thenReturn(keycloakRealm);
-        when(keycloakUserService.getUsersByAttributes(keycloakRealm, criteria)).thenReturn(mockUsers);
+        when(keycloakUserService.getUsersByAttributes(realm, criteria)).thenReturn(mockUsers);
 
         List<UserWithRolesAndAttributes> result = userService.getUsersByAttributes(realm, criteria);
 
@@ -238,7 +221,61 @@ class UserServiceTest {
         assertEquals(1, result.size());
         assertEquals(mockUsers, result);
 
-        verify(utilsService, times(1)).resolveRealm(realm);
-        verify(keycloakUserService, times(1)).getUsersByAttributes(keycloakRealm, criteria);
+        verify(keycloakUserService, times(1)).getUsersByAttributes(realm, criteria);
+    }
+
+    @Test
+    @DisplayName("resetUserPassword debería delegar en keycloakUserService cuando la nueva contraseña es válida")
+    void resetUserPassword_shouldDelegateToKeycloakService_whenNewPasswordIsValid() {
+        String userId = "12345";
+        String newPassword = "newValidPassword";
+
+        userService.resetUserPassword(realm, userId, newPassword);
+
+        verify(keycloakUserService, times(1)).resetUserPassword(realm, userId, newPassword);
+    }
+
+    @Test
+    @DisplayName("resetUserPassword debería lanzar IllegalArgumentException si la nueva contraseña es nula")
+    void resetUserPassword_shouldThrowIllegalArgumentException_whenNewPasswordIsNull() {
+        String userId = "12345";
+        String newPasswordNull = null;
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                userService.resetUserPassword(realm, userId, newPasswordNull)
+        );
+
+        assertEquals("La nueva contrasena no puede estar vacia.", ex.getMessage());
+        verify(keycloakUserService, never()).resetUserPassword(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("resetUserPassword debería lanzar IllegalArgumentException si la nueva contraseña es un string vacío")
+    void resetUserPassword_shouldThrowIllegalArgumentException_whenNewPasswordIsBlank() {
+        String userId = "12345";
+        String newPasswordBlank = "   ";
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                userService.resetUserPassword(realm, userId, newPasswordBlank)
+        );
+
+        assertEquals("La nueva contrasena no puede estar vacia.", ex.getMessage());
+        verify(keycloakUserService, never()).resetUserPassword(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("resetUserPassword debería propagar la excepción de KeycloakUserService")
+    void resetUserPassword_shouldPropagateException_whenKeycloakServiceThrows() {
+        String userId = "12345";
+        String newPassword = "newPassword";
+        ResponseStatusException delegatedException = new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado.");
+
+        doThrow(delegatedException).when(keycloakUserService).resetUserPassword(realm, userId, newPassword);
+
+        ResponseStatusException thrown = assertThrows(ResponseStatusException.class, () ->
+                userService.resetUserPassword(realm, userId, newPassword)
+        );
+
+        assertEquals(delegatedException, thrown);
     }
 }

@@ -1,26 +1,29 @@
 package com.example.keycloak.multitenant.service;
 
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.LoginResponse;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakOidcClient;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,7 +41,7 @@ import static org.mockito.Mockito.when;
 class LoginServiceTest {
 
     @Mock
-    private RestTemplate restTemplate;
+    private KeycloakOidcClient keycloakOidcClient;
 
     @Mock
     private KeycloakProperties keycloakProperties;
@@ -58,7 +61,7 @@ class LoginServiceTest {
     private Map<String, String> clientSecrets;
     private String authServerUrl;
     private String issuerUrl;
-    private List<String> mockRealmRoles = List.of("app_users", "offline_access");
+    private List<String> mockRealmRoles;
     private Map<String, List<String>> mockClientRoles;
     private String mockAccessToken;
     private String mockIdToken;
@@ -95,6 +98,11 @@ class LoginServiceTest {
                 "\"expires_in\":300," +
                 "\"refresh_expires_in\":1800" +
                 "}";
+
+        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
+        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
+        when(keycloakProperties.getAuthServerUrl()).thenReturn(authServerUrl);
+        when(keycloakOidcClient.createBasicAuthHeaders(anyString(), anyString())).thenReturn(new HttpHeaders());
     }
 
     private String createMockJwt(String username, String email, String fullName, List<String> realmRoles, Map<String, List<String>> clientRoles, String issuer) {
@@ -136,15 +144,13 @@ class LoginServiceTest {
 
     @Test
     void testAuthenticateSuccess() throws Exception {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-        when(keycloakProperties.getAuthServerUrl()).thenReturn("http://auth-server");
-
-        when(restTemplate.postForEntity(
-                any(String.class),
-                any(HttpEntity.class),
+        when(keycloakOidcClient.postRequest(
+                eq(keycloakRealm),
+                eq("token"),
+                any(MultiValueMap.class),
+                any(HttpHeaders.class),
                 eq(String.class)
-        )).thenReturn(new ResponseEntity<>(keycloakTokenResponse, HttpStatus.OK));
+        )).thenReturn(keycloakTokenResponse);
 
         LoginResponse response = loginService.authenticate(realm, client, username, password);
 
@@ -163,11 +169,11 @@ class LoginServiceTest {
         assertEquals(1800L, response.getRefreshExpiresIn());
         assertEquals(realm, response.getRealm());
         assertEquals(client, response.getClient());
+        assertEquals(username, response.getPreferredUsername());
 
         verify(keycloakProperties, times(1)).getRealmMapping();
         verify(keycloakProperties, times(1)).getClientSecrets();
-        verify(keycloakProperties, times(1)).getAuthServerUrl();
-        verify(restTemplate, times(1)).postForEntity(any(String.class), any(HttpEntity.class), eq(String.class));
+        verify(keycloakOidcClient, times(1)).postRequest(anyString(), anyString(), any(), any(), eq(String.class));
     }
 
     @Test
@@ -180,46 +186,40 @@ class LoginServiceTest {
 
     @Test
     void authenticate_clientSecretIsNull_throwsIllegalArgumentException() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        clientSecrets.remove("testClient");
+        clientSecrets.remove(client);
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                loginService.authenticate(realm, "testClient", "user", "pass"));
+                loginService.authenticate(realm, client, "user", "pass"));
         assertTrue(exception.getMessage().contains("secreto no encontrado"));
     }
 
     @Test
     void authenticate_httpClientErrorException_throwsResponseStatusException() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-
         HttpClientErrorException httpEx = HttpClientErrorException.create(HttpStatus.UNAUTHORIZED, "Unauthorized", new HttpHeaders(), null, StandardCharsets.UTF_8);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class))).thenThrow(httpEx);
+        when(keycloakOidcClient.postRequest(anyString(), anyString(), any(), any(), eq(String.class)))
+                .thenThrow(httpEx);
 
-        assertThrows(ResponseStatusException.class, () ->
+        assertThrows(HttpClientErrorException.class, () ->
                 loginService.authenticate(realm, client, "user", "pass"));
     }
 
     @Test
     void authenticate_unexpectedException_throwsResponseStatusException() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class)))
+        when(keycloakOidcClient.postRequest(anyString(), anyString(), any(), any(), eq(String.class)))
                 .thenThrow(new RuntimeException("Unexpected"));
 
-        assertThrows(ResponseStatusException.class, () ->
+        assertThrows(RuntimeException.class, () ->
                 loginService.authenticate(realm, client, "user", "pass"));
     }
 
     @Test
     void authenticate_invalidTokenResponse_throwsResponseStatusException() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn(new ResponseEntity<>("invalid-json", HttpStatus.OK));
+        when(keycloakOidcClient.postRequest(anyString(), anyString(), any(), any(), eq(String.class)))
+                .thenReturn("invalid-json");
 
-        assertThrows(ResponseStatusException.class, () ->
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
                 loginService.authenticate(realm, client, "user", "pass"));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, exception.getStatusCode());
+        assertEquals("Error al procesar la respuesta de Keycloak.", exception.getReason());
     }
 
     @Test
@@ -232,106 +232,94 @@ class LoginServiceTest {
                 "\"refresh_expires_in\": 18000," +
                 "\"id_token\": \"new-id-token\"}";
 
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-        when(keycloakProperties.getAuthServerUrl()).thenReturn("http://auth-server");
-
-        ResponseEntity<String> responseEntity = new ResponseEntity<>(tokenJson, HttpStatus.OK);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn(responseEntity);
+        when(keycloakOidcClient.postRequest(
+                eq(keycloakRealm),
+                eq("token"),
+                any(MultiValueMap.class),
+                any(HttpHeaders.class),
+                eq(String.class)
+        )).thenReturn(tokenJson);
 
         LoginResponse response = loginService.refreshToken(oldRefreshToken, realm, client);
 
         assertNotNull(response);
         assertEquals("new-access-token", response.getAccessToken());
         assertEquals("new-refresh-token", response.getRefreshToken());
+        assertEquals(3000L, response.getExpiresIn());
+        assertEquals(18000L, response.getRefreshExpiresIn());
     }
 
     @Test
     void refreshToken_realmNotFound() {
+        when(keycloakProperties.getRealmMapping()).thenReturn(new HashMap<>());
         assertThrows(ResponseStatusException.class, () ->
                 loginService.refreshToken("token", "unknownRealm", "testClient"));
     }
 
     @Test
     void refreshToken_clientSecretMissing() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
+        clientSecrets.remove(client);
         assertThrows(IllegalArgumentException.class, () ->
-                loginService.refreshToken("token", realm, null));
+                loginService.refreshToken("token", realm, client));
     }
 
     @Test
     void refreshToken_exceptionThrown() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class)))
+        when(keycloakOidcClient.postRequest(anyString(), anyString(), any(), any(), eq(String.class)))
                 .thenThrow(new RuntimeException("Simulated error"));
 
-        assertThrows(ResponseStatusException.class, () ->
+        assertThrows(RuntimeException.class, () ->
                 loginService.refreshToken("dummyRefresh", realm, client));
     }
 
     @Test
     void refreshToken_httpClientErrorException_throwsResponseStatusException() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-
         HttpClientErrorException httpEx = HttpClientErrorException.create(HttpStatus.UNAUTHORIZED, "Unauthorized", new HttpHeaders(), null, StandardCharsets.UTF_8);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class))).thenThrow(httpEx);
+        when(keycloakOidcClient.postRequest(anyString(), anyString(), any(), any(), eq(String.class)))
+                .thenThrow(httpEx);
 
-        assertThrows(ResponseStatusException.class, () ->
+        assertThrows(HttpClientErrorException.class, () ->
                 loginService.refreshToken("dummyRefresh", realm, client));
     }
 
     @Test
     void refreshToken_invalidTokenResponse_throwsResponseStatusException() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn(new ResponseEntity<>("invalid-json", HttpStatus.OK));
+        when(keycloakOidcClient.postRequest(anyString(), anyString(), any(), any(), eq(String.class)))
+                .thenReturn("invalid-json");
 
-        assertThrows(ResponseStatusException.class, () ->
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
                 loginService.refreshToken("dummyRefresh", realm, client));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, exception.getStatusCode());
+        assertEquals("Error al procesar la respuesta de renovación de Keycloak.", exception.getReason());
     }
 
     @Test
     void testRevokeRefreshToken() {
-        Map<String, String> realmMapping = new HashMap<>();
-        realmMapping.put("tenant1", "mapped-realm");
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
+        when(keycloakOidcClient.postRequest(
+                eq(keycloakRealm),
+                eq("revoke"),
+                any(MultiValueMap.class),
+                any(HttpHeaders.class),
+                eq(String.class)
+        )).thenReturn("");
 
-        Map<String, String> clientSecrets = new HashMap<>();
-        clientSecrets.put("client-app", "secret");
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-        when(keycloakProperties.getAuthServerUrl()).thenReturn("http://auth-server");
-
-        assertDoesNotThrow(() -> loginService.revokeRefreshToken("refresh-token", "tenant1", "client-app"));
+        assertDoesNotThrow(() -> loginService.revokeRefreshToken(refreshTokenValue, realm, client));
+        verify(keycloakOidcClient, times(1)).postRequest(anyString(), anyString(), any(), any(), eq(String.class));
     }
 
     @Test
     void revokeRefreshToken_realmNotFound() {
-        assertThrows(ResponseStatusException.class, () ->
-                loginService.revokeRefreshToken("token", "unknownRealm", "testClient"));
+        when(keycloakProperties.getRealmMapping()).thenReturn(new HashMap<>());
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
+                loginService.revokeRefreshToken("token", "unknownRealm", client));
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
     }
 
     @Test
     void revokeRefreshToken_clientSecretMissing() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        assertThrows(ResponseStatusException.class, () ->
-                loginService.revokeRefreshToken("token", realm, null));
-    }
-
-    @Test
-    void revokeRefreshToken_exceptionThrown() {
-        when(keycloakProperties.getRealmMapping()).thenReturn(realmMapping);
-        when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
-
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenThrow(new RuntimeException("Simulated error"));
-
-        assertThrows(ResponseStatusException.class, () ->
-                loginService.revokeRefreshToken("dummyRefresh", realm, client));
+        clientSecrets.remove(client);
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
+                loginService.revokeRefreshToken("token", realm, client));
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
     }
 }

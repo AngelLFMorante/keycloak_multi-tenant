@@ -1,8 +1,11 @@
 package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
-import com.example.keycloak.multitenant.model.ClientCredentialsTokenResponse;
+import com.example.keycloak.multitenant.model.token.ClientCredentialsTokenResponse;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,16 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import org.springframework.http.HttpHeaders;
+import org.springframework.util.MultiValueMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -33,13 +28,13 @@ import static org.mockito.Mockito.when;
 class KeycloakClientCredentialsServiceTest {
 
     @Mock
-    private RestTemplate restTemplate;
-
-    @Mock
     private KeycloakConfigService utilsConfigService;
 
     @Mock
     private KeycloakProperties keycloakProperties;
+
+    @Mock
+    private KeycloakOidcClient keycloakOidcClient;
 
     @InjectMocks
     private KeycloakClientCredentialsService keycloakClientCredentialsService;
@@ -48,7 +43,6 @@ class KeycloakClientCredentialsServiceTest {
     private String clientId;
     private String realm;
     private String clientSecret;
-    private String tokenUrl;
 
     @BeforeEach
     void setUp() {
@@ -56,9 +50,9 @@ class KeycloakClientCredentialsServiceTest {
         clientId = "testClient";
         realm = "test-realm";
         clientSecret = "test-secret";
-        tokenUrl = "http://localhost:8080/realms/test-realm/protocol/openid-connect/token";
 
         when(utilsConfigService.resolveRealm(tenant)).thenReturn(realm);
+
         Map<String, String> clientSecrets = new HashMap<>();
         clientSecrets.put(clientId, clientSecret);
         when(keycloakProperties.getClientSecrets()).thenReturn(clientSecrets);
@@ -70,15 +64,14 @@ class KeycloakClientCredentialsServiceTest {
         ClientCredentialsTokenResponse expectedResponse = new ClientCredentialsTokenResponse(
                 "mock_access_token", 3600, 0, "scope-1", "test-scope"
         );
-        ResponseEntity<ClientCredentialsTokenResponse> responseEntity = new ResponseEntity<>(expectedResponse, HttpStatus.OK);
 
-        when(keycloakProperties.getAuthServerUrl()).thenReturn("http://localhost:8080");
-        when(restTemplate.exchange(
-                eq(tokenUrl),
-                eq(HttpMethod.POST),
-                any(HttpEntity.class),
+        when(keycloakOidcClient.postRequest(
+                eq(realm),
+                eq("token"),
+                any(MultiValueMap.class),
+                any(HttpHeaders.class),
                 eq(ClientCredentialsTokenResponse.class)
-        )).thenReturn(responseEntity);
+        )).thenReturn(expectedResponse);
 
         ClientCredentialsTokenResponse result = keycloakClientCredentialsService.obtainToken(tenant, clientId);
 
@@ -102,13 +95,13 @@ class KeycloakClientCredentialsServiceTest {
     @Test
     @DisplayName("Debería lanzar IllegalStateException si la respuesta de Keycloak está vacía")
     void obtainToken_shouldThrowIllegalStateException_whenKeycloakResponseIsEmpty() {
-        when(keycloakProperties.getAuthServerUrl()).thenReturn("http://localhost:8080");
-        when(restTemplate.exchange(
+        when(keycloakOidcClient.postRequest(
                 anyString(),
-                eq(HttpMethod.POST),
-                any(HttpEntity.class),
+                anyString(),
+                any(MultiValueMap.class),
+                any(HttpHeaders.class),
                 eq(ClientCredentialsTokenResponse.class)
-        )).thenReturn(new ResponseEntity<>(null, HttpStatus.OK));
+        )).thenReturn(null); // simulamos respuesta vacía
 
         IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
             keycloakClientCredentialsService.obtainToken(tenant, clientId);
@@ -118,19 +111,22 @@ class KeycloakClientCredentialsServiceTest {
     }
 
     @Test
-    @DisplayName("Debería lanzar RuntimeException en caso de error HTTP de Keycloak")
-    void obtainToken_shouldThrowRuntimeException_onKeycloakHttpError() {
-        when(restTemplate.exchange(
-                eq(tokenUrl),
-                eq(HttpMethod.POST),
-                any(HttpEntity.class),
+    @DisplayName("Debería lanzar RuntimeException en caso de error general al comunicarse con Keycloak")
+    void obtainToken_shouldThrowRuntimeException_onGeneralError() {
+        when(keycloakOidcClient.postRequest(
+                anyString(),
+                anyString(),
+                any(MultiValueMap.class),
+                any(HttpHeaders.class),
                 eq(ClientCredentialsTokenResponse.class)
-        )).thenThrow(new HttpClientErrorException(HttpStatus.BAD_REQUEST, "Invalid client credentials"));
+        )).thenThrow(new RuntimeException("Fallo de red"));
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             keycloakClientCredentialsService.obtainToken(tenant, clientId);
         });
 
         assertEquals("Error al obtener token de Keycloak.", exception.getMessage());
+        assertNotNull(exception.getCause());
+        assertEquals("Fallo de red", exception.getCause().getMessage());
     }
 }

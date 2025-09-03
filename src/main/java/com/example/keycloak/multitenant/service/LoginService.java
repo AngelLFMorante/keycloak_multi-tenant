@@ -4,26 +4,19 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.LoginResponse;
-import com.example.keycloak.multitenant.service.utils.DataConversionUtilsService;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakOidcClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -40,20 +33,13 @@ public class LoginService {
     private static final Logger log = LoggerFactory.getLogger(LoginService.class);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final RestTemplate restTemplate;
     private final KeycloakProperties keycloakProperties;
-    private final DataConversionUtilsService dataConversionUtilsService;
+    private final KeycloakOidcClient keycloakOidcClient;
 
-    /**
-     * Constructor para la inyeccion de dependencias.
-     *
-     * @param restTemplate       Instancia de RestTemplate para realizar llamadas HTTP.
-     * @param keycloakProperties Propiedades de configuracion de Keycloak.
-     */
-    public LoginService(RestTemplate restTemplate, KeycloakProperties keycloakProperties, DataConversionUtilsService dataConversionUtilsService) {
-        this.restTemplate = restTemplate;
+
+    public LoginService(KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient) {
         this.keycloakProperties = keycloakProperties;
-        this.dataConversionUtilsService = dataConversionUtilsService;
+        this.keycloakOidcClient = keycloakOidcClient;
         log.info("LoginService inicializado.");
     }
 
@@ -87,9 +73,6 @@ public class LoginService {
         }
         log.debug("Client Secret encontrado para Client ID: {}", client);
 
-        String tokenUrl = keycloakProperties.getAuthServerUrl() + "/realms/" + keycloakRealm + "/protocol/openid-connect/token";
-        log.debug("URL de token de Keycloak: {}", tokenUrl);
-
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
         params.add("grant_type", "password");
         params.add("client_id", client);
@@ -98,30 +81,15 @@ public class LoginService {
         params.add("scope", "openid profile email");
         log.debug("Parametros de solicitud de token: {}", params);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        HttpHeaders headers = keycloakOidcClient.createBasicAuthHeaders(client, clientSecret);
 
-        String clientAuth = client + ":" + clientSecret;
-        String encodedAuth = Base64.getEncoder().encodeToString(clientAuth.getBytes(StandardCharsets.UTF_8));
-        headers.set("Authorization", "Basic " + encodedAuth);
-        log.debug("Cabeceras de autenticación preparados.");
-
-        ResponseEntity<String> tokenResponseEntity;
-        try {
-            tokenResponseEntity = restTemplate.postForEntity(
-                    tokenUrl,
-                    new HttpEntity<>(params, headers),
-                    String.class
-            );
-        } catch (HttpClientErrorException e) {
-            log.error("Error al autenticar con Keycloak: Status={}, Body={}", e.getStatusCode(), e.getResponseBodyAsString(), e);
-            throw new ResponseStatusException(e.getStatusCode(), "Error al autenticar con Keycloak: " + e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("Error inesperado durante la autenticación con Keycloak: {}", e.getMessage(), e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error inesperado durante la autenticación.", e);
-        }
-
-        String tokenResponse = tokenResponseEntity.getBody();
+        String tokenResponse = keycloakOidcClient.postRequest(
+                keycloakRealm,
+                "token",
+                params,
+                headers,
+                String.class
+        );
         log.info("Respuesta exitosa de Keycloak para el usuario '{}'", username);
 
         try {
@@ -205,35 +173,21 @@ public class LoginService {
             throw new IllegalArgumentException("Client ID configurado pero secreto no encontrado para: " + client + ".");
         }
 
-        String tokenUrl = keycloakProperties.getAuthServerUrl() + "/realms/" + keycloakRealm + "/protocol/openid-connect/token";
-
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
         params.add("grant_type", "refresh_token");
         params.add("client_id", client);
         params.add("refresh_token", oldRefreshToken);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        String clientAuth = client + ":" + clientSecret;
-        String encodedAuth = Base64.getEncoder().encodeToString(clientAuth.getBytes(StandardCharsets.UTF_8));
-        headers.set("Authorization", "Basic " + encodedAuth);
+        HttpHeaders headers = keycloakOidcClient.createBasicAuthHeaders(client, clientSecret);
 
-        ResponseEntity<String> tokenResponseEntity;
-        try {
-            tokenResponseEntity = restTemplate.postForEntity(
-                    tokenUrl,
-                    new HttpEntity<>(params, headers),
-                    String.class
-            );
-        } catch (HttpClientErrorException e) {
-            log.error("Error al renovar token con Keycloak: Status={}, Body={}", e.getStatusCode(), e.getResponseBodyAsString(), e);
-            throw new ResponseStatusException(e.getStatusCode(), "Fallo al renovar token con Keycloak: " + e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("Error inesperado al renovar token: {}", e.getMessage(), e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error inesperado durante la renovación del token.", e);
-        }
+        String tokenResponse = keycloakOidcClient.postRequest(
+                keycloakRealm,
+                "token",
+                params,
+                headers,
+                String.class
+        );
 
-        String tokenResponse = tokenResponseEntity.getBody();
         log.info("Respuesta exitosa de Keycloak para la renovación de token.");
 
         try {
@@ -276,27 +230,21 @@ public class LoginService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client ID no valido para logout.");
         }
 
-        String revokeUrl = keycloakProperties.getAuthServerUrl() + "/realms/" + keycloakRealm + "/protocol/openid-connect/revoke";
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        String clientAuth = client + ":" + clientSecret;
-        String encodedAuth = Base64.getEncoder().encodeToString(clientAuth.getBytes(StandardCharsets.UTF_8));
-        headers.set("Authorization", "Basic " + encodedAuth);
-
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
         params.add("token", refreshToken);
         params.add("token_type_hint", "refresh_token");
 
-        HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(params, headers);
+        HttpHeaders headers = keycloakOidcClient.createBasicAuthHeaders(client, clientSecret);
 
-        try {
-            restTemplate.postForEntity(revokeUrl, entity, String.class);
-            log.info("Refresh token revocado correctamente para el realm '{}' y client '{}'", realm, client);
-        } catch (Exception e) {
-            log.error("Error al revocar el token: {}", e.getMessage(), e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error al revocar token en Keycloak.");
-        }
+        keycloakOidcClient.postRequest(
+                keycloakRealm,
+                "revoke",
+                params,
+                headers,
+                String.class
+        );
 
+        log.info("Refresh token revocado correctamente para el realm '{}' y client '{}'", realm, client);
     }
 }
 

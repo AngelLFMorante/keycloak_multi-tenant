@@ -1,9 +1,9 @@
 package com.example.keycloak.multitenant.controller;
 
-import com.example.keycloak.multitenant.model.UserRequest;
-import com.example.keycloak.multitenant.model.UserSearchCriteria;
-import com.example.keycloak.multitenant.model.UserWithRoles;
-import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
+import com.example.keycloak.multitenant.model.user.UserRequest;
+import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
+import com.example.keycloak.multitenant.model.user.UserWithRoles;
+import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -16,7 +16,6 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -278,4 +277,40 @@ public class UserController {
         log.info("Busqueda completada. {} usuarios encontrados.", users.size());
         return ResponseEntity.ok(users);
     }
+
+    /**
+     * Endpoint para restablecer la contrasena de un usuario.
+     * <p>
+     * Este metodo gestiona la solicitud POST para cambiar la contrasena de un usuario
+     * especifico por su ID. La nueva contrasena se pasa en el cuerpo de la solicitud.
+     *
+     * @param realm       El nombre del realm (tenant).
+     * @param userId      El ID del usuario en formato UUID.
+     * @param newPassword La nueva contrasena en formato de texto.
+     * @return Una {@link ResponseEntity} con estado NO_CONTENT si el restablecimiento fue exitoso.
+     */
+    @Operation(
+            summary = "Restablece la contrasena de un usuario",
+            description = "Cambia la contrasena de un usuario existente por una nueva."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Contrasena restablecida con exito."),
+            @ApiResponse(responseCode = "400", description = "Datos de entrada invalidos.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Tenant o usuario no encontrado.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/{userId}/password-reset")
+    public ResponseEntity<Void> resetUserPassword(
+            @Parameter(description = "El nombre del realm.")
+            @PathVariable String realm,
+            @Parameter(description = "El ID del usuario a actualizar")
+            @PathVariable UUID userId,
+            @RequestBody String newPassword) {
+        log.info("Solicitud para restablecer la password del usuario con ID '{}' en el realm: {}", userId, realm);
+        userService.resetUserPassword(realm, userId.toString(), newPassword);
+
+        return ResponseEntity.noContent().build();
+    }
+    
 }

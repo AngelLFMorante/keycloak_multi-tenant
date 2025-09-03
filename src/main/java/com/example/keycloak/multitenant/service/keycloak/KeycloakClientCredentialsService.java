@@ -1,15 +1,11 @@
 package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
-import com.example.keycloak.multitenant.model.ClientCredentialsTokenResponse;
+import com.example.keycloak.multitenant.model.token.ClientCredentialsTokenResponse;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -33,23 +29,17 @@ public class KeycloakClientCredentialsService {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakClientCredentialsService.class);
 
-    private final RestTemplate restTemplate;
     private final KeycloakConfigService utilsConfigService;
     private final KeycloakProperties keycloakProperties;
+    private final KeycloakOidcClient keycloakOidcClient;
 
-    /**
-     * Constructor para la inyección de dependencias.
-     *
-     * @param restTemplate       El cliente HTTP para realizar las peticiones a Keycloak.
-     * @param utilsConfigService El servicio de configuración de Keycloak para resolver realms.
-     * @param keycloakProperties Las propiedades de configuración de Keycloak de la aplicación.
-     */
-    public KeycloakClientCredentialsService(RestTemplate restTemplate,
-                                            KeycloakConfigService utilsConfigService,
-                                            KeycloakProperties keycloakProperties) {
-        this.restTemplate = restTemplate;
+
+    public KeycloakClientCredentialsService(
+            KeycloakConfigService utilsConfigService,
+            KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient) {
         this.utilsConfigService = utilsConfigService;
         this.keycloakProperties = keycloakProperties;
+        this.keycloakOidcClient = keycloakOidcClient;
     }
 
     /**
@@ -77,25 +67,20 @@ public class KeycloakClientCredentialsService {
             throw new IllegalArgumentException("Client secret no encontrado para: " + clientId);
         }
 
-        String tokenUrl = String.format("%s/realms/%s/protocol/openid-connect/token",
-                keycloakProperties.getAuthServerUrl(), realm);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "client_credentials");
         body.add("client_id", clientId);
         body.add("client_secret", clientSecret);
 
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
-
-        log.debug("Solicitando token a Keycloak en {} con clientId={}", tokenUrl, clientId);
-
         try {
-            ResponseEntity<ClientCredentialsTokenResponse> response =
-                    restTemplate.exchange(tokenUrl, HttpMethod.POST, request, ClientCredentialsTokenResponse.class);
-            ClientCredentialsTokenResponse responseBody = response.getBody();
+
+            ClientCredentialsTokenResponse responseBody = keycloakOidcClient.postRequest(
+                    realm,
+                    "token",
+                    body,
+                    new HttpHeaders(),
+                    ClientCredentialsTokenResponse.class
+            );
 
             if (responseBody == null) {
                 log.error("Respuesta vacía desde Keycloak para clientId={}", clientId);

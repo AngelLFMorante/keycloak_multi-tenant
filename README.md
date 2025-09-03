@@ -92,24 +92,30 @@ O usando Docker:
 
 ## 🔐 Endpoints Disponibles
 
-| Método | Endpoint                                      | Descripción                                 |
-|--------|-----------------------------------------------|---------------------------------------------|
-| GET    | `/api/v1/{realm}/login`                       | Página de login                             |
-| POST   | `/api/v1/{realm}/{client}/do_login`           | Login con usuario/password                  |
-| GET    | `/api/v1/{realm}/users`                       | Obtener todos los usuarios                  |
-| POST   | `/api/v1/{realm}/users/register`              | Registro de usuario en Keycloak             |
-| PUT    | `/api/v1/{realm}/users/{userId}`              | Actualizar un usuario                       |
-| DELETE | `/api/v1/{realm}/users/{userId}`              | Eliminar un usuario                         |
-| GET    | `/api/v1/logout`                              | Logout y cierre de sesión                   |
-| GET    | `/api/v1/{realm}/roles`                       | Obtener todos los roles                     |
-| POST   | `/api/v1/{realm}/roles`                       | Crear un nuevo rol                          |
-| DELETE | `/api/v1/{realm}/roles/{roleName}`            | Eliminar un rol específico                  |
-| GET    | `/api/v1/{realm}/roles/{roleName}/attributes` | Obtener atributos de un rol                 |
-| PUT    | `/api/v1/{realm}/roles/{roleName}/attributes` | Añadir/Actualizar atributos de un rol       |
-| DELETE | `/api/v1/{realm}/roles/{roleName}/attributes` | Eliminar un atributo de un rol              |
-| POST   | `/api/v1/{realm}/auth/{client}/validate`      | Validar un token de acceso o refresco.      |
-| POST   | `/api/v1/{realm}/auth/{client}/token`         | Obtener un token usando Client Credentials. |
-| GET    | `/swagger-ui/index.html`                      | Acceso a Swagger UI                         |
+| Método | Endpoint                                                  | Descripción                                 |
+|--------|-----------------------------------------------------------|---------------------------------------------|
+| GET    | `/api/v1/{realm}/login`                                   | Página de login                             |
+| POST   | `/api/v1/{realm}/{client}/do_login`                       | Login con usuario/password                  |
+| POST   | `/api/v1/refresh`                                         | Renueva el token de acceso usando           |
+| GET    | `/api/v1/{realm}/users`                                   | Obtener todos los usuarios                  |
+| POST   | `/api/v1/{realm}/users/register`                          | Registro de usuario en Keycloak             |
+| PUT    | `/api/v1/{realm}/users/{userId}`                          | Actualizar un usuario                       |
+| DELETE | `/api/v1/{realm}/users/{userId}`                          | Eliminar un usuario                         |
+| GET    | `/api/v1/{realm}/users/{userId}`                          | Obterner un usuario por su ID               |
+| GET    | `/api/v1/{realm}/users/email/{email}`                     | Obterner un usuario por su email            |
+| GET    | `/api/v1/{realm}/users/attributes`                        | Obterner usuarios por filtro atributos      |
+| POST   | `/api/v1/{realm}/users/{userId}/password-reset`           | Reestablece password del usuario            |
+| GET    | `/api/v1/logout`                                          | Logout y cierre de sesión                   |
+| GET    | `/api/v1/{realm}/roles`                                   | Obtener todos los roles                     |
+| POST   | `/api/v1/{realm}/roles`                                   | Crear un nuevo rol                          |
+| DELETE | `/api/v1/{realm}/roles/{roleName}`                        | Eliminar un rol específico                  |
+| GET    | `/api/v1/{realm}/roles/{roleName}/attributes`             | Obtener atributos de un rol                 |
+| PUT    | `/api/v1/{realm}/roles/{roleName}/attributes`             | Añadir/Actualizar atributos de un rol       |
+| DELETE | `/api/v1/{realm}/roles/{roleName}/attributes`             | Eliminar un atributo de un rol              |
+| POST   | `/api/v1/{realm}/auth/{client}/validate`                  | Validar un token de acceso o refresco.      |
+| POST   | `/api/v1/{realm}/auth/{client}/token`                     | Obtener un token usando Client Credentials. |
+| POST   | `/api/v1/{realm}/{client}/users/{userId}/change-password` | Cambiar contraseña de usuario               |
+| GET    | `/swagger-ui/index.html`                                  | Acceso a Swagger UI                         |
 
 ## 🧪 Postman cURL's de Ejemplo
 
@@ -180,6 +186,45 @@ http://localhost:8081/api/v1/{REALM_PATH}/users/register \
 
 ```bash
   curl -X DELETE http://localhost:8081/api/v1/{REALM_PATH}/users/{USER_ID}
+```
+
+### 🧝 Obtener usuario por ID
+
+```bash
+  curl -X GET http://localhost:8081/api/v1/{REALM_PATH}/users/{USER_ID}
+```
+
+### 🧝 Obtener usuario por email
+
+```bash
+  curl -X GET http://localhost:8081/api/v1/{REALM_PATH}/users/email/{EMAIL}
+```
+
+### 🧝 Obtener usuarios por filtro atritbutos
+
+```bash
+  curl -X GET http://localhost:8081/api/v1/{REALM_PATH}/users/attributes?organization=XX&subsidiary=XX&department=XX
+```
+
+### 🧝 Reestablecer password de usuario
+
+```bash
+  curl --location 'http://localhost:8081/api/v1/{REALM_PATH}/users/{USER_ID}/password-reset' \
+       --header 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+       --header 'Content-Type: application/x-www-form-urlencoded' \
+       --data-urlencode 'newPassword=87654321'
+```
+
+🔑 Cambiar password de usuario
+
+```bash
+     curl --location 'http://localhost:8081/api/v1/{REALM_PATH}/{CLIENT_ID}/users/{USER_ID}/change-password' \
+          --header 'Content-Type: application/json' \
+          --data-raw '{
+                "username": "usuario@gmail.com",
+                "currentPassword": "currentPassword!1",
+                "newPassword": "newSecurePassword!1"
+          }'
 ```
 
 ### 🧾 Obtener Roles

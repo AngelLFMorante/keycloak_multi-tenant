@@ -3,7 +3,7 @@ package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
-import com.example.keycloak.multitenant.model.UserRequest;
+import com.example.keycloak.multitenant.model.user.UserRequest;
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import jakarta.ws.rs.NotFoundException;

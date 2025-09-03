@@ -2,18 +2,18 @@ package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
-import com.example.keycloak.multitenant.model.UserRequest;
-import com.example.keycloak.multitenant.model.UserSearchCriteria;
-import com.example.keycloak.multitenant.model.UserWithRoles;
-import com.example.keycloak.multitenant.model.UserWithRolesAndAttributes;
+import com.example.keycloak.multitenant.model.user.UserRequest;
+import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
+import com.example.keycloak.multitenant.model.user.UserWithRoles;
+import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
+import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
@@ -40,16 +40,19 @@ public class KeycloakUserService {
     private static final Logger log = LoggerFactory.getLogger(KeycloakUserService.class);
     private final KeycloakRoleService keycloakRoleService;
     private final KeycloakAdminService utilsAdminService;
+    private final KeycloakConfigService utilsConfigService;
 
     /**
      * Constructor para la inyeccion de dependencias.
      *
      * @param keycloakRoleService Servicio para operaciones relacionadas con roles.
      * @param utilsAdminService   Servicio de utilidades para obtener recursos de Keycloak.
+     * @param utilsConfigService  Servicio de utilidades para interactuar con Keycloak.
      */
-    public KeycloakUserService(KeycloakRoleService keycloakRoleService, KeycloakAdminService utilsAdminService) {
+    public KeycloakUserService(KeycloakRoleService keycloakRoleService, KeycloakAdminService utilsAdminService, KeycloakConfigService utilsConfigService) {
         this.keycloakRoleService = keycloakRoleService;
         this.utilsAdminService = utilsAdminService;
+        this.utilsConfigService = utilsConfigService;
         log.info("KeycloakUserService inicializado.");
     }
 
@@ -66,6 +69,9 @@ public class KeycloakUserService {
      */
     public List<UserWithRoles> getAllUsersWithRoles(String realm) {
         log.info("Recuperando todos los usuarios con roles del realm '{}'.", realm);
+
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
 
         UsersResource usersResource;
         try {
@@ -117,8 +123,12 @@ public class KeycloakUserService {
      * @throws KeycloakUserCreationException Si la creacion o actualizacion del usuario falla.
      * @throws KeycloakRoleCreationException Si la asignacion del rol falla.
      */
-    public void createUserWithRole(String keycloakRealm, String realm, UserRequest request, String tempPassword) {
+    public void createUserWithRole(String realm, UserRequest request, String tempPassword) {
         log.info("Iniciando el proceso de registro para el usuario '{}' en el realm '{}'.", request.username(), realm);
+
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
 
         try {
             RealmResource realmResource = utilsAdminService.getRealmResource(keycloakRealm);
@@ -145,12 +155,20 @@ public class KeycloakUserService {
      */
     public boolean userExistsByEmail(String realm, String email) {
         log.debug("Comprobando si el email '{}' ya existe en el realm '{}'.", email, realm);
+
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
+
         List<UserRepresentation> users = utilsAdminService.getRealmResource(realm).users().searchByEmail(email, true);
+
         boolean exists = users != null && !users.isEmpty();
+
         if (exists) {
             log.info("El email '{}' ya esta en uso en el realm '{}'.", email, realm);
         } else {
             log.debug("El email '{}' no existe en el realm '{}'.", email, realm);
+
         }
         return exists;
     }
@@ -167,8 +185,11 @@ public class KeycloakUserService {
     public void updateUser(String realm, String userId, UserRequest updatedUserRequest) {
         log.info("Actualizando usuario con ID '{}' en el realm '{}'.", userId, realm);
 
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
+
         try {
-            RealmResource realmResource = utilsAdminService.getRealmResource(realm);
+            RealmResource realmResource = utilsAdminService.getRealmResource(keycloakRealm);
             UserResource userResource = realmResource.users().get(userId);
 
             UserRepresentation userRepresentation = userResource.toRepresentation();
@@ -204,8 +225,11 @@ public class KeycloakUserService {
      */
     public void deleteUser(String realm, String userId) {
         log.info("Eliminando usuario con ID '{}' del realm '{}'.", userId, realm);
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
+
         try {
-            utilsAdminService.getRealmResource(realm).users().get(userId).remove();
+            utilsAdminService.getRealmResource(keycloakRealm).users().get(userId).remove();
             log.info("Usuario con ID '{}' eliminado exitosamente.", userId);
         } catch (NotFoundException e) {
             log.warn("Usuario con ID '{}' no encontrado, no se puede eliminar.", userId);
@@ -233,14 +257,17 @@ public class KeycloakUserService {
     public UserWithRoles getUserByIdWithRoles(String realm, String userId) {
         log.info("Recuperando usuario con ID '{}' del realm de Keycloak '{}'.", userId, realm);
 
-        RealmResource realmResource = utilsAdminService.getRealmResource(realm);
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
+
+        RealmResource realmResource = utilsAdminService.getRealmResource(keycloakRealm);
         UsersResource usersResource = realmResource.users();
 
         UserRepresentation user;
         try {
             user = usersResource.get(userId).toRepresentation();
         } catch (NotFoundException e) {
-            log.error("Usuario con ID '{}' no encontrado en el realm '{}'.", userId, realm, e);
+            log.error("Usuario con ID '{}' no encontrado en el realm '{}'.", userId, keycloakRealm, e);
             throw e;
         }
 
@@ -276,11 +303,14 @@ public class KeycloakUserService {
     public UserWithRoles getUserByEmailWithRoles(String realm, String email) {
         log.info("Recuperando usuario por email '{}' del realm keycloak '{}'.", email, realm);
 
-        UsersResource userResource = utilsAdminService.getRealmResource(realm).users();
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Realm '{}' mapeado al realm de keycloak: '{}'", realm, keycloakRealm);
+
+        UsersResource userResource = utilsAdminService.getRealmResource(keycloakRealm).users();
         List<UserRepresentation> users = userResource.searchByEmail(email, true);
 
         if (users == null || users.isEmpty()) {
-            log.error("Usuario con email '{}' no encontrado en el realm '{}'.", email, realm);
+            log.error("Usuario con email '{}' no encontrado en el realm '{}'.", email, keycloakRealm);
             throw new NotFoundException("User not found with email: " + email);
         }
 
@@ -314,14 +344,56 @@ public class KeycloakUserService {
     public List<UserWithRolesAndAttributes> getUsersByAttributes(String realm, UserSearchCriteria criteria) {
         log.info("Buscando usuarios en el realm '{}' por los atributos: {}", realm, criteria);
 
-        UsersResource usersResource = utilsAdminService.getRealmResource(realm).users();
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Tenant '{}' mapeado a Keycloak realm '{}'.", realm, keycloakRealm);
+
+        UsersResource usersResource = utilsAdminService.getRealmResource(keycloakRealm).users();
         List<UserRepresentation> allUsers = usersResource.list();
-        log.debug("Total de usuarios encontrados en el realm '{}': {}", realm, allUsers);
+        log.debug("Total de usuarios encontrados en el realm '{}': {}", keycloakRealm, allUsers);
 
         return allUsers.stream()
                 .filter(user -> matchesCriteria(user, criteria))
                 .map(userRep -> createUserDto(userRep, usersResource))
                 .toList();
+    }
+
+    /**
+     * Restablece la contrasena de un usuario en un realm especifico de Keycloak.
+     * <p>
+     * Utiliza la API de administracion para establecer una nueva contrasena. La nueva
+     * contrasena no sera temporal, lo que significa que el usuario no tendra que
+     * cambiarla en su proximo inicio de sesion.
+     *
+     * @param realm       El nombre del realm de Keycloak.
+     * @param userId      El ID del usuario en Keycloak.
+     * @param newPassword La nueva contrasena para el usuario.
+     * @throws NotFoundException       Si el usuario no se encuentra en el realm.
+     * @throws WebApplicationException Si la comunicacion con Keycloak falla.
+     */
+    public void resetUserPassword(String realm, String userId, String newPassword) {
+        log.info("Iniciando el restablecimiento de contrasena para el usuario con ID '{}' en el realm '{}'.", userId, realm);
+
+        String keycloakRealm = utilsConfigService.resolveRealm(realm);
+        log.debug("Tenant '{}' mapeado a Keycloak realm '{}'.", realm, keycloakRealm);
+
+        CredentialRepresentation passwordCred = new CredentialRepresentation();
+        passwordCred.setTemporary(false);
+        passwordCred.setType(CredentialRepresentation.PASSWORD);
+        passwordCred.setValue(newPassword);
+
+        try {
+            UserResource userResource = utilsAdminService.getRealmResource(keycloakRealm).users().get(userId);
+
+            userResource.resetPassword(passwordCred);
+
+            log.info("Contrasena restablecida exitosamente para el usuario con ID '{}'.", userId);
+        } catch (NotFoundException e) {
+            log.warn("Usuario con ID '{}' no encontrado, no se puede restablecer la contrasena.", userId);
+            throw new NotFoundException("Usuario no encontrado con ID: " + userId);
+        } catch (WebApplicationException e) {
+            log.error("Fallo la comunicacion con Keycloak al intentar restablecer la contrasena del usuario '{}': Status = {}", userId, e.getResponse().getStatus(), e);
+            throw e;
+        }
     }
 
     // ---------------------- Private Helpers ----------------------
