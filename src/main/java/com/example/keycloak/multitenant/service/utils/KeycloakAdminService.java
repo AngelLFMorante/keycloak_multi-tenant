@@ -2,6 +2,8 @@ package com.example.keycloak.multitenant.service.utils;
 
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.RealmsResource;
+import org.keycloak.representations.idm.RealmRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,5 +39,30 @@ public class KeycloakAdminService {
     public RealmResource getRealmResource(String realm) {
         log.debug("Obteniendo recurso de realm para: '{}'", realm);
         return keycloak.realm(realm);
+    }
+
+    public RealmsResource realms() {
+        log.debug("Obteniendo realm");
+        return keycloak.realms();
+    }
+
+    /**
+     * Obtiene la representación completa de un realm.
+     * <p>
+     * Este método busca el realm por su nombre y devuelve su representación,
+     * o {@code null} si el realm no existe.
+     *
+     * @param realmName El nombre del realm a buscar.
+     * @return La representación del realm si se encuentra, o {@code null} en caso contrario.
+     */
+    public RealmRepresentation getRealm(String realmName) {
+        RealmsResource realmsResource = keycloak.realms();
+        try {
+            RealmResource realmResource = realmsResource.realm(realmName);
+            return realmResource.toRepresentation();
+        } catch (jakarta.ws.rs.NotFoundException e) {
+            log.debug("Realm '{}' no encontrado. Retornando null.", realmName);
+            return null;
+        }
     }
 }

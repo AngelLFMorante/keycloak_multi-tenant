@@ -75,14 +75,14 @@ public class KeycloakUserService {
 
         UsersResource usersResource;
         try {
-            usersResource = utilsAdminService.getRealmResource(realm).users();
+            usersResource = utilsAdminService.getRealmResource(keycloakRealm).users();
         } catch (WebApplicationException e) {
-            log.error("Error al obtener el recurso de usuarios para el realm '{}': Status={}", realm, e.getResponse().getStatus(), e);
+            log.error("Error al obtener el recurso de usuarios para el realm '{}': Status={}", keycloakRealm, e.getResponse().getStatus(), e);
             throw e;
         }
 
         List<UserRepresentation> userRepresentations = usersResource.list();
-        log.debug("Se encontraron {} representaciones de usuario en el realm '{}'.", userRepresentations.size(), realm);
+        log.debug("Se encontraron {} representaciones de usuario en el realm '{}'.", userRepresentations.size(), keycloakRealm);
 
         return userRepresentations.stream()
                 .map(userRep -> {

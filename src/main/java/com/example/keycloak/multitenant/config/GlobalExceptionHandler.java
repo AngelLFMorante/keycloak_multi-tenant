@@ -4,7 +4,9 @@ import com.example.keycloak.multitenant.exception.KeycloakCommunicationException
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
 import com.example.keycloak.multitenant.model.ErrorResponse;
+import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.ServerErrorException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -161,6 +163,60 @@ public class GlobalExceptionHandler {
 
         log.debug("Generando respuesta de error 404 Not Found para la excepción: {}", ex.getClass().getName());
         return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link ClientErrorException} (errores 4xx) del cliente de Keycloak Admin.
+     * <p>
+     * Estas excepciones son lanzadas por el cliente JAX-RS cuando Keycloak responde con un código de estado de cliente.
+     *
+     * @param ex La excepción {@link ClientErrorException} capturada.
+     * @return Un {@link ResponseEntity} con los detalles del error y el código de estado 4xx.
+     */
+    @ExceptionHandler(ClientErrorException.class)
+    public ResponseEntity<ErrorResponse> handleClientErrorException(ClientErrorException ex) {
+        int statusCode = ex.getResponse().getStatus();
+        HttpStatus httpStatus = HttpStatus.resolve(statusCode);
+        String reasonPhrase = httpStatus != null ? httpStatus.getReasonPhrase() : "Unknown Client Error";
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                statusCode,
+                reasonPhrase,
+                "Error del cliente al interactuar con la API de Keycloak: " + ex.getMessage(),
+                null
+        );
+
+        log.error("ClientErrorException capturada: Status={}, Mensaje={}", statusCode, ex.getMessage(), ex);
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.valueOf(statusCode));
+    }
+
+    /**
+     * Maneja las excepciones de tipo {@link ServerErrorException} (errores 5xx) del cliente de Keycloak Admin.
+     * <p>
+     * Estas excepciones son lanzadas por el cliente JAX-RS cuando Keycloak responde con un código de estado de servidor.
+     *
+     * @param ex La excepción {@link ServerErrorException} capturada.
+     * @return Un {@link ResponseEntity} con los detalles del error y el código de estado 5xx.
+     */
+    @ExceptionHandler(ServerErrorException.class)
+    public ResponseEntity<ErrorResponse> handleServerErrorException(ServerErrorException ex) {
+        int statusCode = ex.getResponse().getStatus();
+        HttpStatus httpStatus = HttpStatus.resolve(statusCode);
+        String reasonPhrase = httpStatus != null ? httpStatus.getReasonPhrase() : "Unknown Server Error";
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                statusCode,
+                reasonPhrase,
+                "Error del servidor de Keycloak: " + ex.getMessage(),
+                null
+        );
+
+        log.error("ServerErrorException capturada: Status={}, Mensaje={}", statusCode, ex.getMessage(), ex);
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.valueOf(statusCode));
     }
 
 
