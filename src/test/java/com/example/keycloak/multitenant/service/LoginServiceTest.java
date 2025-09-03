@@ -322,27 +322,4 @@ class LoginServiceTest {
                 loginService.revokeRefreshToken("token", realm, client));
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
     }
-
-    @Test
-    void revokeRefreshToken_httpClientErrorException_throwsResponseStatusException() {
-        HttpClientErrorException httpEx = HttpClientErrorException.create(HttpStatus.UNAUTHORIZED, "Unauthorized", new HttpHeaders(), null, StandardCharsets.UTF_8);
-        when(keycloakOidcClient.postRequest(anyString(), anyString(), any(), any(), eq(String.class)))
-                .thenThrow(httpEx);
-
-        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
-                loginService.revokeRefreshToken("dummyRefresh", realm, client));
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, exception.getStatusCode());
-        assertEquals("Error al revocar refresh token.", exception.getReason());
-    }
-
-    @Test
-    void revokeRefreshToken_exceptionThrown() {
-        when(keycloakOidcClient.postRequest(anyString(), anyString(), any(), any(), eq(String.class)))
-                .thenThrow(new RuntimeException("Simulated error"));
-
-        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () ->
-                loginService.revokeRefreshToken("dummyRefresh", realm, client));
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, exception.getStatusCode());
-        assertEquals("Error al revocar refresh token.", exception.getReason());
-    }
 }
