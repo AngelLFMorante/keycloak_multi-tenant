@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -230,15 +231,20 @@ public class LoginService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client ID no valido para logout.");
         }
 
-        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("token", refreshToken);
-        params.add("token_type_hint", "refresh_token");
+        String[] tokenParts = refreshToken.split("\\.");
+        String refreshTokenForLogout = tokenParts[0] + "." + tokenParts[1];
 
+        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        params.add("client_id", client);
+        params.add("client_secret", clientSecret);
+        params.add("token", refreshTokenForLogout);
+        params.add("token_type_hint", "refresh_token");
+        
         HttpHeaders headers = keycloakOidcClient.createBasicAuthHeaders(client, clientSecret);
 
         keycloakOidcClient.postRequest(
                 keycloakRealm,
-                "revoke",
+                "logout",
                 params,
                 headers,
                 String.class

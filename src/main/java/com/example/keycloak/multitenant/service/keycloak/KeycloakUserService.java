@@ -160,19 +160,19 @@ public class KeycloakUserService {
 
         log.debug("Tenant '{}' mapeado al realm de Keycloak: '{}'", realm, keycloakRealm);
 
-        List<UserRepresentation> users = utilsAdminService.getRealmResource(realm).users().searchByEmail(email, true);
+        List<UserRepresentation> users = utilsAdminService.getRealmResource(keycloakRealm).users().searchByEmail(email, true);
 
         boolean exists = users != null && !users.isEmpty();
 
         if (exists) {
-            log.info("El email '{}' ya esta en uso en el realm '{}'.", email, realm);
+            log.info("El email '{}' ya esta en uso en el realm '{}'.", email, keycloakRealm);
         } else {
-            log.debug("El email '{}' no existe en el realm '{}'.", email, realm);
+            log.debug("El email '{}' no existe en el realm '{}'.", email, keycloakRealm);
 
         }
         return exists;
     }
-
+    
     /**
      * Actualiza la informacion de un usuario existente en un realm, modificando solo los campos proporcionados.
      *
