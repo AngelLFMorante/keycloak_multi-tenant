@@ -1,5 +1,6 @@
 package com.example.keycloak.multitenant.controller;
 
+import com.example.keycloak.multitenant.model.PasswordRequest;
 import com.example.keycloak.multitenant.model.user.UserRequest;
 import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.user.UserWithRoles;
@@ -306,11 +307,11 @@ public class UserController {
             @PathVariable String realm,
             @Parameter(description = "El ID del usuario a actualizar")
             @PathVariable UUID userId,
-            @RequestBody String newPassword) {
+            @RequestBody PasswordRequest newPassword) {
         log.info("Solicitud para restablecer la password del usuario con ID '{}' en el realm: {}", userId, realm);
-        userService.resetUserPassword(realm, userId.toString(), newPassword);
+        userService.resetUserPassword(realm, userId.toString(), newPassword.newPassword());
 
         return ResponseEntity.noContent().build();
     }
-    
+
 }
