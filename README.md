@@ -5,6 +5,8 @@
 [![Swagger](https://img.shields.io/badge/Swagger-3-85EA2D?style=flat\&logo=swagger)](https://swagger.io/)
 [![Docker](https://img.shields.io/badge/Docker-Container_Ready-2496ED?style=flat\&logo=docker\&logoColor=white)](https://www.docker.com/)
 
+---
+
 # Microservicio de Autenticación con Spring Boot y Keycloak
 
 **Microservicio de Autenticación** es una API REST desarrollada con **Spring Boot** que permite gestionar el login de
@@ -32,12 +34,16 @@ sesiones, todo centralizado y extensible.
 
 ## 🚀 Cómo Ejecutar el Proyecto
 
+---
+
 ### 1. Clonar el Repositorio
 
 ```bash
   git clone https://github.com/AngelLFMorante/keycloak_multi-tenant
   cd tu-repo
 ```
+
+---
 
 ### 2. Levantar Keycloak con Docker (modo desarrollo y persistencia)
 
@@ -51,6 +57,8 @@ sesiones, todo centralizado y extensible.
 
 Esto levantará Keycloak en [http://localhost:8080](http://localhost:8080) con persistencia de datos gracias al volumen
 keycloak\_data.
+
+---
 
 ### 3. Crear Realm y Configuraciones en Keycloak
 
@@ -90,6 +98,8 @@ O usando Docker:
   docker run -p 8081:8081 --name keycloak-demo-container keycloak-demo-app
 ```
 
+---
+
 ## 🔐 Endpoints Disponibles
 
 | Método | Endpoint                                                  | Descripción                                 |
@@ -115,7 +125,11 @@ O usando Docker:
 | POST   | `/api/v1/{realm}/auth/{client}/validate`                  | Validar un token de acceso o refresco.      |
 | POST   | `/api/v1/{realm}/auth/{client}/token`                     | Obtener un token usando Client Credentials. |
 | POST   | `/api/v1/{realm}/{client}/users/{userId}/change-password` | Cambiar contraseña de usuario               |
+| POST   | `/api/v1/realms/create`                                   | Crear un nuevo Realm en Keycloak            |
+| POST   | `/api/v1/clients/create`                                  | Crear un nuevo Cliente en un Realm          |
 | GET    | `/swagger-ui/index.html`                                  | Acceso a Swagger UI                         |
+
+---
 
 ## 🧪 Postman cURL's de Ejemplo
 
@@ -299,12 +313,39 @@ http://localhost:8081/api/v1/{REALM_PATH}/roles/{ROLE_NAME}
   -H 'Content-Type: application/json'
 ```
 
+### ➕ Crear Realms y Clientes
+
+🌐 Crear un nuevo Realm
+
+```bash
+     curl -X POST http://localhost:8081/api/v1/realms/create \
+          -H "Content-Type: application/json" \
+          -d '{
+                "realm": "nuevo-realm-de-prueba"
+              }'
+```
+
+🔑 Crear un nuevo Cliente en un Realm
+
+```bash
+     curl -X POST http://localhost:8081/api/v1/clients/create \
+          -H "Content-Type: application/json" \
+          -d '{
+                "realm": "demo-realm",
+                "client": "my-new-client"
+              }'
+```
+
+---
+
 ## 🫰 Manejo de Errores
 
 * `ResourceAccessException` → errores de red
 * `HttpClientErrorException` / `HttpServerErrorException` → errores HTTP
 * Validaciones (`@Valid`) y errores personalizados
 * Excepciones generales y de Keycloak (duplicados, estados inválidos)
+
+---
 
 ## 🔐 Seguridad de la Aplicación
 
@@ -313,6 +354,8 @@ http://localhost:8081/api/v1/{REALM_PATH}/roles/{ROLE_NAME}
 * Máxima 1 sesión activa por usuario
 * Rutas públicas permitidas: `/public`, `/swagger-ui`, `/v3/api-docs/**`
 * Password dummy no valida credenciales reales
+
+---
 
 ## 🧠 Cómo Funciona la Aplicación
 
@@ -360,6 +403,8 @@ configurados en Keycloak.
 * Configuración de múltiples realms desde `application.properties`.
 * Manejo estructurado de excepciones, tokens, sesiones y logout.
 
+---
+
 ## ✅ Pruebas Unitarias
 
 Ejecuta:
@@ -368,9 +413,13 @@ Ejecuta:
   mvn test
 ```
 
+---
+
 ## 👤 Autor
 
 **Angel L. Fernandez Morante**
+
+---
 
 ## 📜 Licencia
 

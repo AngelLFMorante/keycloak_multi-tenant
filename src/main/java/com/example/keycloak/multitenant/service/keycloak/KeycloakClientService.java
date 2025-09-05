@@ -53,10 +53,10 @@ public class KeycloakClientService {
         clientRepresentation.setDirectAccessGrantsEnabled(true);
 
         Response response = realmResource.clients().create(clientRepresentation);
-        
+
         if (response.getStatus() != 201) {
             log.error("Error al crear el cliente '{}'. Código de estado: {}", clientId, response.getStatus());
-            throw new ClientErrorException(response);
+            throw new ClientErrorException("Fallo al crear el cliente", Response.Status.fromStatusCode(response.getStatus()));
         }
 
         String createdClientId = response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
