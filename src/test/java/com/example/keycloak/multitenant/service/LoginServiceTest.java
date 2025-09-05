@@ -295,17 +295,35 @@ class LoginServiceTest {
 
     @Test
     void testRevokeRefreshToken() {
+        String fullRefreshToken = "header.payload.signature";
+
+        String expectedTruncatedToken = "header.payload";
+
         when(keycloakOidcClient.postRequest(
                 eq(keycloakRealm),
-                eq("revoke"),
+                eq("logout"),
                 any(MultiValueMap.class),
                 any(HttpHeaders.class),
                 eq(String.class)
         )).thenReturn("");
 
-        assertDoesNotThrow(() -> loginService.revokeRefreshToken(refreshTokenValue, realm, client));
-        verify(keycloakOidcClient, times(1)).postRequest(anyString(), anyString(), any(), any(), eq(String.class));
+        assertDoesNotThrow(() -> loginService.revokeRefreshToken(fullRefreshToken, realm, client));
+
+        MultiValueMap<String, String> expectedParams = new LinkedMultiValueMap<>();
+        expectedParams.add("client_id", client);
+        expectedParams.add("client_secret", clientSecret);
+        expectedParams.add("token", expectedTruncatedToken);
+        expectedParams.add("token_type_hint", "refresh_token");
+
+        verify(keycloakOidcClient, times(1)).postRequest(
+                eq(keycloakRealm),
+                eq("logout"),
+                eq(expectedParams),
+                any(HttpHeaders.class),
+                eq(String.class)
+        );
     }
+
 
     @Test
     void revokeRefreshToken_realmNotFound() {
