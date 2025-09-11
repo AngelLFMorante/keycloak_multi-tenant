@@ -1,5 +1,6 @@
 package com.example.keycloak.multitenant.controller;
 
+import com.example.keycloak.multitenant.controller.api.ClientController;
 import com.example.keycloak.multitenant.model.ClientCreationRequest;
 import com.example.keycloak.multitenant.service.ClientService;
 import org.junit.jupiter.api.BeforeEach;

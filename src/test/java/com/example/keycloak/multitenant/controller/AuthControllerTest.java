@@ -1,5 +1,6 @@
 package com.example.keycloak.multitenant.controller;
 
+import com.example.keycloak.multitenant.controller.api.AuthController;
 import com.example.keycloak.multitenant.model.token.ClientCredentialsTokenResponse;
 import com.example.keycloak.multitenant.model.token.RefreshTokenRequest;
 import com.example.keycloak.multitenant.model.token.TokenValidationResponse;

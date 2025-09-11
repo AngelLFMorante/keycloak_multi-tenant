@@ -1,5 +1,6 @@
 package com.example.keycloak.multitenant.controller;
 
+import com.example.keycloak.multitenant.controller.api.RoleController;
 import com.example.keycloak.multitenant.model.CreateRoleRequest;
 import com.example.keycloak.multitenant.service.RoleService;
 import java.util.HashMap;
