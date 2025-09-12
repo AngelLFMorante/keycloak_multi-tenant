@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
-@RequestMapping("/{realm}")
+@RequestMapping("/{realm}/password")
 public class PasswordWebController {
 
     private final PasswordFlowService flow;
@@ -32,7 +32,7 @@ public class PasswordWebController {
         }
     }
 
-    @PostMapping("/set-password")
+    @PostMapping("/set")
     public String setPassword(@PathVariable String realm,
                               @RequestParam String token,
                               @RequestParam String password,

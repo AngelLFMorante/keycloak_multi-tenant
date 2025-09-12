@@ -31,7 +31,9 @@ public class RegistrationFlowService {
         String token = tokenProvider.generateToken(userId);
 
         // Construye el link que se enviará por email
-        String link = String.format("%s/%s/password/set?token=%s", appProperties.getBaseUrl(), realmPath, token);
+        // El link debe coincidir con la ruta del controlador que maneja la solicitud GET,
+        // que en este caso es /verify.
+        String link = String.format("%s/%s/password/verify?token=%s", appProperties.getBaseUrl(), realmPath, token);
 
         // Envía el email
         mailService.sendSetPasswordEmail(request.email(), request.username(), link);

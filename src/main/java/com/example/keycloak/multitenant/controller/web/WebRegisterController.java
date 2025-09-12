@@ -36,8 +36,8 @@ public class WebRegisterController {
     }
 
     @PostMapping("/{client}/register")
-    public String processRegister(@PathVariable String realm,
-                                  @PathVariable String client,
+    public String processRegister(@PathVariable("realm") String realm,
+                                  @PathVariable("client") String client,
                                   @Valid @ModelAttribute("registerRequest") UserRequest request,
                                   BindingResult bindingResult,
                                   Model model) {
