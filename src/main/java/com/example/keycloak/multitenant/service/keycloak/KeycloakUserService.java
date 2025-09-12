@@ -151,7 +151,7 @@ public class KeycloakUserService {
         UserResource userResource = realmResource.users().get(userId);
 
         UserRepresentation user = userResource.toRepresentation();
-        user.setEnabled(true);
+        user.setEnabled(false);
         user.setEmailVerified(true);
 
         userResource.update(user);
