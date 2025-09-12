@@ -3,6 +3,7 @@ package com.example.keycloak.multitenant.config;
 import com.example.keycloak.multitenant.exception.KeycloakCommunicationException;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
+import com.example.keycloak.multitenant.exception.MailSendingException;
 import com.example.keycloak.multitenant.model.ErrorResponse;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.NotFoundException;
@@ -219,6 +220,19 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.valueOf(statusCode));
     }
 
+    @ExceptionHandler(MailSendingException.class)
+    public ResponseEntity<ErrorResponse> handleMailSending(MailSendingException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                ex.getMessage(),
+                null
+        );
+        log.error("Error enviando email: {}", ex.getMessage(), ex);
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    
 
     // --- Manejo de Excepciones de Spring y RestTemplate ---
 

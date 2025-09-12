@@ -22,7 +22,7 @@ public class WebIndexController {
             model.addAttribute("clientId", loginResponse.getClient());
         } else {
             // Valores por defecto
-            model.addAttribute("tenantId", "plexus");
+            model.addAttribute("tenantId", "realm");
             model.addAttribute("clientId", "my-client");
         }
 

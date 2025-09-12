@@ -17,7 +17,7 @@
     <!-- Sección de login/registro si no está logueado -->
     <div th:if="${!isLoggedIn}">
         <h2 class="mb-3">Login</h2>
-        <form th:action="@{/{realm}/{client}/login}" method="get" class="row g-3 mb-4">
+        <form th:action="@{/{realm}/{client}/login(realm=${tenantId}, client=${clientId})}" method="get">
             <div class="col-md-4">
                 <label for="tenantId" class="form-label">Realm</label>
                 <input type="text" id="tenantId" name="realm" class="form-control" th:value="${tenantId}"
@@ -34,7 +34,7 @@
         </form>
 
         <h4>No tienes una cuenta?</h4>
-        <form th:action="@{/{realm}/{client}/register}" method="get" class="row g-3 mb-4">
+        <form th:action="@{/{realm}/{client}/register(realm=${tenantId}, client=${clientId})}" method="get">
             <div class="col-md-4">
                 <label for="regTenantId" class="form-label">Realm</label>
                 <input type="text" id="regTenantId" name="realm" class="form-control" th:value="${tenantId}"

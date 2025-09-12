@@ -1,12 +1,13 @@
 package com.example.keycloak.multitenant.service;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.interfaces.DecodedJWT;
+
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.LoginResponse;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakOidcClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -107,15 +107,18 @@ public class LoginService {
             String fullName = null;
             String preferredUsername = username;
 
-            DecodedJWT decodedAccessToken = JWT.decode(accessToken);
-            log.debug("Access Token decodificado para extracción de claims y roles.");
+            Claims claims = Jwts.parserBuilder()
+                    .build()
+                    .parseClaimsJwt(accessToken)
+                    .getBody();
+            log.debug("Access Token decodificado con jjwt para extracción de claims y roles.");
 
-            email = decodedAccessToken.getClaim("email") != null ? decodedAccessToken.getClaim("email").asString() : null;
-            fullName = decodedAccessToken.getClaim("name") != null ? decodedAccessToken.getClaim("name").asString() : null;
-            preferredUsername = decodedAccessToken.getClaim("preferred_username") != null ? decodedAccessToken.getClaim("preferred_username").asString() : username;
+            email = claims.get("email", String.class);
+            fullName = claims.get("name", String.class);
+            preferredUsername = claims.get("preferred_username", String.class) != null ? claims.get("preferred_username", String.class) : username;
             log.debug("Claims de usuario extraidos (desde Access Token): email={}, fullName={}, preferredUsername={}", email, fullName, preferredUsername);
 
-            Map<String, Object> realmAccess = decodedAccessToken.getClaim("realm_access").asMap();
+            Map<String, Object> realmAccess = claims.get("realm_access", Map.class);
             if (realmAccess != null && realmAccess.containsKey("roles")) {
                 @SuppressWarnings("unchecked")
                 List<String> realmRoles = (List<String>) realmAccess.get("roles");
@@ -125,7 +128,7 @@ public class LoginService {
                 }
             }
 
-            Map<String, Object> resourceAccess = decodedAccessToken.getClaim("resource_access").asMap();
+            Map<String, Object> resourceAccess = claims.get("resource_access", Map.class);
             if (resourceAccess != null && resourceAccess.containsKey(client)) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get(client);
@@ -239,7 +242,7 @@ public class LoginService {
         params.add("client_secret", clientSecret);
         params.add("token", refreshTokenForLogout);
         params.add("token_type_hint", "refresh_token");
-        
+
         HttpHeaders headers = keycloakOidcClient.createBasicAuthHeaders(client, clientSecret);
 
         keycloakOidcClient.postRequest(

@@ -123,7 +123,7 @@ public class KeycloakUserService {
      * @throws KeycloakUserCreationException Si la creacion o actualizacion del usuario falla.
      * @throws KeycloakRoleCreationException Si la asignacion del rol falla.
      */
-    public void createUserWithRole(String realm, UserRequest request, String tempPassword) {
+    public String createUserWithRole(String realm, UserRequest request, String tempPassword) {
         log.info("Iniciando el proceso de registro para el usuario '{}' en el realm '{}'.", request.username(), realm);
 
         String keycloakRealm = utilsConfigService.resolveRealm(realm);
@@ -139,10 +139,23 @@ public class KeycloakUserService {
             assignRoleToUser(realmResource, userId, request.role());
 
             log.info("Usuario '{}' creado y configurado exitosamente en el realm '{}'.", request.username(), realm);
+            return userId;
         } catch (Exception e) {
             log.error("Fallo durante el proceso de creacion de usuario '{}'.", request.username());
             throw new KeycloakUserCreationException("Fallo durante el proceso de creacion de usuario: " + e.getMessage(), e);
         }
+    }
+
+    public void enableUserAndVerifyEmail(String realm, String userId) {
+        RealmResource realmResource = utilsAdminService.getRealmResource(utilsConfigService.resolveRealm(realm));
+        UserResource userResource = realmResource.users().get(userId);
+
+        UserRepresentation user = userResource.toRepresentation();
+        user.setEnabled(true);
+        user.setEmailVerified(true);
+
+        userResource.update(user);
+        log.info("Usuario '{}' habilitado y email verificado.", userId);
     }
 
 
@@ -172,7 +185,7 @@ public class KeycloakUserService {
         }
         return exists;
     }
-    
+
     /**
      * Actualiza la informacion de un usuario existente en un realm, modificando solo los campos proporcionados.
      *
@@ -396,6 +409,7 @@ public class KeycloakUserService {
         }
     }
 
+
     // ---------------------- Private Helpers ----------------------
 
     /**
@@ -414,6 +428,7 @@ public class KeycloakUserService {
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
         user.setEnabled(false);
+        user.setEmailVerified(false);
 
         try (Response response = realmResource.users().create(user)) {
             if (response.getStatusInfo().equals(Response.Status.CONFLICT)) {
