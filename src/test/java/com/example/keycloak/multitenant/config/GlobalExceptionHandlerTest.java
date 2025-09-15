@@ -3,7 +3,14 @@ package com.example.keycloak.multitenant.config;
 import com.example.keycloak.multitenant.exception.KeycloakCommunicationException;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
+import com.example.keycloak.multitenant.exception.MailSendingException;
 import com.example.keycloak.multitenant.model.ErrorResponse;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,13 +28,6 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.UnknownHttpStatusCodeException;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -356,5 +356,22 @@ class GlobalExceptionHandlerTest {
         assertEquals("Bad Request", errorResponse.error());
         assertEquals(null, errorResponse.message());
         assertNotNull(errorResponse.timestamp());
+    }
+
+    @Test
+    @DisplayName("Debería manejar MailSendingException devolviendo 500 con ErrorResponse")
+    void handleMailSending_ShouldReturnInternalServerError() {
+        String message = "No se pudo enviar el email";
+        MailSendingException ex = new MailSendingException(message);
+
+        ResponseEntity<ErrorResponse> responseEntity = globalExceptionHandler.handleMailSending(ex);
+        ErrorResponse errorResponse = responseEntity.getBody();
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, responseEntity.getStatusCode());
+        assertNotNull(errorResponse);
+        assertNotNull(errorResponse.timestamp(), "El timestamp no debe ser nulo");
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), errorResponse.status());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(), errorResponse.error());
+        assertEquals(message, errorResponse.message());
     }
 }

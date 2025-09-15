@@ -1,6 +1,5 @@
-package com.example.keycloak.multitenant.controller;
+package com.example.keycloak.multitenant.controller.api;
 
-import com.example.keycloak.multitenant.controller.api.ChangePasswordController;
 import com.example.keycloak.multitenant.model.ChangePasswordRequest;
 import com.example.keycloak.multitenant.service.ChangeOwnPasswordService;
 import org.junit.jupiter.api.BeforeEach;

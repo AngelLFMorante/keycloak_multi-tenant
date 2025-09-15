@@ -1,6 +1,5 @@
-package com.example.keycloak.multitenant.controller;
+package com.example.keycloak.multitenant.controller.api;
 
-import com.example.keycloak.multitenant.controller.api.UserController;
 import com.example.keycloak.multitenant.model.user.UserRequest;
 import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.user.UserWithRoles;

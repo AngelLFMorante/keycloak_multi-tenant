@@ -1,8 +1,7 @@
-package com.example.keycloak.multitenant.controller;
+package com.example.keycloak.multitenant.controller.api;
 
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.config.SecurityConfig;
-import com.example.keycloak.multitenant.controller.api.LoginController;
 import com.example.keycloak.multitenant.model.LoginResponse;
 import com.example.keycloak.multitenant.model.token.RefreshTokenRequest;
 import com.example.keycloak.multitenant.service.LoginService;
