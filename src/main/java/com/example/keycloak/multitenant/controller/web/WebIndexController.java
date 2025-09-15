@@ -11,17 +11,14 @@ public class WebIndexController {
 
     @GetMapping("/")
     public String index(HttpSession session, Model model) {
-        // Comprobar login
         LoginResponse loginResponse = (LoginResponse) session.getAttribute("loginResponse");
         boolean isLoggedIn = loginResponse != null;
         model.addAttribute("isLoggedIn", isLoggedIn);
 
-        // Prellenar campos de realm/client
         if (loginResponse != null) {
             model.addAttribute("tenantId", loginResponse.getRealm());
             model.addAttribute("clientId", loginResponse.getClient());
         } else {
-            // Valores por defecto
             model.addAttribute("tenantId", "realm");
             model.addAttribute("clientId", "my-client");
         }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Crear nueva contraseña</title>
+    <title>Crear Cliente</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -13,10 +13,10 @@
             min-height: 100vh;
             background-color: #f8f9fa;
         }
-        .login-container {
+        .container {
             width: 100%;
-            max-width: 400px;
-            padding: 15px;
+            max-width: 500px;
+            padding: 20px;
             background-color: #fff;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
@@ -24,24 +24,28 @@
     </style>
 </head>
 <body>
-<div class="login-container">
-    <h2 class="text-center mb-4">Crear nueva contraseña</h2>
+<div class="container">
+    <h2 class="text-center mb-4">Crear Nuevo Cliente en <span th:text="${realm}"></span></h2>
 
     <div th:if="${error}" class="alert alert-danger" role="alert" th:text="${error}"></div>
     <div th:if="${message}" class="alert alert-success" role="alert" th:text="${message}"></div>
 
-    <form th:action="@{/{realm}/password/set(realm=${realm})}" method="post">
-        <input type="hidden" name="token" th:value="${token}">
+    <form th:action="@{/{realm}/clients/create(realm=${realm})}" method="post" th:unless="${clientSecret}">
         <div class="mb-3">
-            <label for="password" class="form-label">Nueva contraseña</label>
-            <input type="password" id="password" name="password"
-                   class="form-control" required minlength="8">
+            <label for="clientName" class="form-label">Nombre del Cliente</label>
+            <input type="text" id="clientName" name="clientName" class="form-control" required>
         </div>
-        <button type="submit" class="btn btn-primary w-100">Guardar contraseña</button>
+        <button type="submit" class="btn btn-primary w-100">Crear Cliente</button>
     </form>
 
-    <div class="text-center mt-3 text-muted small">
-        Tras definir tu contraseña, espera que el administrador active tu cuenta.
+    <div th:if="${clientSecret}" class="mt-4 p-3 bg-light rounded">
+        <h4>Client Secret Generado:</h4>
+        <p class="font-monospace text-break" th:text="${clientSecret}"></p>
+        <p class="small text-muted">Guarda este secreto de forma segura. No se mostrará de nuevo.</p>
+    </div>
+
+    <div class="text-center mt-3">
+        <a th:href="@{/}">Volver a la página principal</a>
     </div>
 </div>
 

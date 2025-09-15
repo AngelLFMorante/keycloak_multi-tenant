@@ -32,7 +32,7 @@ public class WebRegisterController {
         model.addAttribute("tenantId", realm);
         model.addAttribute("clientId", client);
         model.addAttribute("registerRequest", new UserRequest("", "", "", "", null));
-        return "registro";
+        return "register";
     }
 
     @PostMapping("/{client}/register")
@@ -44,17 +44,17 @@ public class WebRegisterController {
         model.addAttribute("tenantId", realm);
         model.addAttribute("clientId", client);
 
-        if (bindingResult.hasErrors()) return "registro";
+        if (bindingResult.hasErrors()) return "register";
 
         try {
             userService.registerUser(realm, request);
             model.addAttribute("message",
                     "Usuario registrado. Revisa tu email para activar la cuenta y definir contraseña.");
-            return "registro";
+            return "register";
         } catch (Exception e) {
-            log.error("Error en registro", e);
+            log.error("Error en register", e);
             model.addAttribute("error", "Ocurrió un error inesperado.");
-            return "registro";
+            return "register";
         }
     }
 }

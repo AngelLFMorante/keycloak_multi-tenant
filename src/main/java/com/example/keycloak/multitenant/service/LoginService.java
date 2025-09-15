@@ -1,16 +1,15 @@
 package com.example.keycloak.multitenant.service;
 
-
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.LoginResponse;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakOidcClient;
+import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.SignatureException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.security.Key;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Servicio para manejar la autenticacion y renovacion de tokens con Keycloak
@@ -36,11 +40,13 @@ public class LoginService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final KeycloakProperties keycloakProperties;
     private final KeycloakOidcClient keycloakOidcClient;
+    private final KeycloakConfigService keycloakConfigService;
 
 
-    public LoginService(KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient) {
+    public LoginService(KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient, KeycloakConfigService keycloakConfigService) {
         this.keycloakProperties = keycloakProperties;
         this.keycloakOidcClient = keycloakOidcClient;
+        this.keycloakConfigService = keycloakConfigService;
         log.info("LoginService inicializado.");
     }
 
@@ -107,9 +113,13 @@ public class LoginService {
             String fullName = null;
             String preferredUsername = username;
 
+            // Obtener la clave pública del realm para verificar el token
+            Key keycloakPublicKey = keycloakConfigService.getRealmPublicKey(realm);
+
             Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(keycloakPublicKey)
                     .build()
-                    .parseClaimsJwt(accessToken)
+                    .parseClaimsJws(accessToken)
                     .getBody();
             log.debug("Access Token decodificado con jjwt para extracción de claims y roles.");
 
@@ -145,6 +155,12 @@ public class LoginService {
             return new LoginResponse(accessToken, idToken, refreshToken, expiresIn, refreshExpiresIn,
                     username, email, fullName, extractedRoles, realm, client, preferredUsername);
 
+        } catch (SignatureException e) {
+            log.error("Firma del token JWT invalida: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "El token de acceso tiene una firma invalida.", e);
+        } catch (MalformedJwtException e) {
+            log.error("Formato del token JWT invalido: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "El token de acceso tiene un formato incorrecto.", e);
         } catch (Exception e) {
             log.error("Error al procesar la respuesta de tokens de Keycloak: {}", e.getMessage(), e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error al procesar la respuesta de Keycloak.", e);
@@ -256,4 +272,3 @@ public class LoginService {
         log.info("Refresh token revocado correctamente para el realm '{}' y client '{}'", realm, client);
     }
 }
-

@@ -89,15 +89,16 @@ public class WebAuthController {
             // Guardar realm y client en sesión
             HttpSession session = request.getSession(true);
             session.setAttribute("realm", realm);
-            session.setAttribute("client", realm + "-client");
+            session.setAttribute("client", client);
             session.setAttribute("loginResponse", loginResponse);
 
             log.info("Login web exitoso para '{}'", loginResponse.getPreferredUsername());
-            return "redirect:/" + realm + "/home"; // redirige a tu página protegida
+            return "redirect:/" + realm + "/home";
 
         } catch (Exception ex) {
             log.error("Error al autenticar usuario '{}' en realm '{}': {}", username, realm, ex.getMessage());
             model.addAttribute("tenantId", realm);
+            model.addAttribute("clientId", client);
             model.addAttribute("error", "Usuario o contraseña incorrectos");
             return "login";
         }
@@ -125,11 +126,42 @@ public class WebAuthController {
             model.addAttribute("realm", loginResponse.getRealm());
             model.addAttribute("client", loginResponse.getClient());
         } else {
-            // fallback si no hay loginResponse en sesión
             model.addAttribute("username", SecurityContextHolder.getContext().getAuthentication().getName());
         }
 
         return "home";
     }
 
+    /**
+     * Procesa la solicitud POST para cerrar la sesión (logout).
+     *
+     * @param request La solicitud HTTP para invalidar la sesión.
+     * @return Redirecciona a la página de login.
+     */
+    @PostMapping("/logout")
+    public String logout(HttpServletRequest request) {
+        log.info("Cierre de sesión web iniciado.");
+        HttpSession session = request.getSession(false);
+
+        if (session != null) {
+            String realm = (String) session.getAttribute("realm");
+            String client = (String) session.getAttribute("client");
+            LoginResponse loginResponse = (LoginResponse) session.getAttribute("loginResponse");
+
+            if (loginResponse != null && loginResponse.getRefreshToken() != null) {
+                log.debug("Revocando refresh token en Keycloak.");
+                try {
+                    loginService.revokeRefreshToken(loginResponse.getRefreshToken(), realm, client);
+                } catch (Exception e) {
+                    log.error("Error al revocar el token en Keycloak: {}", e.getMessage());
+                }
+            }
+
+            session.invalidate();
+            log.info("Sesión HTTP invalidada. Redireccionando a la página de login.");
+            return "redirect:/" + realm + "/" + client + "/login";
+        }
+
+        return "redirect:/";
+    }
 }

@@ -13,11 +13,9 @@
 
     <!-- Mensaje dinámico -->
     <div th:if="${message}" class="alert alert-info text-center" role="alert" th:text="${message}"></div>
-
-    <!-- Sección de login/registro si no está logueado -->
+    
     <div th:if="${!isLoggedIn}">
         <h2 class="mb-3">Login</h2>
-        <!-- Contenedor para los campos de entrada y el botón de login -->
         <div class="row g-3 align-items-end">
             <div class="col-md-4">
                 <label for="loginTenantId" class="form-label">Realm</label>
@@ -34,8 +32,7 @@
             </div>
         </div>
 
-        <h4 class="mt-4">¿No tienes una cuenta?</h4>
-        <!-- Contenedor para los campos de entrada y el botón de registro -->
+        <h4 class="mt-4">¿Crear Usuario?</h4>
         <div class="row g-3 align-items-end">
             <div class="col-md-4">
                 <label for="regTenantId" class="form-label">Realm</label>
@@ -49,6 +46,18 @@
             </div>
             <div class="col-md-4 d-flex align-items-end">
                 <button type="button" onclick="register()" class="btn btn-success w-100">Register</button>
+            </div>
+        </div>
+
+        <h4 class="mt-4">¿Crear un cliente?</h4>
+        <div class="row g-3 align-items-end">
+            <div class="col-md-8">
+                <label for="createClientTenantId" class="form-label">Realm del Cliente</label>
+                <input type="text" id="createClientTenantId" class="form-control" th:value="${tenantId}"
+                       placeholder="Ingrese el realm" required>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="button" onclick="createClient()" class="btn btn-info w-100">Crear Cliente</button>
             </div>
         </div>
     </div>
@@ -75,6 +84,15 @@
         const realm = document.getElementById('regTenantId').value;
         const client = document.getElementById('regClientId').value;
         window.location.href = `/${realm}/${client}/register`;
+    }
+
+    function createClient() {
+        const realm = document.getElementById('createClientTenantId').value;
+        if (realm) {
+            window.location.href = `/${realm}/clients/create`;
+        } else {
+            alert('Por favor, ingrese el realm del cliente.');
+        }
     }
 </script>
 </body>
