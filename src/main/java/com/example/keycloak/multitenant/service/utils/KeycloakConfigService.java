@@ -31,7 +31,7 @@ public class KeycloakConfigService {
     private static final String OIDC_ENDPOINT = "/.well-known/openid-configuration";
 
     private final KeycloakProperties keycloakProperties;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final Map<String, Key> publicKeyCache = new ConcurrentHashMap<>();
 
     /**
@@ -39,8 +39,9 @@ public class KeycloakConfigService {
      *
      * @param keycloakProperties Las propiedades de configuración de Keycloak.
      */
-    public KeycloakConfigService(KeycloakProperties keycloakProperties) {
+    public KeycloakConfigService(KeycloakProperties keycloakProperties, RestTemplate restTemplate) {
         this.keycloakProperties = keycloakProperties;
+        this.restTemplate = restTemplate;
     }
 
     /**
