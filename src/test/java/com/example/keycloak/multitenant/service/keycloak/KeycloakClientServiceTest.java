@@ -1,8 +1,10 @@
 package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
+import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.core.Response;
+import java.net.URI;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,13 +17,14 @@ import org.keycloak.representations.idm.CredentialRepresentation;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import java.net.URI;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Unit Tests for KeycloakClientService")
@@ -29,6 +32,9 @@ class KeycloakClientServiceTest {
 
     @Mock
     private KeycloakAdminService keycloakAdminService;
+
+    @Mock
+    private KeycloakConfigService utilsConfigService;
 
     @Mock
     private RealmResource realmResource;
@@ -57,6 +63,7 @@ class KeycloakClientServiceTest {
         clientSecretValue = "test-client-secret";
         internalClientId = "a4b5c6d7";
 
+        when(utilsConfigService.resolveRealm(anyString())).thenReturn(realmName);
         when(keycloakAdminService.getRealmResource(anyString())).thenReturn(realmResource);
         when(realmResource.clients()).thenReturn(clientsResource);
     }
@@ -79,7 +86,7 @@ class KeycloakClientServiceTest {
 
         assertEquals(clientSecretValue, returnedSecret);
 
-        verify(keycloakAdminService, times(2)).getRealmResource(realmName);
+        verify(keycloakAdminService, times(1)).getRealmResource(realmName);
         verify(clientsResource, times(1)).create(any(ClientRepresentation.class));
         verify(clientsResource, times(1)).get(internalClientId);
         verify(clientResource, times(1)).getSecret();

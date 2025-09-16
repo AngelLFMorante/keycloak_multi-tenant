@@ -4,7 +4,6 @@ import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
 import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.core.Response;
-import java.util.List;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
