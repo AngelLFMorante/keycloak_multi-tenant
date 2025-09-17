@@ -76,10 +76,8 @@ class AuthServiceTest {
         when(conversionUtilsService.getSafeString(any(Map.class), eq("azp"))).thenReturn("test-client");
         when(conversionUtilsService.getSafeString(any(Map.class), eq("error_description"))).thenReturn(null);
 
-        // Act
         TokenValidationResponse response = authService.validateToken(tokenRequest, realm, clientId);
 
-        // Assert
         assertNotNull(response);
         assertEquals(true, response.active());
         assertEquals("user-1234", response.sub());
@@ -89,17 +87,14 @@ class AuthServiceTest {
     @Test
     @DisplayName("Debería obtener un token de credenciales de cliente exitosamente")
     void getClientCredentialsToken_shouldReturnToken_whenServiceCallIsSuccessful() {
-        // Arrange
         ClientCredentialsTokenResponse mockTokenResponse = new ClientCredentialsTokenResponse(
                 "mock-access-token", 3600, 0, "Bearer", "client.scope"
         );
         when(keycloakClientCredentialsService.obtainToken(eq("test-tenant"), eq(clientId)))
                 .thenReturn(mockTokenResponse);
 
-        // Act
         ClientCredentialsTokenResponse response = authService.getClientCredentialsToken("test-tenant", clientId);
 
-        // Assert
         assertNotNull(response);
         assertEquals("mock-access-token", response.accessToken());
         assertEquals(3600, response.expiresIn());
