@@ -1,4 +1,4 @@
-package com.example.keycloak.multitenant.controller;
+package com.example.keycloak.multitenant.controller.api;
 
 import com.example.keycloak.multitenant.model.token.ClientCredentialsTokenResponse;
 import com.example.keycloak.multitenant.model.ErrorResponse;

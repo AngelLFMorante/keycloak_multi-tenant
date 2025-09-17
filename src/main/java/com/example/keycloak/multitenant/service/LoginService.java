@@ -1,24 +1,28 @@
 package com.example.keycloak.multitenant.service;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.interfaces.DecodedJWT;
 import com.example.keycloak.multitenant.config.KeycloakProperties;
 import com.example.keycloak.multitenant.model.LoginResponse;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakOidcClient;
+import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.SignatureException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.security.Key;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Servicio para manejar la autenticacion y renovacion de tokens con Keycloak
@@ -36,11 +40,13 @@ public class LoginService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final KeycloakProperties keycloakProperties;
     private final KeycloakOidcClient keycloakOidcClient;
+    private final KeycloakConfigService keycloakConfigService;
 
 
-    public LoginService(KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient) {
+    public LoginService(KeycloakProperties keycloakProperties, KeycloakOidcClient keycloakOidcClient, KeycloakConfigService keycloakConfigService) {
         this.keycloakProperties = keycloakProperties;
         this.keycloakOidcClient = keycloakOidcClient;
+        this.keycloakConfigService = keycloakConfigService;
         log.info("LoginService inicializado.");
     }
 
@@ -107,15 +113,22 @@ public class LoginService {
             String fullName = null;
             String preferredUsername = username;
 
-            DecodedJWT decodedAccessToken = JWT.decode(accessToken);
-            log.debug("Access Token decodificado para extracción de claims y roles.");
+            // Obtener la clave pública del realm para verificar el token
+            Key keycloakPublicKey = keycloakConfigService.getRealmPublicKey(realm);
 
-            email = decodedAccessToken.getClaim("email") != null ? decodedAccessToken.getClaim("email").asString() : null;
-            fullName = decodedAccessToken.getClaim("name") != null ? decodedAccessToken.getClaim("name").asString() : null;
-            preferredUsername = decodedAccessToken.getClaim("preferred_username") != null ? decodedAccessToken.getClaim("preferred_username").asString() : username;
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(keycloakPublicKey)
+                    .build()
+                    .parseClaimsJws(accessToken)
+                    .getBody();
+            log.debug("Access Token decodificado con jjwt para extracción de claims y roles.");
+
+            email = claims.get("email", String.class);
+            fullName = claims.get("name", String.class);
+            preferredUsername = claims.get("preferred_username", String.class) != null ? claims.get("preferred_username", String.class) : username;
             log.debug("Claims de usuario extraidos (desde Access Token): email={}, fullName={}, preferredUsername={}", email, fullName, preferredUsername);
 
-            Map<String, Object> realmAccess = decodedAccessToken.getClaim("realm_access").asMap();
+            Map<String, Object> realmAccess = claims.get("realm_access", Map.class);
             if (realmAccess != null && realmAccess.containsKey("roles")) {
                 @SuppressWarnings("unchecked")
                 List<String> realmRoles = (List<String>) realmAccess.get("roles");
@@ -125,7 +138,7 @@ public class LoginService {
                 }
             }
 
-            Map<String, Object> resourceAccess = decodedAccessToken.getClaim("resource_access").asMap();
+            Map<String, Object> resourceAccess = claims.get("resource_access", Map.class);
             if (resourceAccess != null && resourceAccess.containsKey(client)) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get(client);
@@ -142,6 +155,12 @@ public class LoginService {
             return new LoginResponse(accessToken, idToken, refreshToken, expiresIn, refreshExpiresIn,
                     username, email, fullName, extractedRoles, realm, client, preferredUsername);
 
+        } catch (SignatureException e) {
+            log.error("Firma del token JWT invalida: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "El token de acceso tiene una firma invalida.", e);
+        } catch (MalformedJwtException e) {
+            log.error("Formato del token JWT invalido: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "El token de acceso tiene un formato incorrecto.", e);
         } catch (Exception e) {
             log.error("Error al procesar la respuesta de tokens de Keycloak: {}", e.getMessage(), e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error al procesar la respuesta de Keycloak.", e);
@@ -239,7 +258,7 @@ public class LoginService {
         params.add("client_secret", clientSecret);
         params.add("token", refreshTokenForLogout);
         params.add("token_type_hint", "refresh_token");
-        
+
         HttpHeaders headers = keycloakOidcClient.createBasicAuthHeaders(client, clientSecret);
 
         keycloakOidcClient.postRequest(
@@ -253,4 +272,3 @@ public class LoginService {
         log.info("Refresh token revocado correctamente para el realm '{}' y client '{}'", realm, client);
     }
 }
-

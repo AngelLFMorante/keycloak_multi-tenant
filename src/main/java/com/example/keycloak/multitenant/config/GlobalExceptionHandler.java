@@ -3,7 +3,11 @@ package com.example.keycloak.multitenant.config;
 import com.example.keycloak.multitenant.exception.KeycloakCommunicationException;
 import com.example.keycloak.multitenant.exception.KeycloakRoleCreationException;
 import com.example.keycloak.multitenant.exception.KeycloakUserCreationException;
+import com.example.keycloak.multitenant.exception.MailSendingException;
 import com.example.keycloak.multitenant.model.ErrorResponse;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.ServerErrorException;
@@ -52,6 +56,8 @@ public class GlobalExceptionHandler {
      * un código de estado HTTP 500 (Internal Server Error).
      */
     @ExceptionHandler(KeycloakCommunicationException.class)
+    @ApiResponse(responseCode = "500", description = "Error interno del servidor por problemas de comunicación con Keycloak",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleKeycloakCommunicationException(KeycloakCommunicationException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
                 new Date(),
@@ -78,6 +84,8 @@ public class GlobalExceptionHandler {
      * HTTP 400 (Bad Request), 409 (Conflict) o 500 (Internal Server Error).
      */
     @ExceptionHandler(KeycloakUserCreationException.class)
+    @ApiResponse(responseCode = "400", description = "Error al crear el usuario en Keycloak (posible conflicto o datos inválidos)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleKeycloakUserCreationException(KeycloakUserCreationException ex) {
         String errorMessage = ex.getMessage();
         HttpStatus status = HttpStatus.BAD_REQUEST;
@@ -114,6 +122,8 @@ public class GlobalExceptionHandler {
      * HTTP 400 (Bad Request), 409 (Conflict) o 500 (Internal Server Error).
      */
     @ExceptionHandler(KeycloakRoleCreationException.class)
+    @ApiResponse(responseCode = "400", description = "Error al crear el rol en Keycloak (posible conflicto o datos inválidos)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleKeycloakRoleCreationException(KeycloakRoleCreationException ex) {
         String errorMessage = ex.getMessage();
         HttpStatus status = HttpStatus.BAD_REQUEST;
@@ -150,6 +160,8 @@ public class GlobalExceptionHandler {
      * con los detalles del error y un código de estado HTTP 404.
      */
     @ExceptionHandler(NotFoundException.class)
+    @ApiResponse(responseCode = "404", description = "Recurso no encontrado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleNotFoundException(NotFoundException ex) {
         log.warn("Se ha capturado una NotFoundException. Mensaje: {}", ex.getMessage());
 
@@ -174,6 +186,8 @@ public class GlobalExceptionHandler {
      * @return Un {@link ResponseEntity} con los detalles del error y el código de estado 4xx.
      */
     @ExceptionHandler(ClientErrorException.class)
+    @ApiResponse(responseCode = "400", description = "Error del cliente al interactuar con la API de Keycloak (error 4xx)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleClientErrorException(ClientErrorException ex) {
         int statusCode = ex.getResponse().getStatus();
         HttpStatus httpStatus = HttpStatus.resolve(statusCode);
@@ -201,6 +215,8 @@ public class GlobalExceptionHandler {
      * @return Un {@link ResponseEntity} con los detalles del error y el código de estado 5xx.
      */
     @ExceptionHandler(ServerErrorException.class)
+    @ApiResponse(responseCode = "500", description = "Error del servidor de Keycloak (error 5xx)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleServerErrorException(ServerErrorException ex) {
         int statusCode = ex.getResponse().getStatus();
         HttpStatus httpStatus = HttpStatus.resolve(statusCode);
@@ -219,6 +235,32 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.valueOf(statusCode));
     }
 
+    /**
+     * Maneja las excepciones de tipo {@link MailSendingException}.
+     * <p>
+     * Este método captura y procesa errores que ocurren durante el envío de correos electrónicos,
+     * devolviendo una respuesta HTTP 500 (Internal Server Error) con un cuerpo JSON
+     * que contiene detalles sobre el error. También registra la excepción para fines de depuración.
+     *
+     * @param ex La excepción {@link MailSendingException} que ha sido lanzada.
+     * @return Un {@link ResponseEntity} que contiene un objeto {@link ErrorResponse}
+     * y el estado HTTP {@code 500 Internal Server Error}.
+     */
+    @ExceptionHandler(MailSendingException.class)
+    @ApiResponse(responseCode = "500", description = "Error interno del servidor",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    public ResponseEntity<ErrorResponse> handleMailSending(MailSendingException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                new Date(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                ex.getMessage(),
+                null
+        );
+        log.error("Error enviando email: {}", ex.getMessage(), ex);
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
 
     // --- Manejo de Excepciones de Spring y RestTemplate ---
 
@@ -232,6 +274,8 @@ public class GlobalExceptionHandler {
      * @return Un {@link ResponseEntity} que describe el error con el código de estado HTTP 4xx correspondiente.
      */
     @ExceptionHandler(HttpClientErrorException.class)
+    @ApiResponse(responseCode = "400", description = "Error del cliente al comunicarse con un servicio externo (4xx)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleHttpClientErrorException(HttpClientErrorException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
                 new Date(),
@@ -257,6 +301,8 @@ public class GlobalExceptionHandler {
      * @return Un {@link ResponseEntity} que describe el error con el código de estado HTTP 5xx correspondiente.
      */
     @ExceptionHandler(HttpServerErrorException.class)
+    @ApiResponse(responseCode = "500", description = "Error del servidor externo (5xx)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleHttpServerErrorException(HttpServerErrorException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
                 new Date(),
@@ -283,6 +329,8 @@ public class GlobalExceptionHandler {
      * HTTP 503 (Service Unavailable) o 504 (Gateway Timeout) dependiendo de la causa.
      */
     @ExceptionHandler(ResourceAccessException.class)
+    @ApiResponse(responseCode = "503", description = "Problema de red o servicio no disponible",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleResourceAccessException(ResourceAccessException ex) {
         HttpStatus status = HttpStatus.SERVICE_UNAVAILABLE;
         if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("timeout")) {
@@ -312,6 +360,8 @@ public class GlobalExceptionHandler {
      * @return Un {@link ResponseEntity} que describe el error con un código de estado HTTP 500.
      */
     @ExceptionHandler(UnknownHttpStatusCodeException.class)
+    @ApiResponse(responseCode = "500", description = "El servicio externo respondió con un código de estado HTTP desconocido",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleUnknownHttpStatusCodeException(UnknownHttpStatusCodeException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
                 new Date(),
@@ -338,6 +388,8 @@ public class GlobalExceptionHandler {
      * HTTP especificado en la excepción.
      */
     @ExceptionHandler(ResponseStatusException.class)
+    @ApiResponse(responseCode = "400", description = "Petición incorrecta",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
         int statusCode = ex.getStatusCode().value();
         HttpStatus httpStatus = HttpStatus.resolve(statusCode);
@@ -369,6 +421,8 @@ public class GlobalExceptionHandler {
      * HTTP 400 (Bad Request).
      */
     @ExceptionHandler(IllegalArgumentException.class)
+    @ApiResponse(responseCode = "400", description = "Argumento de método inválido",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
                 new Date(),
@@ -394,6 +448,8 @@ public class GlobalExceptionHandler {
      * de estado HTTP 400 (Bad Request).
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ApiResponse(responseCode = "400", description = "Error de validación de datos de entrada",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, Object> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
@@ -425,6 +481,8 @@ public class GlobalExceptionHandler {
      * @return Un {@link ResponseEntity} que describe el error y un código de estado HTTP 500.
      */
     @ExceptionHandler(Exception.class)
+    @ApiResponse(responseCode = "500", description = "Error interno no especificado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     public ResponseEntity<ErrorResponse> handleAllUncaughtException(Exception ex) {
         ErrorResponse errorResponse = new ErrorResponse(
                 new Date(),

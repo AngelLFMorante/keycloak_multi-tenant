@@ -1,9 +1,9 @@
 package com.example.keycloak.multitenant.service.keycloak;
 
 import com.example.keycloak.multitenant.service.utils.KeycloakAdminService;
+import com.example.keycloak.multitenant.service.utils.KeycloakConfigService;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.core.Response;
-import java.util.List;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
@@ -23,9 +23,11 @@ public class KeycloakClientService {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakClientService.class);
     private final KeycloakAdminService keycloakAdminService;
+    private final KeycloakConfigService utilsConfigService;
 
-    public KeycloakClientService(KeycloakAdminService keycloakAdminService) {
+    public KeycloakClientService(KeycloakAdminService keycloakAdminService, KeycloakConfigService utilsConfigService) {
         this.keycloakAdminService = keycloakAdminService;
+        this.utilsConfigService = utilsConfigService;
         log.info("Servicio de cliente de administración de Keycloak inicializado.");
     }
 
@@ -34,13 +36,14 @@ public class KeycloakClientService {
      * <p>
      * Se configura un nuevo cliente con credenciales de cliente (client secret).
      *
-     * @param realmName El nombre del realm donde se creará el cliente.
-     * @param clientId  El ID del cliente a crear.
+     * @param realm    El nombre del realm donde se creará el cliente.
+     * @param clientId El ID del cliente a crear.
      * @return El client secret generado para el nuevo cliente.
      * @throws ClientErrorException si el cliente ya existe o hay un error de validación.
      */
-    public String createClient(String realmName, String clientId) {
-        log.info("Iniciando la creación del cliente '{}' en el realm '{}'.", clientId, realmName);
+    public String createClient(String realm, String clientId) {
+        log.info("Iniciando la creación del cliente '{}' en el realm '{}'.", clientId, realm);
+        String realmName = utilsConfigService.resolveRealm(realm);
         RealmResource realmResource = keycloakAdminService.getRealmResource(realmName);
 
         ClientRepresentation clientRepresentation = new ClientRepresentation();
@@ -62,8 +65,7 @@ public class KeycloakClientService {
         String createdClientId = response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
         log.info("Cliente '{}' creado con ID interno: {}.", clientId, createdClientId);
 
-        RealmResource realm = keycloakAdminService.getRealmResource(realmName);
-        CredentialRepresentation clientSecret = realm.clients().get(createdClientId)
+        CredentialRepresentation clientSecret = realmResource.clients().get(createdClientId)
                 .getSecret();
 
         log.info("Client '{}' creado con éxito. Client Secret: '{}'", clientId, clientSecret.getValue());

@@ -1,4 +1,4 @@
-package com.example.keycloak.multitenant.controller;
+package com.example.keycloak.multitenant.controller.api;
 
 import com.example.keycloak.multitenant.model.ChangePasswordRequest;
 import com.example.keycloak.multitenant.service.ChangeOwnPasswordService;
@@ -110,7 +110,7 @@ class ChangePasswordControllerTest {
         doThrow(new RuntimeException("Internal error"))
                 .when(changeOwnPasswordService)
                 .changeOwnPassword(anyString(), anyString(), anyString(), anyString(), anyString(), anyString());
-        
+
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             changePasswordController.changePassword(userId, realm, client, request);
         });

@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -43,6 +44,8 @@ class UserServiceTest {
 
     @Mock
     private KeycloakUserService keycloakUserService;
+    @Mock
+    private RegistrationFlowService registrationFlowService;
 
     @InjectMocks
     private UserService userService;
@@ -66,6 +69,8 @@ class UserServiceTest {
     @DisplayName("registerUser debería crear usuario si realm existe y email no está registrado")
     void registerUser_shouldCreateUserSuccessfully() {
         when(keycloakUserService.userExistsByEmail(anyString(), anyString())).thenReturn(false);
+        doNothing().when(registrationFlowService)
+                .startSetPasswordFlow("plexus", null, userRequest);
 
         Map<String, Object> response = userService.registerUser(realm, userRequest);
 

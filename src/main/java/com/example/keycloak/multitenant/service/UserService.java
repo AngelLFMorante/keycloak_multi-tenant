@@ -4,7 +4,11 @@ import com.example.keycloak.multitenant.model.user.UserRequest;
 import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.user.UserWithRoles;
 import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
+import com.example.keycloak.multitenant.security.PasswordTokenProvider;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakUserService;
+import com.example.keycloak.multitenant.service.mail.MailService;
+import jakarta.mail.MessagingException;
+import org.springframework.beans.factory.annotation.Value;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
@@ -29,15 +33,20 @@ public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
     private final KeycloakUserService keycloakUserService;
+    private final RegistrationFlowService registrationFlowService;
 
+    @Value("${app.base-url}")
+    private String baseUrl;
 
     /**
      * Constructor para la inyeccion de dependencias.
      *
-     * @param keycloakUserService Servicio de bajo nivel para operaciones CRUD en Keycloak.
+     * @param keycloakUserService     Servicio de bajo nivel para operaciones CRUD en Keycloak.
+     * @param registrationFlowService Servicio de token y email
      */
-    public UserService(KeycloakUserService keycloakUserService) {
+    public UserService(KeycloakUserService keycloakUserService, RegistrationFlowService registrationFlowService) {
         this.keycloakUserService = keycloakUserService;
+        this.registrationFlowService = registrationFlowService;
         log.info("UserService inicializado.");
     }
 
@@ -62,7 +71,9 @@ public class UserService {
         }
 
         String tempPassword = generateTemporaryPassword();
-        keycloakUserService.createUserWithRole(realmPath, request, tempPassword);
+        String userId = keycloakUserService.createUserWithRole(realmPath, request, tempPassword);
+
+        registrationFlowService.startSetPasswordFlow(realmPath, userId, request);
 
         log.info("Usuario '{}' registrado exitosamente en el realm '{}'.", request.username(), realmPath);
 
@@ -73,6 +84,12 @@ public class UserService {
 
         return response;
     }
+
+    public void enableAndVerifyEmail(String realm, String userId) {
+        log.info("Habilitando usuario '{}' y marcando email como verificado en realm '{}'.", userId, realm);
+        keycloakUserService.enableUserAndVerifyEmail(realm, userId);
+    }
+
 
     /**
      * Genera una contraseña temporal segura de 12 caracteres utilizando una mezcla
