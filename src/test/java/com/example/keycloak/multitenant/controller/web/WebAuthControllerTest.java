@@ -72,6 +72,7 @@ class WebAuthControllerTest {
     private final String CLIENT = "test-client";
     private final String USERNAME = "user";
     private final String PASSWORD = "password";
+    private final String REDIRECT_URL = "https://miapp.com";
 
     @BeforeEach
     void setUp() {
@@ -83,7 +84,7 @@ class WebAuthControllerTest {
     void showLoginPage_noError_shouldReturnLoginView() {
         Model model = new ExtendedModelMap();
 
-        String viewName = webAuthController.showLoginPage(REALM, CLIENT, null, model);
+        String viewName = webAuthController.showLoginPage(REALM, CLIENT, REDIRECT_URL, null, model);
 
         assertEquals("login", viewName);
         assertEquals(REALM, model.getAttribute("tenantId"));
@@ -96,7 +97,7 @@ class WebAuthControllerTest {
         Model model = new ExtendedModelMap();
         String error = "Credenciales inválidas";
 
-        String viewName = webAuthController.showLoginPage(REALM, CLIENT, error, model);
+        String viewName = webAuthController.showLoginPage(REALM, CLIENT, REDIRECT_URL, error, model);
 
         assertEquals("login", viewName);
         assertEquals(REALM, model.getAttribute("tenantId"));
@@ -119,9 +120,10 @@ class WebAuthControllerTest {
         when(authenticationManager.authenticate(any(Authentication.class))).thenReturn(authentication);
         when(request.getSession(true)).thenReturn(session);
 
-        String viewName = webAuthController.processLogin(REALM, CLIENT, USERNAME, PASSWORD, request, response, model);
+        String viewName = webAuthController.processLogin(REALM, CLIENT, USERNAME, PASSWORD, REDIRECT_URL, request, response, model);
 
-        assertEquals("redirect:/test-realm/home", viewName);
+        // assertEquals("redirect:/test-realm/home", viewName);
+        assertEquals("redirect:" + REDIRECT_URL, viewName);
         verify(session).setAttribute("realm", REALM);
         verify(session).setAttribute("client", CLIENT);
         verify(session).setAttribute("loginResponse", loginResponse);
@@ -135,7 +137,7 @@ class WebAuthControllerTest {
         when(loginService.authenticate(REALM, CLIENT, USERNAME, PASSWORD))
                 .thenThrow(new RuntimeException("Credenciales inválidas"));
 
-        String viewName = webAuthController.processLogin(REALM, CLIENT, USERNAME, PASSWORD, request, response, model);
+        String viewName = webAuthController.processLogin(REALM, CLIENT, USERNAME, PASSWORD, REDIRECT_URL, request, response, model);
 
         assertEquals("login", viewName);
         assertEquals(REALM, model.getAttribute("tenantId"));
