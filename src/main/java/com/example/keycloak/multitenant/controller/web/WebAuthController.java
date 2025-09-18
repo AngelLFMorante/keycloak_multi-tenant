@@ -70,11 +70,14 @@ public class WebAuthController {
             @PathVariable String realm,
             @Parameter(description = "El ID del cliente de Keycloak.", required = true)
             @PathVariable String client,
+            @Parameter(description = "URL para redireccionar después del login.", required = false)
+            @RequestParam(required = false) String url,
             @Parameter(description = "Mensaje de error opcional.", required = false)
             @RequestParam(value = "error", required = false) String error,
             Model model) {
         model.addAttribute("tenantId", realm);
         model.addAttribute("clientId", client);
+        model.addAttribute("redirectUrl", url);
         if (error != null) {
             model.addAttribute("error", error);
         }
@@ -114,6 +117,8 @@ public class WebAuthController {
             @RequestParam String username,
             @Parameter(description = "La contraseña del usuario.", required = true)
             @RequestParam String password,
+            @Parameter(description = "redireccionamiento de url especifica según cliente", required = false)
+            @RequestParam String url,
             HttpServletRequest request,
             HttpServletResponse response,
             Model model) {
@@ -146,7 +151,16 @@ public class WebAuthController {
             session.setAttribute("loginResponse", loginResponse);
 
             log.info("Login web exitoso para '{}'", loginResponse.getPreferredUsername());
-            return "redirect:/" + realm + "/home";
+            if (url != null && !url.isBlank()) {
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    return "redirect:" + url;
+                } else {
+                    log.warn("La URL de redireccionamiento no es absoluta. Redirigiendo a la página de inicio por defecto.");
+                    return "redirect:/" + realm + "/home";
+                }
+            } else {
+                return "redirect:/" + realm + "/home";
+            }
 
         } catch (Exception ex) {
             log.error("Error al autenticar usuario '{}' en realm '{}': {}", username, realm, ex.getMessage());
