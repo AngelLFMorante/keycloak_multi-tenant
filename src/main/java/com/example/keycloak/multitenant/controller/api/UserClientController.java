@@ -2,6 +2,7 @@ package com.example.keycloak.multitenant.controller.api;
 
 import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.user.UserWithDetailedClientRoles;
+import com.example.keycloak.multitenant.model.user.UserWithDetailedRolesAndAttributes;
 import com.example.keycloak.multitenant.model.user.UserWithRoles;
 import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.UserClientService;
@@ -42,7 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "User Management", description = "Operaciones para la gestion de usuarios en Keycloak.")
 public class UserClientController {
 
-    private static Logger log = LoggerFactory.getLogger(UserController.class);
+    private static Logger log = LoggerFactory.getLogger(UserClientController.class);
 
     private final UserService userService;
     private final UserClientService userClientService;
@@ -115,12 +116,12 @@ public class UserClientController {
         return ResponseEntity.ok(userDetails);
     }
 
+
     /**
      * Endpoint para obtener un usuario por su email y sus roles de cliente.
      *
-     * @param realm    El nombre del realm (tenant).
-     * @param clientId El ID del cliente.
-     * @param email    El correo electrónico del usuario a buscar.
+     * @param realm El nombre del realm (tenant).
+     * @param email El correo electrónico del usuario a buscar.
      * @return Una {@link ResponseEntity} con el objeto {@link UserWithDetailedClientRoles}.
      */
     @Operation(
@@ -137,13 +138,11 @@ public class UserClientController {
     public ResponseEntity<UserWithDetailedClientRoles> getUserByEmail(
             @Parameter(description = "El nombre del realm.")
             @PathVariable String realm,
-            @Parameter(description = "El ID del cliente.")
-            @RequestParam(required = true) String clientId,
             @Parameter(description = "El email del usuario a obtener.")
             @PathVariable String email) {
-        log.info("Iniciando solicitud para obtener el usuario con el email '{}' del cliente '{}' en el realm '{}'.", email, clientId, realm);
-        UserWithDetailedClientRoles userDetails = userClientService.getUserByEmailWithClientRoles(realm, clientId, email);
-        log.info("Usuario con email '{}' y roles de cliente recuperados exitosamente del cliente '{}'.", email, clientId);
+        log.info("Iniciando solicitud para obtener el usuario con el email '{}' del cliente en el realm '{}'.", email, realm);
+        UserWithDetailedClientRoles userDetails = userClientService.getUserByEmailWithClientRoles(realm, email);
+        log.info("Usuario con email '{}' y roles de cliente.", email);
         return ResponseEntity.ok(userDetails);
     }
 
@@ -170,7 +169,7 @@ public class UserClientController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/attributes")
-    public ResponseEntity<List<UserWithRolesAndAttributes>> getUsersByAttributes(
+    public ResponseEntity<List<UserWithDetailedRolesAndAttributes>> getUsersByAttributes(
             @Parameter(description = "El nombre del realm.")
             @PathVariable String realm,
             @Parameter(description = "Filtra por la organización.")
@@ -182,7 +181,7 @@ public class UserClientController {
         log.info("Solicitud de busqueda por atributos para el realm '{}'", realm);
         log.debug("Criterios de búsqueda recibidos: organizacion='{}', filial='{}', departamento='{}'.", organization, subsidiary, department);
         UserSearchCriteria criteria = new UserSearchCriteria(organization, subsidiary, department);
-        List<UserWithRolesAndAttributes> users = userService.getUsersByAttributes(realm, criteria);
+        List<UserWithDetailedRolesAndAttributes> users = userClientService.getUsersByAttributes(realm, criteria);
         log.info("Busqueda completada. {} usuarios encontrados.", users.size());
         return ResponseEntity.ok(users);
     }

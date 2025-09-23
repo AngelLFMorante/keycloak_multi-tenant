@@ -1,8 +1,11 @@
 package com.example.keycloak.multitenant.service;
 
 import com.example.keycloak.multitenant.model.user.UserRequest;
+import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.user.UserWithDetailedClientRoles;
+import com.example.keycloak.multitenant.model.user.UserWithDetailedRolesAndAttributes;
 import com.example.keycloak.multitenant.model.user.UserWithRoles;
+import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakClientUserService;
 import java.security.SecureRandom;
 import java.util.HashMap;
@@ -77,7 +80,29 @@ public class UserClientService {
         return sb.toString();
     }
 
-    public UserWithDetailedClientRoles getUserByEmailWithClientRoles(String realm, String clientId, String email) {
-        return null;
+    public UserWithDetailedClientRoles getUserByEmailWithClientRoles(String realm, String email) {
+        log.info("Procesando la solicitud para obtener detalles del usuario con email '{}' en el realm '{}'.", email, realm);
+
+        UserWithDetailedClientRoles userDetails = keycloakClientUserService.getUserByEmailWithRoles(realm, email);
+
+        log.debug("Detalles de usuario obtenidos exitosamente para el email '{}'.", email);
+        return userDetails;
+    }
+
+    /**
+     * Busca usuarios por atributos personalizados dentro de un tenant específico.
+     * Delega la búsqueda a la capa de servicio de Keycloak y maneja la resolución del realm.
+     *
+     * @param realm    El nombre del tenant (realm) a buscar.
+     * @param criteria Los criterios de búsqueda (organización, filial, departamento).
+     * @return Una lista de usuarios que coinciden con los criterios.
+     */
+    public List<UserWithDetailedRolesAndAttributes> getUsersByAttributes(String realm, UserSearchCriteria criteria) {
+        log.info("Iniciando la búsqueda de usuarios por atributos para el tenant '{}'.", realm);
+
+        List<UserWithDetailedRolesAndAttributes> users = keycloakClientUserService.getUsersByAttributes(realm, criteria);
+
+        log.info("Búsqueda completada. Se encontraron {} usuarios.", users.size());
+        return users;
     }
 }
