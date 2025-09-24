@@ -45,17 +45,14 @@ public class UserClientController {
 
     private static Logger log = LoggerFactory.getLogger(UserClientController.class);
 
-    private final UserService userService;
     private final UserClientService userClientService;
 
     /**
      * Constructor para la inyección de dependencias.
      *
-     * @param userService       El servicio de usuarios que maneja la lógica de negocio general.
      * @param userClientService El servicio de usuarios que maneja la lógica de negocio de roles de cliente.
      */
-    public UserClientController(UserService userService, UserClientService userClientService) {
-        this.userService = userService;
+    public UserClientController(UserClientService userClientService) {
         this.userClientService = userClientService;
         log.info("UserController inicializado.");
     }

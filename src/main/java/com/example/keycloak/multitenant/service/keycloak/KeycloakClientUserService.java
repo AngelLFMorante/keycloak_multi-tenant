@@ -75,22 +75,7 @@ public class KeycloakClientUserService {
 
         return userRepresentations.stream()
                 .map(userRep -> {
-                    List<Map<String, List<String>>> allClientRoleNames = allClients.stream()
-                            .map(client -> {
-                                try {
-                                    String clientUuid = client.getId();
-                                    List<RoleRepresentation> clientRoles = usersResource.get(userRep.getId()).roles().clientLevel(clientUuid).listAll();
-                                    if (!clientRoles.isEmpty()) {
-                                        List<String> roleNames = clientRoles.stream().map(RoleRepresentation::getName).toList();
-                                        return Map.of(client.getClientId(), roleNames);
-                                    }
-                                } catch (WebApplicationException e) {
-                                    log.error("Error al obtener roles para el usuario '{}': Status={}", userRep.getId(), e.getResponse().getStatus(), e);
-                                }
-                                return null;
-                            })
-                            .filter(Objects::nonNull)
-                            .toList();
+                    List<Map<String, List<String>>> allClientRoleNames = getClientRolesForUser(userRep.getId(), usersResource, allClients);
 
                     return new UserWithDetailedClientRoles(
                             userRep.getId(),
@@ -129,28 +114,10 @@ public class KeycloakClientUserService {
         UsersResource usersResource = utilsAdminService.getRealmResource(keycloakRealm).users();
         ClientsResource clientsResource = utilsAdminService.getRealmResource(keycloakRealm).clients();
 
-        UserRepresentation user;
         try {
-            user = usersResource.get(userId).toRepresentation();
+            UserRepresentation user = usersResource.get(userId).toRepresentation();
             List<ClientRepresentation> allClients = clientsResource.findAll();
-
-            List<Map<String, List<String>>> allClientRoleNames = allClients.stream()
-                    .map(client -> {
-                        try {
-                            String clientUuid = client.getId();
-                            List<RoleRepresentation> clientRoles = usersResource.get(user.getId()).roles().clientLevel(clientUuid).listAll();
-                            if (!clientRoles.isEmpty()) {
-                                List<String> roleNames = clientRoles.stream().map(RoleRepresentation::getName).toList();
-                                return Map.of(client.getClientId(), roleNames);
-                            }
-                        } catch (WebApplicationException e) {
-                            log.error("Error al obtener roles para el usuario '{}': Status={}", user.getId(), e.getResponse().getStatus(), e);
-                        }
-                        return null;
-                    })
-                    .filter(Objects::nonNull)
-                    .toList();
-            log.debug("Usuario '{}' encontrado con roles: {}", user.getUsername(), allClientRoleNames);
+            List<Map<String, List<String>>> allClientRoleNames = getClientRolesForUser(user.getId(), usersResource, allClients);
 
             log.debug("Roles de cliente del usuario '{}': {}", userId, allClientRoleNames);
             return new UserWithDetailedClientRoles(
@@ -196,26 +163,8 @@ public class KeycloakClientUserService {
         }
 
         UserRepresentation user = users.get(0);
-
         List<ClientRepresentation> allClients = clientsResource.findAll();
-
-        List<Map<String, List<String>>> allClientRoleNames = allClients.stream()
-                .map(client -> {
-                    try {
-                        String clientUuid = client.getId();
-                        List<RoleRepresentation> clientRoles = usersResource.get(user.getId()).roles().clientLevel(clientUuid).listAll();
-                        if (!clientRoles.isEmpty()) {
-                            List<String> roleNames = clientRoles.stream().map(RoleRepresentation::getName).toList();
-                            return Map.of(client.getClientId(), roleNames);
-                        }
-                    } catch (WebApplicationException e) {
-                        log.error("Error al obtener roles para el usuario '{}': Status={}", user.getId(), e.getResponse().getStatus(), e);
-                    }
-                    return null;
-                })
-                .filter(Objects::nonNull)
-                .toList();
-
+        List<Map<String, List<String>>> allClientRoleNames = getClientRolesForUser(user.getId(), usersResource, allClients);
         log.debug("Usuario '{}' encontrado con roles: {}", user.getUsername(), allClientRoleNames);
 
         return new UserWithDetailedClientRoles(
@@ -244,9 +193,9 @@ public class KeycloakClientUserService {
 
         String keycloakRealm = utilsConfigService.resolveRealm(realm);
         log.debug("Tenant '{}' mapeado a Keycloak realm '{}'.", realm, keycloakRealm);
-
         UsersResource usersResource = utilsAdminService.getRealmResource(keycloakRealm).users();
         ClientsResource clientsResource = utilsAdminService.getRealmResource(keycloakRealm).clients();
+
         List<UserRepresentation> allUsers = usersResource.list();
         List<ClientRepresentation> allClients = clientsResource.findAll();
         log.debug("Total de usuarios encontrados en el realm '{}': {}", keycloakRealm, allUsers);
@@ -282,10 +231,37 @@ public class KeycloakClientUserService {
         );
 
         Map<String, List<String>> userAttributes = userRep.getAttributes() != null ? userRep.getAttributes() : Collections.emptyMap();
-
         log.debug("DTO creado para el usuario '{}'", userRep.getUsername());
-
         return new UserWithDetailedRolesAndAttributes(userWithRoles, userAttributes);
+    }
+
+    /**
+     * **Método reutilizable para obtener los roles de cliente de un usuario.**
+     * Este método elimina la duplicación de código.
+     *
+     * @param userId        El ID del usuario.
+     * @param usersResource El recurso de usuarios de Keycloak.
+     * @param allClients    Una lista de todos los clientes del realm (obtenida una sola vez).
+     * @return Una lista de mapas de clientes y sus roles.
+     */
+    private List<Map<String, List<String>>> getClientRolesForUser(String userId, UsersResource usersResource, List<ClientRepresentation> allClients) {
+        log.debug("Obteniendo roles para el usuario con ID: {}", userId);
+        return allClients.stream()
+                .map(client -> {
+                    try {
+                        String clientUuid = client.getId();
+                        List<RoleRepresentation> clientRoles = usersResource.get(userId).roles().clientLevel(clientUuid).listAll();
+                        if (!clientRoles.isEmpty()) {
+                            List<String> roleNames = clientRoles.stream().map(RoleRepresentation::getName).toList();
+                            return Map.of(client.getClientId(), roleNames);
+                        }
+                    } catch (WebApplicationException e) {
+                        log.error("Error al obtener roles de cliente para el usuario '{}': Status={}", userId, e.getResponse().getStatus(), e);
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     /**

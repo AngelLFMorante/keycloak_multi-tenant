@@ -221,24 +221,17 @@ public class KeycloakRoleService {
             throw new RuntimeException("Rol no encontrado: " + roleName);
         }
 
-        Map<String, List<String>> existingAttributes = role.getAttributes();
-        if (existingAttributes == null) {
-            existingAttributes = new HashMap<>();
-            log.debug("Inicializando atributos para el rol '{}'.", roleName);
-        }
+        Map<String, List<String>> existingAttributes = role.getAttributes() != null ? role.getAttributes() : new HashMap<>();
+        log.debug("Inicializando atributos para el rol '{}'.", roleName);
 
-        for (Map.Entry<String, List<String>> entry : roleAttributes.entrySet()) {
-            String key = entry.getKey();
-            List<String> value = entry.getValue();
-
+        roleAttributes.forEach((key, value) -> {
             if (!existingAttributes.containsKey(key)) {
                 log.debug("Añadiendo nuevo atributo '{}' con valores '{}'", key, value);
             } else {
                 log.debug("Actualizando atributo existente '{}' con valores '{}'", key, value);
             }
-
             existingAttributes.put(key, value);
-        }
+        });
 
         role.setAttributes(existingAttributes);
         utilsAdminService.getRealmResource(keycloakRealm).roles().get(roleName).update(role);
