@@ -128,7 +128,7 @@ public class LoginService {
             preferredUsername = claims.get("preferred_username", String.class) != null ? claims.get("preferred_username", String.class) : username;
             log.debug("Claims de usuario extraidos (desde Access Token): email={}, fullName={}, preferredUsername={}", email, fullName, preferredUsername);
 
-            Map<String, Object> realmAccess = claims.get("realm_access", Map.class);
+            /*Map<String, Object> realmAccess = claims.get("realm_access", Map.class);
             if (realmAccess != null && realmAccess.containsKey("roles")) {
                 @SuppressWarnings("unchecked")
                 List<String> realmRoles = (List<String>) realmAccess.get("roles");
@@ -136,7 +136,7 @@ public class LoginService {
                     realmRoles.forEach(role -> extractedRoles.add("ROLE_" + role.toUpperCase()));
                     log.debug("Roles de realm extraidos (desde Access Token): {}", realmRoles);
                 }
-            }
+            }*/
 
             Map<String, Object> resourceAccess = claims.get("resource_access", Map.class);
             if (resourceAccess != null && resourceAccess.containsKey(client)) {
@@ -146,7 +146,7 @@ public class LoginService {
                     @SuppressWarnings("unchecked")
                     List<String> clientRoles = (List<String>) clientAccess.get("roles");
                     if (clientRoles != null) {
-                        clientRoles.forEach(role -> extractedRoles.add("ROLE_" + role.toUpperCase()));
+                        clientRoles.forEach(role -> extractedRoles.add(role.toUpperCase()));
                         log.debug("Roles de cliente '{}' extraidos (desde Access Token): {}", client, clientRoles);
                     }
                 }
