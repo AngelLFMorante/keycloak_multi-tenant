@@ -4,7 +4,9 @@ import com.example.keycloak.multitenant.model.user.UserSearchCriteria;
 import com.example.keycloak.multitenant.model.user.UserWithDetailedClientRoles;
 import com.example.keycloak.multitenant.model.user.UserWithDetailedRolesAndAttributes;
 import com.example.keycloak.multitenant.model.user.UserWithRoles;
+import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
 import com.example.keycloak.multitenant.service.keycloak.KeycloakClientUserService;
+import com.example.keycloak.multitenant.service.keycloak.KeycloakUserClientEndPointService;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Random;
@@ -17,19 +19,16 @@ import org.springframework.stereotype.Service;
  * Este servicio orquesta operaciones de registro, actualizacion, y consulta,
  * delegando toda la interaccion con Keycloak a KeycloakClientUserService.
  * <p>
- * !Mantengo servicio orquestador por si luego quieren todos los clientes de roles por usuario
+ * !Servicio Orquestador para obtener los roles de un cliente por usuario
  */
 @Service
-public class UserClientService {
+public class UserClientEndPointService {
 
-    private static final Logger log = LoggerFactory.getLogger(UserClientService.class);
-    private final KeycloakClientUserService keycloakClientUserService;
-    private final RegistrationFlowService registrationFlowService;
+    private static final Logger log = LoggerFactory.getLogger(UserClientEndPointService.class);
+    private final KeycloakUserClientEndPointService keycloakClientUserService;
 
-    public UserClientService(KeycloakClientUserService keycloakClientUserService,
-                             RegistrationFlowService registrationFlowService) {
+    public UserClientEndPointService(KeycloakUserClientEndPointService keycloakClientUserService) {
         this.keycloakClientUserService = keycloakClientUserService;
-        this.registrationFlowService = registrationFlowService;
         log.info("UserClientService inicializado.");
     }
 
@@ -39,9 +38,9 @@ public class UserClientService {
      * @param realm El nombre público del tenant.
      * @return Una lista de {@link UserWithRoles} con los detalles de cada usuario.
      */
-    public List<UserWithDetailedClientRoles> getAllUsersWithClientRoles(String realm) {
-        log.info("Procesando la solicitud para obtener todos los usuarios del tenant '{}' con roles.", realm);
-        List<UserWithDetailedClientRoles> users = keycloakClientUserService.getAllUsersWithRoles(realm);
+    public List<UserWithRoles> getAllUsersWithClientRoles(String realm, String clientId) {
+        log.info("Procesando la solicitud para obtener todos los usuarios del tenant '{}' y client '{}' con roles.", realm, clientId);
+        List<UserWithRoles> users = keycloakClientUserService.getAllUsersWithRoles(realm, clientId);
         log.info("Se han obtenido {} usuarios con sus roles.", users.size());
         return users;
     }
@@ -52,12 +51,12 @@ public class UserClientService {
      *
      * @param realm  El nombre público del tenant.
      * @param userId El ID único del usuario en Keycloak.
-     * @return Un objeto {@link UserWithDetailedClientRoles} que contiene los detalles del usuario
+     * @return Un objeto {@link UserWithRoles} que contiene los detalles del usuario
      * y una lista de sus roles.
      */
-    public UserWithDetailedClientRoles getUserById(String realm, String userId) {
-        log.info("Procesando la solicitud para obtener detalles del usuario con ID '{}' del tenant '{}'.", userId, realm);
-        UserWithDetailedClientRoles userDetails = keycloakClientUserService.getUserByIdWithClientRoles(realm, userId);
+    public UserWithRoles getUserById(String realm, String clientId, String userId) {
+        log.info("Procesando la solicitud para obtener detalles del usuario con ID '{}' del cliente {} del tenant '{}'.", userId, clientId, realm);
+        UserWithRoles userDetails = keycloakClientUserService.getUserByIdWithClientRoles(realm, clientId, userId);
         log.debug("Detalles de usuario obtenidos exitosamente para el ID '{}'.", userId);
         return userDetails;
     }
@@ -78,10 +77,10 @@ public class UserClientService {
         return sb.toString();
     }
 
-    public UserWithDetailedClientRoles getUserByEmailWithClientRoles(String realm, String email) {
+    public UserWithRoles getUserByEmailWithClientRoles(String realm, String clientId, String email) {
         log.info("Procesando la solicitud para obtener detalles del usuario con email '{}' en el realm '{}'.", email, realm);
 
-        UserWithDetailedClientRoles userDetails = keycloakClientUserService.getUserByEmailWithRoles(realm, email);
+        UserWithRoles userDetails = keycloakClientUserService.getUserByEmailWithRoles(realm, clientId, email);
 
         log.debug("Detalles de usuario obtenidos exitosamente para el email '{}'.", email);
         return userDetails;
@@ -95,10 +94,10 @@ public class UserClientService {
      * @param criteria Los criterios de búsqueda (organización, filial, departamento).
      * @return Una lista de usuarios que coinciden con los criterios.
      */
-    public List<UserWithDetailedRolesAndAttributes> getUsersByAttributes(String realm, UserSearchCriteria criteria) {
+    public List<UserWithRolesAndAttributes> getUsersByAttributes(String realm, String clientId, UserSearchCriteria criteria) {
         log.info("Iniciando la búsqueda de usuarios por atributos para el tenant '{}'.", realm);
 
-        List<UserWithDetailedRolesAndAttributes> users = keycloakClientUserService.getUsersByAttributes(realm, criteria);
+        List<UserWithRolesAndAttributes> users = keycloakClientUserService.getUsersByAttributes(realm, clientId, criteria);
 
         log.info("Búsqueda completada. Se encontraron {} usuarios.", users.size());
         return users;

@@ -5,6 +5,7 @@ import com.example.keycloak.multitenant.model.user.UserWithDetailedClientRoles;
 import com.example.keycloak.multitenant.model.user.UserWithDetailedRolesAndAttributes;
 import com.example.keycloak.multitenant.model.user.UserWithRoles;
 import com.example.keycloak.multitenant.model.user.UserWithRolesAndAttributes;
+import com.example.keycloak.multitenant.service.UserClientEndPointService;
 import com.example.keycloak.multitenant.service.UserClientService;
 import com.example.keycloak.multitenant.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Proporciona endpoints para registrar, obtener, actualizar y eliminar usuarios.
  * Las operaciones relacionadas con roles ahora se delegan a {@link UserClientService}.
  * <p>
- * !Mantengo este controlador por si luego cambian la forma de recuperar datos con todos los clientes
+ * !Solo se recibe un cliente y sus roles por usuario
  *
  * @author Angel Fm
  * @version 1.0
@@ -41,21 +42,21 @@ import org.springframework.web.bind.annotation.RestController;
  * @see UserClientService
  */
 @RestController
-@RequestMapping("/api/v1/{realm}/pruebas")
+@RequestMapping("/api/v1/{realm}/users/client/{clientId}")
 @Tag(name = "User Management", description = "Operaciones para la gestion de usuarios en Keycloak.")
-public class UserClientController {
+public class UserClientEndPointController {
 
-    private static Logger log = LoggerFactory.getLogger(UserClientController.class);
+    private static Logger log = LoggerFactory.getLogger(UserClientEndPointController.class);
 
-    private final UserClientService userClientService;
+    private final UserClientEndPointService userClientEndPointService;
 
     /**
      * Constructor para la inyección de dependencias.
      *
-     * @param userClientService El servicio de usuarios que maneja la lógica de negocio de roles de cliente.
+     * @param userClientEndPointService El servicio de usuarios que maneja la lógica de negocio de roles de cliente.
      */
-    public UserClientController(UserClientService userClientService) {
-        this.userClientService = userClientService;
+    public UserClientEndPointController(UserClientEndPointService userClientEndPointService) {
+        this.userClientEndPointService = userClientEndPointService;
         log.info("UserController inicializado.");
     }
 
@@ -76,11 +77,13 @@ public class UserClientController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping
-    public ResponseEntity<List<UserWithDetailedClientRoles>> getAllUsers(
+    public ResponseEntity<List<UserWithRoles>> getAllUsers(
             @Parameter(description = "El nombre del tenant (realm).")
-            @PathVariable String realm) {
-        log.info("Solicitud para obtener todos los usuarios del tenant: {} con roles.", realm);
-        List<UserWithDetailedClientRoles> users = userClientService.getAllUsersWithClientRoles(realm);
+            @PathVariable String realm,
+            @Parameter(description = "El client id")
+            @PathVariable String clientId) {
+        log.info("Solicitud para obtener todos los usuarios del tenant: {} y client {} con roles.", realm, clientId);
+        List<UserWithRoles> users = userClientEndPointService.getAllUsersWithClientRoles(realm, clientId);
         log.info("Lista de {} usuarios obtenida con éxito.", users.size());
         return ResponseEntity.ok(users);
     }
@@ -104,13 +107,15 @@ public class UserClientController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/{userId}")
-    public ResponseEntity<UserWithDetailedClientRoles> getUserById(
+    public ResponseEntity<UserWithRoles> getUserById(
             @Parameter(description = "El nombre del tenant (realm).")
             @PathVariable String realm,
+            @Parameter(description = "El client id")
+            @PathVariable String clientId,
             @Parameter(description = "El ID del usuario a obtener.")
             @PathVariable UUID userId) {
-        log.info("Iniciando solicitud para obtener el usuario con ID '{}' en el tenant '{}'.", userId, realm);
-        UserWithDetailedClientRoles userDetails = userClientService.getUserById(realm, userId.toString());
+        log.info("Iniciando solicitud para obtener el usuario con ID '{}' del cliente {} en el tenant '{}'.", userId, clientId, realm);
+        UserWithRoles userDetails = userClientEndPointService.getUserById(realm, clientId, userId.toString());
         log.info("Usuario con ID '{}' y roles de cliente.", userId);
         return ResponseEntity.ok(userDetails);
     }
@@ -134,13 +139,15 @@ public class UserClientController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/email/{email}")
-    public ResponseEntity<UserWithDetailedClientRoles> getUserByEmail(
+    public ResponseEntity<UserWithRoles> getUserByEmail(
             @Parameter(description = "El nombre del realm.")
             @PathVariable String realm,
+            @Parameter(description = "El client id")
+            @PathVariable String clientId,
             @Parameter(description = "El email del usuario a obtener.")
             @PathVariable String email) {
-        log.info("Iniciando solicitud para obtener el usuario con el email '{}' del cliente en el realm '{}'.", email, realm);
-        UserWithDetailedClientRoles userDetails = userClientService.getUserByEmailWithClientRoles(realm, email);
+        log.info("Iniciando solicitud para obtener el usuario con el email '{}' del cliente {} en el realm '{}'.", email, clientId, realm);
+        UserWithRoles userDetails = userClientEndPointService.getUserByEmailWithClientRoles(realm, clientId, email);
         log.info("Usuario con email '{}' y roles de cliente.", email);
         return ResponseEntity.ok(userDetails);
     }
@@ -155,7 +162,7 @@ public class UserClientController {
      * @param organization Atributo de la organización para filtrar.
      * @param subsidiary   Atributo de la filial para filtrar.
      * @param department   Atributo del departamento para filtrar.
-     * @return Una {@link ResponseEntity} que contiene una lista de {@link UserWithRolesAndAttributes}.
+     * @return Una {@link ResponseEntity} que contiene una lista de {@link UserWithRoles}.
      */
     @Operation(
             summary = "Obtiene usuarios por atributos personalizados",
@@ -168,9 +175,11 @@ public class UserClientController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/attributes")
-    public ResponseEntity<List<UserWithDetailedRolesAndAttributes>> getUsersByAttributes(
+    public ResponseEntity<List<UserWithRolesAndAttributes>> getUsersByAttributes(
             @Parameter(description = "El nombre del realm.")
             @PathVariable String realm,
+            @Parameter(description = "El client id")
+            @PathVariable String clientId,
             @Parameter(description = "Filtra por la organización.")
             @RequestParam(required = false) String organization,
             @Parameter(description = "Filtra por la filial.")
@@ -180,7 +189,7 @@ public class UserClientController {
         log.info("Solicitud de busqueda por atributos para el realm '{}'", realm);
         log.debug("Criterios de búsqueda recibidos: organizacion='{}', filial='{}', departamento='{}'.", organization, subsidiary, department);
         UserSearchCriteria criteria = new UserSearchCriteria(organization, subsidiary, department);
-        List<UserWithDetailedRolesAndAttributes> users = userClientService.getUsersByAttributes(realm, criteria);
+        List<UserWithRolesAndAttributes> users = userClientEndPointService.getUsersByAttributes(realm, clientId, criteria);
         log.info("Busqueda completada. {} usuarios encontrados.", users.size());
         return ResponseEntity.ok(users);
     }
